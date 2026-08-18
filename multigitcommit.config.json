@@ -1,7 +1,8 @@
 {
   "RemoteUrls": [
     "https://cnb.cool/YYLMZXC/MultiGitCommit",
-    "https://gitee.com/yylmzxc/multi-git-commit"
+    "https://gitee.com/yylmzxc/multi-git-commit",
+    "https://github.com/YYLMZXC/MultiGitCommit"
   ],
   "CheckAddAll": true,
   "CheckPushTags": true
