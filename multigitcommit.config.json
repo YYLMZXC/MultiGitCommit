@@ -5,5 +5,5 @@
     "https://github.com/YYLMZXC/MultiGitCommit"
   ],
   "CheckAddAll": true,
-  "CheckPushTags": true
+  "CheckPushTags": false
 }
