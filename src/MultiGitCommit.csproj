@@ -11,6 +11,8 @@
     <AssemblyName>MultiGitCommit</AssemblyName>
     <Platforms>AnyCPU;x64</Platforms>
     <Version>1.0.0</Version>
+    <!-- 应用程序图标：嵌入到 .exe 资源中，作为文件图标与任务栏图标。 -->
+    <ApplicationIcon>res\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!-- 文件夹选择对话框使用 System.Windows.Forms.FolderBrowserDialog；
@@ -20,6 +22,14 @@
   <ItemGroup>
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+  <!-- 软件图标资源：ico 嵌入 WPF 资源供 Window.Icon 引用；png 复制到输出目录备用。 -->
+  <ItemGroup>
+    <Resource Include="res\icon.ico" />
+    <None Include="res\icon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
