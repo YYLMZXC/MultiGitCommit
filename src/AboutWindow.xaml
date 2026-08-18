@@ -1,0 +1,57 @@
+<Window x:Class="MultiGitCommit.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="关于 MultiGitCommit"
+        Width="480" Height="360"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Microsoft YaHei UI" FontSize="13"
+        ShowInTaskbar="False">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
+            <TextBlock Text="MultiGitCommit" FontSize="20" FontWeight="Bold" Foreground="#2B579A"/>
+            <TextBlock Text="  v1.0.0" FontSize="13" Foreground="#888888" VerticalAlignment="Bottom" Margin="4,0,0,3"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Text="个人自用的 Git 一键提交推送工具（WPF，仅 Windows 平台）。" 
+                   TextAlignment="Center" TextWrapping="Wrap" Foreground="#555555" Margin="0,0,0,14"/>
+
+        <GroupBox Grid.Row="2" Header="项目地址" Padding="8">
+            <StackPanel Margin="4">
+                <TextBlock Text="Gitee" FontWeight="Bold" Foreground="#555555"/>
+                <TextBlock Margin="8,2,0,8">
+                    <Hyperlink NavigateUri="https://gitee.com/yylmzxc/multi-git-commit" RequestNavigate="Hyperlink_RequestNavigate">
+                        <Run Text="https://gitee.com/yylmzxc/multi-git-commit"/>
+                    </Hyperlink>
+                </TextBlock>
+
+                <TextBlock Text="cnb.cool" FontWeight="Bold" Foreground="#555555"/>
+                <TextBlock Margin="8,2,0,8">
+                    <Hyperlink NavigateUri="https://cnb.cool/YYLMZXC/MultiGitCommit" RequestNavigate="Hyperlink_RequestNavigate">
+                        <Run Text="https://cnb.cool/YYLMZXC/MultiGitCommit"/>
+                    </Hyperlink>
+                </TextBlock>
+
+                <TextBlock Text="GitHub" FontWeight="Bold" Foreground="#555555"/>
+                <TextBlock Margin="8,2,0,0">
+                    <Hyperlink NavigateUri="https://github.com/YYLMZXC/MultiGitCommit" RequestNavigate="Hyperlink_RequestNavigate">
+                        <Run Text="https://github.com/YYLMZXC/MultiGitCommit"/>
+                    </Hyperlink>
+                </TextBlock>
+            </StackPanel>
+        </GroupBox>
+
+        <StackPanel Grid.Row="4" HorizontalAlignment="Center" Margin="0,14,0,0">
+            <Button Content="确定" Width="90" IsDefault="True" Click="BtnOk_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

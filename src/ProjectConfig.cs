@@ -28,9 +28,9 @@ namespace MultiGitCommit
         [JsonPropertyName("CheckAddAll")]
         public bool CheckAddAll { get; set; } = false;
 
-        /// <summary>推送时是否追加 --tags（默认为 true）。</summary>
+        /// <summary>推送时是否追加 --tags（默认为 false，避免误推送本地标签）。</summary>
         [JsonPropertyName("CheckPushTags")]
-        public bool CheckPushTags { get; set; } = true;
+        public bool CheckPushTags { get; set; } = false;
 
         /// <summary>配置文件完整路径（仓库根目录 + 文件名）。</summary>
         [JsonIgnore]

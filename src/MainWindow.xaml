@@ -37,6 +37,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="仓库目录：" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBox x:Name="TxtRepoPath" Grid.Column="1" VerticalContentAlignment="Center"
@@ -45,6 +46,8 @@
             <Button x:Name="BtnBrowse" Grid.Column="2" Content="选择文件夹" Click="BtnBrowse_Click" Margin="6,2,4,2"/>
             <Button x:Name="BtnLoadConfig" Grid.Column="3" Content="重新加载配置" Click="BtnLoadConfig_Click" Margin="4,2,0,2"
                     ToolTip="重新读取当前目录下的 multigitcommit.config.json"/>
+            <Button x:Name="BtnAbout" Grid.Column="4" Content="关于" Click="BtnAbout_Click" Margin="4,2,0,2"
+                    ToolTip="关于 MultiGitCommit 及项目地址"/>
         </Grid>
 
         <!-- ============ 二、远端地址管理区域 ============ -->
@@ -84,7 +87,7 @@
                 <StackPanel Grid.Row="1" Orientation="Horizontal">
                     <CheckBox x:Name="ChkAddAll" Content="执行 git add . （默认不勾选，避免误提交垃圾文件）" Margin="0,2,20,2" VerticalAlignment="Center"
                               Checked="ChkAddAll_Changed" Unchecked="ChkAddAll_Changed"/>
-                    <CheckBox x:Name="ChkPushTags" Content="推送标签 --tags（默认勾选）" Margin="0,2,0,2" VerticalAlignment="Center"
+                    <CheckBox x:Name="ChkPushTags" Content="推送标签 --tags（默认不勾选）" Margin="0,2,0,2" VerticalAlignment="Center"
                               Checked="ChkPushTags_Changed" Unchecked="ChkPushTags_Changed"/>
                 </StackPanel>
             </Grid>

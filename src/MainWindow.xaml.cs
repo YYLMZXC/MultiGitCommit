@@ -173,7 +173,7 @@ namespace MultiGitCommit
             {
                 ListRemotes.Items.Clear();
                 ChkAddAll.IsChecked = false;
-                ChkPushTags.IsChecked = true;
+                ChkPushTags.IsChecked = false;
                 TxtBranchInfo.Text = string.Empty;
                 BtnEditRemote.IsEnabled = false;
                 BtnDeleteRemote.IsEnabled = false;
@@ -298,6 +298,12 @@ namespace MultiGitCommit
         {
             _pathDebounce.Stop();
             LoadConfigFromPath();
+        }
+
+        /// <summary>打开“关于”窗口，展示软件信息与项目地址。</summary>
+        private void BtnAbout_Click(object sender, RoutedEventArgs e)
+        {
+            new AboutWindow { Owner = this }.ShowDialog();
         }
 
         // ==================== 远端地址管理事件 ====================
