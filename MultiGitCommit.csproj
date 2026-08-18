@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace>MultiGitCommit</RootNamespace>
+    <AssemblyName>MultiGitCommit</AssemblyName>
+    <Platforms>AnyCPU;x64</Platforms>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <!-- 文件夹选择对话框使用 System.Windows.Forms.FolderBrowserDialog；
+       通过 <UseWindowsForms>true</UseWindowsForms> 引用 System.Windows.Forms 程序集（SDK 自动处理，无需显式 Reference）。
+       但 SDK 会隐式全局引入 System.Windows.Forms / System.Drawing 命名空间，导致与 WPF 类型（Application/Button/TextBox 等）歧义，
+       因此在此移除隐式 using，仅在 MainWindow.xaml.cs 中用别名显式引入 FolderBrowserDialog。 -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+  </ItemGroup>
+
+</Project>
