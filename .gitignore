@@ -1,0 +1,25 @@
+# ===== 构建产物 =====
+bin/
+obj/
+publish/
+artifacts/
+*.exe
+*.dll
+*.pdb
+*.cache
+
+# ===== IDE 用户设置 =====
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ===== 日志 / 临时文件 =====
+*.log
+*.tmp
+*.temp
+Thumbs.db
+Desktop.ini
