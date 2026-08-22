@@ -177,6 +177,7 @@ namespace MultiGitCommit
                 TxtBranchInfo.Text = string.Empty;
                 BtnEditRemote.IsEnabled = false;
                 BtnDeleteRemote.IsEnabled = false;
+                BtnOpenRemote.IsEnabled = false;
 
                 if (string.IsNullOrWhiteSpace(path))
                     return;
@@ -313,6 +314,7 @@ namespace MultiGitCommit
             bool hasSelection = ListRemotes.SelectedIndex >= 0;
             BtnEditRemote.IsEnabled = hasSelection;
             BtnDeleteRemote.IsEnabled = hasSelection;
+            BtnOpenRemote.IsEnabled = hasSelection;
         }
 
         /// <summary>添加远端 URL，并自动保存到项目目录 multigitcommit.config.json。</summary>
@@ -351,6 +353,36 @@ namespace MultiGitCommit
             RefreshRemoteList();
             Log($"已修改远端：{oldUrl} → {text}");
             SaveConfig();
+        }
+
+        /// <summary>在系统默认浏览器中打开选中的远端 URL。</summary>
+        private void BtnOpenRemote_Click(object sender, RoutedEventArgs e)
+        {
+            if (ListRemotes.SelectedItem is not string selected)
+            {
+                Log("请先选中要打开的远端。");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(selected))
+            {
+                Log("远端 URL 为空，无法打开。");
+                return;
+            }
+
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = selected,
+                    UseShellExecute = true
+                });
+                Log($"已在浏览器中打开：{selected}");
+            }
+            catch (Exception ex)
+            {
+                Log($"打开浏览器失败：{ex.Message}");
+            }
         }
 
         /// <summary>删除选中的远端 URL，并自动保存。</summary>
