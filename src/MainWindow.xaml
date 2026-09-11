@@ -39,15 +39,21 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="仓库目录：" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBox x:Name="TxtRepoPath" Grid.Column="1" VerticalContentAlignment="Center"
                      TextChanged="TxtRepoPath_TextChanged"
                      ToolTip="Git 仓库本地根目录路径，与 .git 文件夹同级"/>
             <Button x:Name="BtnBrowse" Grid.Column="2" Content="选择文件夹" Click="BtnBrowse_Click" Margin="6,2,4,2"/>
-            <Button x:Name="BtnLoadConfig" Grid.Column="3" Content="重新加载配置" Click="BtnLoadConfig_Click" Margin="4,2,0,2"
+            <Button x:Name="BtnInitRepo" Grid.Column="3" Content="初始化仓库" Click="BtnInitRepo_Click" Margin="4,2,0,2"
+                    ToolTip="对当前目录执行 git init 初始化仓库，并创建默认分支（目录不存在时提示新建）"/>
+            <Button x:Name="BtnCreateBranch" Grid.Column="4" Content="创建默认分支" Click="BtnCreateBranch_Click" Margin="4,2,0,2"
+                    ToolTip="为当前仓库创建/切换默认分支；空仓库直接设置 HEAD 指向该分支"/>
+            <Button x:Name="BtnLoadConfig" Grid.Column="5" Content="重新加载配置" Click="BtnLoadConfig_Click" Margin="4,2,0,2"
                     ToolTip="重新读取当前目录下的 multigitcommit.config.json"/>
-            <Button x:Name="BtnAbout" Grid.Column="4" Content="关于" Click="BtnAbout_Click" Margin="4,2,0,2"
+            <Button x:Name="BtnAbout" Grid.Column="6" Content="关于" Click="BtnAbout_Click" Margin="4,2,0,2"
                     ToolTip="关于 MultiGitCommit 及项目地址"/>
         </Grid>
 

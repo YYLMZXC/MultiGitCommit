@@ -307,6 +307,205 @@ namespace MultiGitCommit
             new AboutWindow { Owner = this }.ShowDialog();
         }
 
+        // ==================== 仓库初始化 / 默认分支 ====================
+
+        /// <summary>默认分支名（初始化仓库 / 创建默认分支时的预填值，可在弹窗中修改）。</summary>
+        private const string DefaultBranchName = "main";
+
+        /// <summary>
+        /// 初始化仓库：对当前目录执行 git init，并创建默认分支。
+        /// 目录不存在时询问是否自动新建；已是 git 仓库则跳过初始化，避免误覆盖。
+        /// </summary>
+        private async void BtnInitRepo_Click(object sender, RoutedEventArgs e)
+        {
+            BtnInitRepo.IsEnabled = false;
+            try
+            {
+                string path = TxtRepoPath.Text.Trim();
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    Log("请先选择或输入要初始化的仓库目录。");
+                    return;
+                }
+
+                // 目录不存在时询问是否自动创建，方便“从零新建项目”
+                if (!Directory.Exists(path))
+                {
+                    var choice = MessageBox.Show(
+                        $"目录不存在，是否新建该目录？{Environment.NewLine}{path}",
+                        "初始化仓库", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+                    if (choice != MessageBoxResult.OK) return;
+
+                    try
+                    {
+                        Directory.CreateDirectory(path);
+                        Log($"已新建目录：{path}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"新建目录失败：{ex.Message}");
+                        return;
+                    }
+                }
+
+                // 已是 git 仓库则不再重复初始化，防止覆盖既有仓库信息
+                if (IsGitRepository(path))
+                {
+                    Log($"该目录已经是 git 仓库，无需重复初始化：{path}");
+                    return;
+                }
+
+                string? branch = PromptBranchName("初始化仓库", "请输入默认分支名（例如 main / master）：");
+                if (branch == null) return;
+
+                Log($"========== 初始化 git 仓库：{path} ==========");
+                var init = await RunCommandAsync(path, "git", "init", "git init");
+                if (!init.Success)
+                {
+                    Log("git init 执行失败，初始化终止。");
+                    return;
+                }
+
+                // git init 默认分支可能是 master，统一改为用户指定的默认分支
+                await SetDefaultBranchAsync(path, branch);
+
+                // 初始化完成后按正常流程加载项目配置（此时已是合法仓库）
+                _pathDebounce.Stop();
+                LoadConfigFromPath();
+                Log("========== 仓库初始化完成 ==========");
+            }
+            catch (Exception ex)
+            {
+                Log("初始化仓库异常：" + ex);
+            }
+            finally
+            {
+                BtnInitRepo.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// 创建默认分支：为当前仓库创建/切换默认分支。
+        /// 空仓库直接设置 HEAD 指向该分支；已有提交则新建（或切换）分支。
+        /// </summary>
+        private async void BtnCreateBranch_Click(object sender, RoutedEventArgs e)
+        {
+            BtnCreateBranch.IsEnabled = false;
+            try
+            {
+                string path = TxtRepoPath.Text.Trim();
+                if (!Directory.Exists(path))
+                {
+                    Log($"目录不存在：{path}");
+                    return;
+                }
+                if (!IsGitRepository(path))
+                {
+                    Log("该目录不是 git 仓库，请先点击【初始化仓库】。");
+                    return;
+                }
+
+                string? branch = PromptBranchName("创建默认分支", "请输入要创建/切换的默认分支名：");
+                if (branch == null) return;
+
+                Log($"========== 创建默认分支：{branch} ==========");
+                await SetDefaultBranchAsync(path, branch);
+
+                // 刷新配置加载与分支信息显示
+                _pathDebounce.Stop();
+                LoadConfigFromPath();
+                _repoRoot ??= path;
+                await GetCurrentBranchAsync(_repoRoot);
+                Log("========== 默认分支处理完成 ==========");
+            }
+            catch (Exception ex)
+            {
+                Log("创建默认分支异常：" + ex);
+            }
+            finally
+            {
+                BtnCreateBranch.IsEnabled = true;
+            }
+        }
+
+        /// <summary>判断目录是否已经是合法 git 仓库（git rev-parse --is-inside-work-tree）。</summary>
+        private static bool IsGitRepository(string dir)
+        {
+            var r = RunCommand(dir, "git", "rev-parse --is-inside-work-tree");
+            return r.Success && r.Stdout.Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// 将仓库默认分支设置为指定名称：
+        /// 1. 空仓库（尚无任何提交）：git symbolic-ref HEAD refs/heads/{branch}，不会报错，等价于设置默认分支；
+        /// 2. 已有提交：分支已存在则切换，不存在则新建并切换。
+        /// </summary>
+        private async Task SetDefaultBranchAsync(string repoDir, string branch)
+        {
+            // 用 HEAD 能否解析判断仓库是否已有提交（unborn 状态无法解析 HEAD）
+            var head = RunCommand(repoDir, "git", "rev-parse --verify HEAD");
+            if (!head.Success)
+            {
+                // 空仓库：直接令 HEAD 指向目标分支，不会产生 master 残留引用
+                string args = $"symbolic-ref HEAD refs/heads/{branch}";
+                var r = await RunCommandAsync(repoDir, "git", args, $"git {args}");
+                Log(r.Success ? $"已将默认分支设置为：{branch}" : $"设置默认分支失败：{branch}");
+                return;
+            }
+
+            // 已有提交：检查目标分支是否已存在，决定切换还是新建
+            var exists = RunCommand(repoDir, "git", $"show-ref --verify --quiet refs/heads/{branch}");
+            string checkoutArgs = exists.Success ? $"checkout {branch}" : $"checkout -b {branch}";
+            var res = await RunCommandAsync(repoDir, "git", checkoutArgs, $"git {checkoutArgs}");
+            if (res.Success)
+            {
+                Log(exists.Success ? $"已切换到默认分支：{branch}" : $"已创建并切换到默认分支：{branch}");
+            }
+            else
+            {
+                Log($"创建默认分支失败：{branch}");
+            }
+        }
+
+        /// <summary>
+        /// 弹出分支名输入框并做基本合法性校验（复用 PromptText）。
+        /// 返回 null 表示用户取消；空串或非法名称会提示并要求重新输入。
+        /// </summary>
+        private static string? PromptBranchName(string title, string message)
+        {
+            while (true)
+            {
+                string? text = PromptText(title, message, DefaultBranchName);
+                if (text == null) return null; // 用户取消
+
+                text = text.Trim();
+                if (string.IsNullOrEmpty(text))
+                {
+                    MessageBox.Show("分支名不能为空。", title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                    continue;
+                }
+                if (!IsValidBranchName(text))
+                {
+                    MessageBox.Show(
+                        "分支名不合法：不能包含空格或 ~ ^ : ? * [ \\ .. // 等字符，且不能以 - / . 开头或结尾。",
+                        title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                    continue;
+                }
+                return text;
+            }
+        }
+
+        /// <summary>校验分支名是否符合 git 引用命名基本规则。</summary>
+        private static bool IsValidBranchName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return false;
+            if (name.Any(char.IsWhiteSpace)) return false;
+            if (name.StartsWith("-") || name.StartsWith("/") || name.EndsWith("/") || name.EndsWith(".")) return false;
+            if (name.Contains("..") || name.Contains("//") || name.Contains("@{")) return false;
+            if (name.IndexOfAny(new[] { '~', '^', ':', '?', '*', '[', '\\' }) >= 0) return false;
+            return true;
+        }
+
         // ==================== 远端地址管理事件 ====================
 
         private void ListRemotes_SelectionChanged(object sender, SelectionChangedEventArgs e)
