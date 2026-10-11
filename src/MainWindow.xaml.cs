@@ -802,13 +802,22 @@ namespace MultiGitCommit
             }
         }
 
-        /// <summary>获取当前 git 分支名称（git rev-parse --abbrev-ref HEAD），不硬编码 main/master。</summary>
+        /// <summary>获取当前 git 分支名称（git branch --show-current），不硬编码 main/master；空仓库（尚无提交）也能正确返回 unborn 分支名。</summary>
         private async Task<string?> GetCurrentBranchAsync(string repoDir)
         {
-            var r = await RunCommandAsync(repoDir, GitLocator.GitExe, "rev-parse --abbrev-ref HEAD", "git rev-parse --abbrev-ref HEAD");
+            // --show-current 对 unborn 分支（空仓库）也能返回分支名，仅在 detached HEAD 时输出为空
+            var r = await RunCommandAsync(repoDir, GitLocator.GitExe, "branch --show-current", "git branch --show-current");
             string branch = r.Stdout.Trim();
-            if (!r.Success || string.IsNullOrEmpty(branch) || branch == "HEAD")
+            if (!r.Success || string.IsNullOrEmpty(branch))
             {
+                // 兜底：symbolic-ref --short HEAD（同样兼容空仓库；detached HEAD 时会失败）
+                var r2 = await RunCommandAsync(repoDir, GitLocator.GitExe, "symbolic-ref --short HEAD", "git symbolic-ref --short HEAD");
+                string branch2 = r2.Stdout.Trim();
+                if (r2.Success && !string.IsNullOrEmpty(branch2))
+                {
+                    TxtBranchInfo.Text = $"当前分支：{branch2}";
+                    return branch2;
+                }
                 Log("获取当前分支失败（可能处于 detached HEAD 状态）。");
                 return null;
             }
