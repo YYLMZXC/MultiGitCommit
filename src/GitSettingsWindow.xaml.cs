@@ -21,6 +21,7 @@ namespace MultiGitCommit
             InitializeComponent();
 
             RbAuto.IsChecked = current.GitSource == GitSourceMode.Auto;
+            RbEmbedded.IsChecked = current.GitSource == GitSourceMode.Embedded;
             RbSystem.IsChecked = current.GitSource == GitSourceMode.System;
             RbCustom.IsChecked = current.GitSource == GitSourceMode.Custom;
             TxtCustomPath.Text = current.CustomGitPath ?? string.Empty;
@@ -31,7 +32,11 @@ namespace MultiGitCommit
 
         private GitSourceMode CurrentMode => RbAuto.IsChecked == true
             ? GitSourceMode.Auto
-            : RbSystem.IsChecked == true ? GitSourceMode.System : GitSourceMode.Custom;
+            : RbEmbedded.IsChecked == true
+                ? GitSourceMode.Embedded
+                : RbSystem.IsChecked == true
+                    ? GitSourceMode.System
+                    : GitSourceMode.Custom;
 
         /// <summary>切换模式时同步自定义路径输入区可用状态。</summary>
         private void Mode_Changed(object sender, RoutedEventArgs e)

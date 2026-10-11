@@ -13,7 +13,9 @@
         <TextBlock Text="选择本工具执行 git 命令所用的 git.exe 来源（不依赖系统是否安装 / 配置 git）："
                    TextWrapping="Wrap" Margin="0,0,0,8"/>
 
-        <RadioButton x:Name="RbAuto" Content="自动检测（推荐）：软件目录便携版 Git → 常见安装位置 → 系统 PATH"
+        <RadioButton x:Name="RbAuto" Content="自动检测（推荐）：软件内嵌便携版 Git → 常见安装位置 → 系统 PATH"
+                     Margin="0,3" Checked="Mode_Changed"/>
+        <RadioButton x:Name="RbEmbedded" Content="仅使用软件内嵌的便携版 Git（软件目录 git\ 子目录，随软件分发）"
                      Margin="0,3" Checked="Mode_Changed"/>
         <RadioButton x:Name="RbSystem" Content="仅使用系统 PATH 环境变量中的 git（环境 git）"
                      Margin="0,3" Checked="Mode_Changed"/>

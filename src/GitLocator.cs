@@ -19,7 +19,10 @@ namespace MultiGitCommit
         System = 1,
 
         /// <summary>用户指定的 git.exe / Git 目录（便携版、软件自带 git）。</summary>
-        Custom = 2
+        Custom = 2,
+
+        /// <summary>仅使用软件目录内嵌的便携版 Git（git\ 或 PortableGit\ 子目录）。</summary>
+        Embedded = 3
     }
 
     /// <summary>
@@ -85,11 +88,12 @@ namespace MultiGitCommit
     /// <summary>
     /// git.exe 定位器：使工具【不依赖系统安装 / PATH 中的 git】。
     ///
-    /// 三种来源：
-    /// 1. Auto   自动检测：优先软件目录下的便携版 Git（git\ 或 PortableGit\），
-    ///           其次常见安装位置（Program Files、scoop、winget 等），最后系统 PATH；
-    /// 2. System 仅使用系统 PATH 环境变量中的 git（环境 git）；
-    /// 3. Custom 用户指定的 git.exe 或 Git 根目录（软件自带 / 便携版 git）。
+    /// 四种来源：
+    /// 1. Auto     自动检测：优先软件目录下的便携版 Git（git\ 或 PortableGit\），
+    ///             其次常见安装位置（Program Files、scoop、winget 等），最后系统 PATH；
+    /// 2. System   仅使用系统 PATH 环境变量中的 git（环境 git）；
+    /// 3. Custom   用户指定的 git.exe 或 Git 根目录（软件自带 / 便携版 git）；
+    /// 4. Embedded 仅使用软件目录内嵌的便携版 Git（git\ 子目录，随软件分发）。
     /// </summary>
     public static class GitLocator
     {
@@ -203,6 +207,13 @@ namespace MultiGitCommit
             string? found;
             switch (mode)
             {
+                case GitSourceMode.Embedded:
+                    found = EmbeddedCandidates().FirstOrDefault(File.Exists);
+                    description = found != null
+                        ? $"软件内嵌：{found}"
+                        : "软件目录未发现内嵌便携版 Git（git\\cmd\\git.exe），请重新发布或改用其他来源";
+                    break;
+
                 case GitSourceMode.System:
                     found = FindOnPath();
                     description = found ?? "系统 PATH 环境变量中未找到 git.exe";
@@ -309,16 +320,23 @@ namespace MultiGitCommit
             }
         }
 
-        /// <summary>自动检测的候选路径（按优先级排序）：软件目录便携版 → 常见安装位置。</summary>
+        /// <summary>自动检测的候选路径（按优先级）：软件目录内嵌便携版 → 常见安装位置。</summary>
         private static IEnumerable<string> CandidatePaths()
+            => EmbeddedCandidates().Concat(InstalledCandidates());
+
+        /// <summary>软件目录内嵌的便携版 Git 候选路径（与 exe 同级的 git\ 或 PortableGit\）。</summary>
+        private static IEnumerable<string> EmbeddedCandidates()
         {
-            // 1) 软件目录自带的便携版 Git（与 exe 同级的 git\ 或 PortableGit\）
             string appDir = AppContext.BaseDirectory;
             yield return Path.Combine(appDir, "git", "cmd", "git.exe");
             yield return Path.Combine(appDir, "PortableGit", "cmd", "git.exe");
             yield return Path.Combine(appDir, "git", "bin", "git.exe");
+        }
 
-            // 2) 常见安装位置：Program Files / Program Files (x86) / 用户级安装
+        /// <summary>常见安装位置候选：Program Files / 用户级安装 / scoop / winget。</summary>
+        private static IEnumerable<string> InstalledCandidates()
+        {
+            // Program Files / Program Files (x86) / 用户级安装
             string programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             string programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
             string localPrograms = Path.Combine(
@@ -330,7 +348,7 @@ namespace MultiGitCommit
                     yield return Path.Combine(root, "Git", "cmd", "git.exe");
             }
 
-            // 3) scoop / winget 包管理器安装位置
+            // scoop / winget 包管理器安装位置
             string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             if (!string.IsNullOrEmpty(userProfile))
             {

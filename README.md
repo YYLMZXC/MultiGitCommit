@@ -13,7 +13,7 @@
 - **空提交防护**：工作区无变更时自动跳过 `git commit`，不生成空提交。
 - **手动命令执行**：可在当前仓库目录执行任意 git/cmd 命令，stdout/stderr 全量输出日志。
 - **中文不乱码**：进程调用统一 UTF-8 编码。
-- **不依赖系统 git**：内置【Git 环境】设置，支持三种 git.exe 来源——自动检测（软件目录便携版 Git → 常见安装位置 → 系统 PATH）、仅系统 PATH（环境 git）、指定 git.exe / Git 目录（软件自带、便携版 Git）；配置保存到 `%APPDATA%\MultiGitCommit\settings.json`，切换来源无需重装系统 git。
+- **不依赖系统 git**：内置【Git 环境】设置，支持四种 git.exe 来源——自动检测（软件内嵌便携版 Git → 常见安装位置 → 系统 PATH）、仅软件内嵌便携版 Git、仅系统 PATH（环境 git）、指定 git.exe / Git 目录（软件自带、便携版 Git）；配置保存到 `%APPDATA%\MultiGitCommit\settings.json`，切换来源无需重装系统 git。
 
 ## 环境要求
 
@@ -75,7 +75,7 @@ Git 来源等全局设置（与仓库无关）保存在 **`%APPDATA%\MultiGitCom
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `GitSource` | int | git.exe 来源：`0` 自动检测 / `1` 系统 PATH / `2` 指定路径 |
+| `GitSource` | int | git.exe 来源：`0` 自动检测 / `1` 系统 PATH / `2` 指定路径 / `3` 软件内嵌便携版 |
 | `CustomGitPath` | string | 指定模式下的 git.exe 或 Git 根目录路径 |
 
 > **注意**
