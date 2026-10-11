@@ -40,7 +40,8 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>   <!-- 关于 -->
+                <ColumnDefinition Width="Auto"/>   <!-- Git 环境 -->
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="仓库目录：" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBox x:Name="TxtRepoPath" Grid.Column="1" VerticalContentAlignment="Center"
@@ -55,6 +56,8 @@
                     ToolTip="重新读取当前目录下的 multigitcommit.config.json"/>
             <Button x:Name="BtnAbout" Grid.Column="6" Content="关于" Click="BtnAbout_Click" Margin="4,2,0,2"
                     ToolTip="关于 MultiGitCommit 及项目地址"/>
+            <Button x:Name="BtnGitEnv" Grid.Column="7" Content="Git 环境" Click="BtnGitEnv_Click" Margin="4,2,0,2"
+                    ToolTip="配置 git.exe 来源：自动检测 / 系统 PATH（环境 git）/ 指定便携版或软件自带 Git，不依赖系统安装 git"/>
         </Grid>
 
         <!-- ============ 二、远端地址管理区域 ============ -->
@@ -142,6 +145,9 @@
                 <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,4,0,0" HorizontalAlignment="Left">
                     <Button x:Name="BtnClearLog" Content="清空日志" Click="BtnClearLog_Click" Padding="10,2"/>
                     <CheckBox x:Name="ChkAutoScroll" Content="自动滚动到底部" IsChecked="True" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    <TextBlock x:Name="TxtGitStatus" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#666"
+                               TextTrimming="CharacterEllipsis" MaxWidth="520"
+                               ToolTip="当前生效的 git.exe（点击上方【Git 环境】按钮可修改来源）"/>
                 </StackPanel>
             </Grid>
         </GroupBox>

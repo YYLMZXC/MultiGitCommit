@@ -61,6 +61,9 @@ namespace MultiGitCommit
             Log("提示：本工具不会修改 git 原生 .git/config；远端地址保存在每个项目目录下的 multigitcommit.config.json。");
             Log("提示：每个 git 仓库拥有独立配置，切换仓库会自动加载对应项目的远端列表。");
 
+            // 解析 git.exe 来源（环境 git / 自动检测 / 指定便携版），不依赖系统安装 git
+            RefreshGitEnvironment();
+
             // 启动时默认使用当前工作目录，若为 git 仓库则自动加载其配置
             TxtRepoPath.Text = Environment.CurrentDirectory;
         }
@@ -104,6 +107,17 @@ namespace MultiGitCommit
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8
             };
+
+            // 将解析到的 git.exe 所在目录注入子进程 PATH：
+            // 1. 便携版 / 指定路径的 git 也能找到自带的 ssh、git-lfs 等程序；
+            // 2. 手动命令区通过 cmd.exe 执行 "git xxx" 时同样可用。
+            string? gitDir = GitLocator.GitDirectory;
+            if (!string.IsNullOrEmpty(gitDir))
+            {
+                string oldPath = psi.EnvironmentVariables["PATH"] ?? string.Empty;
+                psi.EnvironmentVariables["PATH"] = gitDir + Path.PathSeparator + oldPath;
+            }
+
             return new Process { StartInfo = psi };
         }
 
@@ -188,8 +202,10 @@ namespace MultiGitCommit
                     return;
                 }
 
+                if (!EnsureGitAvailable()) return;
+
                 // 校验是否为合法 git 仓库（git rev-parse --is-inside-work-tree）
-                var check = RunCommand(path, "git", "rev-parse --is-inside-work-tree");
+                var check = RunCommand(path, GitLocator.GitExe, "rev-parse --is-inside-work-tree");
                 if (!check.Success || !check.Stdout.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
                 {
                     Log($"不是合法的 git 仓库目录：{path}（未发现有效的 .git 仓库）");
@@ -307,6 +323,59 @@ namespace MultiGitCommit
             new AboutWindow { Owner = this }.ShowDialog();
         }
 
+        // ==================== Git 环境管理（不依赖系统安装 git） ====================
+
+        /// <summary>打开 Git 环境设置窗口：选择 自动检测 / 系统 PATH / 指定便携版或软件自带 git。</summary>
+        private void BtnGitEnv_Click(object sender, RoutedEventArgs e)
+        {
+            var win = new GitSettingsWindow(GitLocator.Settings) { Owner = this };
+            if (win.ShowDialog() == true)
+            {
+                GitLocator.Settings.GitSource = win.SelectedSource;
+                GitLocator.Settings.CustomGitPath = win.SelectedCustomPath;
+                try
+                {
+                    GitLocator.Settings.Save();
+                    Log($"已保存 Git 环境设置：{GitLocator.Settings.SettingsFilePath}");
+                }
+                catch (Exception ex)
+                {
+                    Log($"保存 Git 环境设置失败：{ex.Message}");
+                }
+                RefreshGitEnvironment();
+            }
+        }
+
+        /// <summary>按当前设置重新解析 git.exe，更新状态栏显示并输出日志。</summary>
+        private void RefreshGitEnvironment()
+        {
+            bool ok = GitLocator.Resolve();
+            TxtGitStatus.Text = ok
+                ? $"Git：{GitLocator.GitExePath}"
+                : "Git：未找到（点击【Git 环境】配置）";
+            TxtGitStatus.ToolTip = ok
+                ? $"当前生效：{GitLocator.Description}"
+                : "未找到可用的 git.exe，请点击【Git 环境】按钮配置来源。";
+
+            if (ok)
+            {
+                Log($"Git 环境：{GitLocator.Description}");
+            }
+            else
+            {
+                Log("未找到可用的 git.exe：请点击【Git 环境】按钮选择环境 git（系统 PATH）或指定便携版 / 软件自带 git。");
+            }
+        }
+
+        /// <summary>确保 git.exe 可用（已解析成功）；不可用时输出日志并返回 false。</summary>
+        private bool EnsureGitAvailable()
+        {
+            if (GitLocator.GitExePath != null) return true;
+
+            Log("流程终止：未找到可用的 git.exe，请点击【Git 环境】按钮配置（自动检测 / 系统 PATH / 指定便携版 git）。");
+            return false;
+        }
+
         // ==================== 仓库初始化 / 默认分支 ====================
 
         /// <summary>默认分支名（初始化仓库 / 创建默认分支时的预填值，可在弹窗中修改）。</summary>
@@ -327,6 +396,8 @@ namespace MultiGitCommit
                     Log("请先选择或输入要初始化的仓库目录。");
                     return;
                 }
+
+                if (!EnsureGitAvailable()) return;
 
                 // 目录不存在时询问是否自动创建，方便“从零新建项目”
                 if (!Directory.Exists(path))
@@ -359,7 +430,7 @@ namespace MultiGitCommit
                 if (branch == null) return;
 
                 Log($"========== 初始化 git 仓库：{path} ==========");
-                var init = await RunCommandAsync(path, "git", "init", "git init");
+                var init = await RunCommandAsync(path, GitLocator.GitExe, "init", "git init");
                 if (!init.Success)
                 {
                     Log("git init 执行失败，初始化终止。");
@@ -431,7 +502,7 @@ namespace MultiGitCommit
         /// <summary>判断目录是否已经是合法 git 仓库（git rev-parse --is-inside-work-tree）。</summary>
         private static bool IsGitRepository(string dir)
         {
-            var r = RunCommand(dir, "git", "rev-parse --is-inside-work-tree");
+            var r = RunCommand(dir, GitLocator.GitExe, "rev-parse --is-inside-work-tree");
             return r.Success && r.Stdout.Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
         }
 
@@ -443,20 +514,20 @@ namespace MultiGitCommit
         private async Task SetDefaultBranchAsync(string repoDir, string branch)
         {
             // 用 HEAD 能否解析判断仓库是否已有提交（unborn 状态无法解析 HEAD）
-            var head = RunCommand(repoDir, "git", "rev-parse --verify HEAD");
+            var head = RunCommand(repoDir, GitLocator.GitExe, "rev-parse --verify HEAD");
             if (!head.Success)
             {
                 // 空仓库：直接令 HEAD 指向目标分支，不会产生 master 残留引用
                 string args = $"symbolic-ref HEAD refs/heads/{branch}";
-                var r = await RunCommandAsync(repoDir, "git", args, $"git {args}");
+                var r = await RunCommandAsync(repoDir, GitLocator.GitExe, args, $"git {args}");
                 Log(r.Success ? $"已将默认分支设置为：{branch}" : $"设置默认分支失败：{branch}");
                 return;
             }
 
             // 已有提交：检查目标分支是否已存在，决定切换还是新建
-            var exists = RunCommand(repoDir, "git", $"show-ref --verify --quiet refs/heads/{branch}");
+            var exists = RunCommand(repoDir, GitLocator.GitExe, $"show-ref --verify --quiet refs/heads/{branch}");
             string checkoutArgs = exists.Success ? $"checkout {branch}" : $"checkout -b {branch}";
-            var res = await RunCommandAsync(repoDir, "git", checkoutArgs, $"git {checkoutArgs}");
+            var res = await RunCommandAsync(repoDir, GitLocator.GitExe, checkoutArgs, $"git {checkoutArgs}");
             if (res.Success)
             {
                 Log(exists.Success ? $"已切换到默认分支：{branch}" : $"已创建并切换到默认分支：{branch}");
@@ -637,6 +708,8 @@ namespace MultiGitCommit
                 }
 
                 string repoDir = _repoRoot;
+                if (!EnsureGitAvailable()) return;
+
                 Log("========== 开始提交并推送流程 ==========");
 
                 // 1) 自动获取当前 git 分支名称（禁止硬编码 main/master）
@@ -662,7 +735,7 @@ namespace MultiGitCommit
                 // 3) 勾选【git add .】才执行；未勾选则跳过，由用户提前手动 add
                 if (_config.CheckAddAll)
                 {
-                    var add = await RunCommandAsync(repoDir, "git", "add .", "git add .");
+                    var add = await RunCommandAsync(repoDir, GitLocator.GitExe, "add .", "git add .");
                     if (!add.Success)
                     {
                         Log("git add . 执行失败，继续后续流程。");
@@ -670,7 +743,7 @@ namespace MultiGitCommit
                 }
 
                 // 4) 使用 git status 判断工作区状态：无变更则跳过 commit，不生成空提交
-                var status = await RunCommandAsync(repoDir, "git", "status --porcelain", "git status --porcelain");
+                var status = await RunCommandAsync(repoDir, GitLocator.GitExe, "status --porcelain", "git status --porcelain");
                 bool hasChanges = !string.IsNullOrWhiteSpace(status.Stdout);
                 if (!hasChanges)
                 {
@@ -687,7 +760,7 @@ namespace MultiGitCommit
                     string escapedMessage = commitMessage.Replace("\"", "\\\"");
                     Log($"提交消息：{commitMessage}");
 
-                    var commit = await RunCommandAsync(repoDir, "git", $"commit -m \"{escapedMessage}\"", "git commit -m \"...\"");
+                    var commit = await RunCommandAsync(repoDir, GitLocator.GitExe, $"commit -m \"{escapedMessage}\"", "git commit -m \"...\"");
                     if (!commit.Success)
                     {
                         Log("git commit 执行失败，继续尝试推送已提交的内容。");
@@ -702,7 +775,7 @@ namespace MultiGitCommit
                     string pushArgs = $"push {url} {branch}" + (withTags ? " --tags" : string.Empty);
                     string pushLabel = $"git push {url} {branch}" + (withTags ? " --tags" : string.Empty);
                     Log($"--- 推送到：{url}（分支：{branch}）---");
-                    var push = await RunCommandAsync(repoDir, "git", pushArgs, pushLabel);
+                    var push = await RunCommandAsync(repoDir, GitLocator.GitExe, pushArgs, pushLabel);
                     if (push.Success)
                     {
                         Log($"[成功] 推送到：{url}");
@@ -731,7 +804,7 @@ namespace MultiGitCommit
         /// <summary>获取当前 git 分支名称（git rev-parse --abbrev-ref HEAD），不硬编码 main/master。</summary>
         private async Task<string?> GetCurrentBranchAsync(string repoDir)
         {
-            var r = await RunCommandAsync(repoDir, "git", "rev-parse --abbrev-ref HEAD", "git rev-parse --abbrev-ref HEAD");
+            var r = await RunCommandAsync(repoDir, GitLocator.GitExe, "rev-parse --abbrev-ref HEAD", "git rev-parse --abbrev-ref HEAD");
             string branch = r.Stdout.Trim();
             if (!r.Success || string.IsNullOrEmpty(branch) || branch == "HEAD")
             {
@@ -778,10 +851,17 @@ namespace MultiGitCommit
 
                 Log($"执行命令：{command}（目录：{workDir}）");
                 CommandResult r;
-                if (command.StartsWith("git ", StringComparison.OrdinalIgnoreCase))
+                if (command.StartsWith("git ", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(command, "git", StringComparison.OrdinalIgnoreCase))
                 {
-                    // 以 git 开头的命令直接调用 git.exe
-                    r = await RunCommandAsync(workDir, "git", command.Substring(4), command);
+                    // 以 git 开头的命令直接调用解析到的 git.exe（支持环境 git / 便携版 git）
+                    string gitArgs = command.Length > 4 ? command.Substring(4) : string.Empty;
+                    if (GitLocator.GitExePath == null)
+                    {
+                        Log("未找到可用的 git.exe：请点击【Git 环境】按钮配置（自动检测 / 系统 PATH / 指定便携版 git）。");
+                        return;
+                    }
+                    r = await RunCommandAsync(workDir, GitLocator.GitExe, gitArgs, command);
                 }
                 else
                 {

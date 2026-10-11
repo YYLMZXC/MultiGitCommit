@@ -1,0 +1,46 @@
+<Window x:Class="MultiGitCommit.GitSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Git 环境设置"
+        Icon="res\icon.ico"
+        Width="600" SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Microsoft YaHei UI" FontSize="13"
+        ShowInTaskbar="False">
+
+    <StackPanel Margin="14">
+        <TextBlock Text="选择本工具执行 git 命令所用的 git.exe 来源（不依赖系统是否安装 / 配置 git）："
+                   TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+        <RadioButton x:Name="RbAuto" Content="自动检测（推荐）：软件目录便携版 Git → 常见安装位置 → 系统 PATH"
+                     Margin="0,3" Checked="Mode_Changed"/>
+        <RadioButton x:Name="RbSystem" Content="仅使用系统 PATH 环境变量中的 git（环境 git）"
+                     Margin="0,3" Checked="Mode_Changed"/>
+        <RadioButton x:Name="RbCustom" Content="指定 git.exe 或 Git 目录（软件自带 / 便携版 Git）"
+                     Margin="0,3" Checked="Mode_Changed"/>
+
+        <Grid Margin="20,4,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="TxtCustomPath" Grid.Column="0" VerticalContentAlignment="Center"
+                     ToolTip="git.exe 完整路径，或 Git 安装/解压根目录（自动查找其中的 cmd\git.exe、bin\git.exe）"/>
+            <Button x:Name="BtnBrowse" Grid.Column="1" Content="浏览..." Margin="6,0,0,0"
+                    Padding="10,2" Click="BtnBrowse_Click"
+                    ToolTip="选择 git.exe 文件；若想指定 Git 根目录请直接粘贴目录路径"/>
+        </Grid>
+
+        <Button x:Name="BtnTest" Content="测试当前所选配置" HorizontalAlignment="Left"
+                Padding="10,2" Margin="0,10,0,0" Click="BtnTest_Click"/>
+
+        <TextBlock x:Name="TxtResult" TextWrapping="Wrap" Margin="0,8,0,0"
+                   MinHeight="18" Foreground="#666"/>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="确定" Width="80" IsDefault="True" Padding="8,2" Click="BtnOk_Click"/>
+            <Button Content="取消" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2"/>
+        </StackPanel>
+    </StackPanel>
+</Window>
