@@ -23,3 +23,6 @@ artifacts/
 *.temp
 Thumbs.db
 Desktop.ini
+
+# ===== 内嵌便携版 MinGit（由 download-portable-git.ps1 下载，不入库） =====
+src/git/

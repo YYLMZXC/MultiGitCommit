@@ -19,10 +19,25 @@
 
 - Windows 10 / 11
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)（用于构建）
-- Git（满足任一即可，无需加入系统 PATH）：
-  - 系统已安装 Git（自动检测或使用 PATH）；
-  - 或将便携版 Git（如 PortableGit）解压到软件目录的 `git\` 子目录；
+- Git（满足任一即可，**最终用户无需额外下载 git**）：
+  - 开发者构建前运行一次 `download-portable-git.ps1`，内嵌便携版 MinGit（推荐，见下方【内嵌便携版 Git】）；
+  - 或系统已安装 Git（自动检测或使用 PATH）；
+  - 或将便携版 Git（如 PortableGit / MinGit）解压到软件目录的 `git\` 子目录；
   - 或在程序内点击【Git 环境】按钮指定任意 git.exe / Git 目录。
+
+## 内嵌便携版 Git（免安装分发）
+
+仓库根目录提供 `download-portable-git.ps1`，一键下载官方 **MinGit**（Git for Windows 免安装精简版，约 45MB）并解压到 `src\git\`：
+
+```powershell
+# 依次尝试华为云 / npmmirror / GitHub 三个镜像，可指定版本
+.\download-portable-git.ps1
+.\download-portable-git.ps1 -Version 2.50.1
+```
+
+之后 `dotnet build` / `dotnet publish` 会自动把 `src\git\` 复制到输出目录的 `git\` 子目录（与 exe 同级）。程序启动时 `GitLocator` 按 **软件目录便携版 → 常见安装位置 → 系统 PATH** 的优先级自动检测，优先使用内嵌的 MinGit，最终用户机器上无需安装任何 git；ssh 推送所需的附带程序（`ssh.exe` 等）也已随包提供。
+
+> `src\git\` 已在 `.gitignore` 中忽略，不会提交到仓库；分发时将 publish 输出整个目录打包即可。
 
 ## 构建与运行
 

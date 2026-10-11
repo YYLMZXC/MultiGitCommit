@@ -110,6 +110,76 @@ namespace MultiGitCommit
         /// <summary>git.exe 所在目录（注入子进程 PATH 用）；未解析时为 null。</summary>
         public static string? GitDirectory => _gitExe == null ? null : Path.GetDirectoryName(_gitExe);
 
+        /// <summary>
+        /// 需要注入子进程 PATH 的目录集合：
+        /// 1. git.exe 所在目录（如便携版 MinGit 的 git\cmd\）；
+        /// 2. Git 根目录下的 mingw64\bin、usr\bin（ssh.exe、git-lfs 等附带程序所在位置），
+        ///    保证便携版 / 内嵌 git 执行 ssh 远端推送时无需系统安装任何 git 组件。
+        /// </summary>
+        public static IReadOnlyList<string> GetPathEntries()
+        {
+            var entries = new List<string>();
+            if (_gitExe == null) return entries;
+
+            try
+            {
+                string? gitDir = Path.GetDirectoryName(Path.GetFullPath(_gitExe));
+                if (!string.IsNullOrEmpty(gitDir))
+                    entries.Add(gitDir);
+
+                string? root = TryGetGitRoot(_gitExe);
+                if (root != null)
+                {
+                    foreach (string sub in new[]
+                             {
+                                 Path.Combine(root, "mingw64", "bin"),
+                                 Path.Combine(root, "usr", "bin")
+                             })
+                    {
+                        if (Directory.Exists(sub) && !entries.Contains(sub))
+                            entries.Add(sub);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // 解析失败仅影响 PATH 注入，不影响主流程
+            }
+
+            return entries;
+        }
+
+        /// <summary>
+        /// 根据 git.exe 路径推断 Git 根目录：
+        /// &lt;root&gt;\cmd\git.exe、&lt;root&gt;\bin\git.exe、&lt;root&gt;\mingw64\bin\git.exe → root。
+        /// </summary>
+        private static string? TryGetGitRoot(string gitExe)
+        {
+            string dir = Path.GetDirectoryName(Path.GetFullPath(gitExe))
+                ?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) ?? string.Empty;
+            if (dir.Length == 0) return null;
+
+            string parent = Path.GetDirectoryName(dir) ?? string.Empty;
+            string folderName = Path.GetFileName(dir);
+
+            if (folderName.Equals("cmd", StringComparison.OrdinalIgnoreCase))
+                return parent.Length > 0 ? parent : null;
+
+            if (folderName.Equals("bin", StringComparison.OrdinalIgnoreCase))
+            {
+                // <root>\bin\git.exe → root；<root>\mingw64\bin\git.exe → 再上一级
+                string parentName = Path.GetFileName(parent);
+                if (parentName.Equals("mingw64", StringComparison.OrdinalIgnoreCase))
+                {
+                    string grandparent = Path.GetDirectoryName(parent) ?? string.Empty;
+                    return grandparent.Length > 0 ? grandparent : null;
+                }
+                return parent.Length > 0 ? parent : null;
+            }
+
+            return null;
+        }
+
         /// <summary>当前 git 来源的描述（含路径与版本），用于日志与状态栏显示。</summary>
         public static string Description => _description;
 

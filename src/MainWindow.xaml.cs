@@ -108,14 +108,15 @@ namespace MultiGitCommit
                 StandardErrorEncoding = Encoding.UTF8
             };
 
-            // 将解析到的 git.exe 所在目录注入子进程 PATH：
-            // 1. 便携版 / 指定路径的 git 也能找到自带的 ssh、git-lfs 等程序；
+            // 将解析到的 git 相关目录注入子进程 PATH：
+            // 1. 便携版 / 指定路径 / 内嵌的 git 也能找到自带的 ssh、git-lfs 等程序；
             // 2. 手动命令区通过 cmd.exe 执行 "git xxx" 时同样可用。
-            string? gitDir = GitLocator.GitDirectory;
-            if (!string.IsNullOrEmpty(gitDir))
+            var pathEntries = GitLocator.GetPathEntries();
+            if (pathEntries.Count > 0)
             {
                 string oldPath = psi.EnvironmentVariables["PATH"] ?? string.Empty;
-                psi.EnvironmentVariables["PATH"] = gitDir + Path.PathSeparator + oldPath;
+                psi.EnvironmentVariables["PATH"] =
+                    string.Join(Path.PathSeparator.ToString(), pathEntries) + Path.PathSeparator + oldPath;
             }
 
             return new Process { StartInfo = psi };

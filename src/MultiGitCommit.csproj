@@ -32,4 +32,12 @@
     </None>
   </ItemGroup>
 
+  <!-- 内嵌便携版 Git（MinGit）：仓库根目录运行 download-portable-git.ps1 后，
+       便携版位于 src\git\（cmd\git.exe、mingw64\ 等），构建时原样复制到输出目录 git\ 子目录。
+       GitLocator 自动检测优先使用软件目录 git\cmd\git.exe，用户无需额外安装 git。
+       文件夹不存在时此通配不匹配任何文件，不影响构建。 -->
+  <ItemGroup>
+    <None Include="git\**\*" Visible="false" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
