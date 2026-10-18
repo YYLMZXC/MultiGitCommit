@@ -10,7 +10,7 @@
     <RootNamespace>MultiGitCommit</RootNamespace>
     <AssemblyName>MultiGitCommit</AssemblyName>
     <Platforms>AnyCPU;x64</Platforms>
-    <Version>1.1.0</Version>
+    <Version>26.10.18</Version>
     <!-- 应用程序图标：嵌入到 .exe 资源中，作为文件图标与任务栏图标。 -->
     <ApplicationIcon>res\icon.ico</ApplicationIcon>
   </PropertyGroup>
