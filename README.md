@@ -1,6 +1,9 @@
 # MultiGitCommit
 
-个人自用的 Git 一键提交推送工具（WPF，仅 Windows 平台）。
+个人自用的 Git 一键提交推送工具。
+
+- Windows 版（WPF）：本目录的 `src/`，见下方全部说明。
+- macOS 版（C# + .NET 10 + Avalonia 11）：[`mac/`](mac/README.md)，功能与配置文件与 Windows 版完全通用。
 
 选择本地 Git 仓库后，自动加载该仓库专属的远端列表，一键完成 **提交 + 推送到多个远端平台**（Gitee、GitHub、cnb.cool 等），提交信息自动携带本地时间戳。
 

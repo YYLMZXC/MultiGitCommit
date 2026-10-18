@@ -1,0 +1,177 @@
+<Window x:Class="MultiGitCommit.MainWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MultiGitCommit - 一键提交推送工具（macOS）"
+        Width="1120" Height="800"
+        MinWidth="900" MinHeight="640"
+        WindowStartupLocation="CenterScreen"
+        FontFamily="PingFang SC" FontSize="13">
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="4,2"/>
+        </Style>
+        <Style Selector="TextBlock.sectionTitle">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#2B579A"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid Margin="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>   <!-- 仓库目录 -->
+            <RowDefinition Height="Auto"/>   <!-- 远端管理 -->
+            <RowDefinition Height="Auto"/>   <!-- 提交设置 -->
+            <RowDefinition Height="Auto"/>   <!-- 主按钮 -->
+            <RowDefinition Height="Auto"/>   <!-- 手动命令 -->
+            <RowDefinition Height="*"/>      <!-- 日志 -->
+        </Grid.RowDefinitions>
+
+        <!-- ============ 一、仓库目录区域 ============ -->
+        <Grid Grid.Row="0" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="仓库目录：" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBox x:Name="TxtRepoPath" Grid.Column="1" VerticalContentAlignment="Center"
+                     TextChanged="TxtRepoPath_TextChanged"
+                     ToolTip.Tip="Git 仓库本地根目录路径，与 .git 文件夹同级"/>
+            <Button x:Name="BtnBrowse" Grid.Column="2" Content="选择文件夹" Click="BtnBrowse_Click" Margin="6,2,4,2"/>
+            <Button x:Name="BtnClone" Grid.Column="3" Content="克隆项目" Click="BtnClone_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="从远端 URL 克隆仓库到本地目录，完成后自动切换为该仓库并可写入推送远端列表"/>
+            <Button x:Name="BtnInitRepo" Grid.Column="4" Content="初始化仓库" Click="BtnInitRepo_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="对当前目录执行 git init 初始化仓库，并创建默认分支（目录不存在时提示新建）"/>
+            <Button x:Name="BtnCreateBranch" Grid.Column="5" Content="创建默认分支" Click="BtnCreateBranch_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="为当前仓库创建/切换默认分支；空仓库直接设置 HEAD 指向该分支"/>
+            <Button x:Name="BtnLoadConfig" Grid.Column="6" Content="重新加载配置" Click="BtnLoadConfig_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="重新读取当前目录下的 multigitcommit.config.json"/>
+            <Button x:Name="BtnAbout" Grid.Column="7" Content="关于" Click="BtnAbout_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="关于 MultiGitCommit 及项目地址"/>
+            <Button x:Name="BtnGitEnv" Grid.Column="8" Content="Git 环境" Click="BtnGitEnv_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="配置 git 来源：自动检测 / 系统 PATH（环境 git）/ 指定路径 / 软件内嵌 Git"/>
+        </Grid>
+
+        <!-- ============ 二、远端地址管理区域 ============ -->
+        <Border Grid.Row="1" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Margin="0,0,0,8">
+            <Grid Margin="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Classes="sectionTitle"
+                           Text="推送远端地址管理（每个项目独立保存到 multigitcommit.config.json）" Margin="0,0,0,6"/>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="BtnAddRemote" Content="添加远端" Click="BtnAddRemote_Click"/>
+                    <Button x:Name="BtnEditRemote" Content="编辑选中" IsEnabled="False" Click="BtnEditRemote_Click"/>
+                    <Button x:Name="BtnDeleteRemote" Content="删除选中" IsEnabled="False" Click="BtnDeleteRemote_Click"/>
+                    <Button x:Name="BtnOpenRemote" Content="在浏览器中打开" IsEnabled="False" Click="BtnOpenRemote_Click"
+                            ToolTip.Tip="使用系统默认浏览器打开选中的远端 URL"/>
+                </StackPanel>
+                <ListBox x:Name="ListRemotes" Grid.Row="2" Height="120" Margin="0,4,0,0"
+                         SelectionChanged="ListRemotes_SelectionChanged"
+                         ToolTip.Tip="当前项目保存的全部远端 URL（ssh/https 均支持）"/>
+            </Grid>
+        </Border>
+
+        <!-- ============ 三、提交相关输入控件 ============ -->
+        <Border Grid.Row="2" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Margin="0,0,0,8">
+            <Grid Margin="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Classes="sectionTitle" Text="提交设置" Margin="0,0,0,6"/>
+                <Grid Grid.Row="1" Margin="0,0,0,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="提交备注：" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBox x:Name="TxtCommitMessage" Grid.Column="1" VerticalContentAlignment="Center"
+                             ToolTip.Tip="留空时 commit 消息仅使用本地时间，格式：yyyy-MM-dd HH:mm:ss 用户备注"/>
+                </Grid>
+                <StackPanel Grid.Row="2" Orientation="Horizontal">
+                    <CheckBox x:Name="ChkAddAll" Content="执行 git add . （默认不勾选，避免误提交垃圾文件）" Margin="0,2,20,2"
+                              IsCheckedChanged="ChkAddAll_Changed"/>
+                    <CheckBox x:Name="ChkPushTags" Content="推送标签 --tags（默认不勾选）" Margin="0,2,20,2"
+                              IsCheckedChanged="ChkPushTags_Changed"/>
+                    <CheckBox x:Name="ChkForceCommit" Content="强制提交 --allow-empty（无变更也生成空提交）" Margin="0,2,20,2"
+                              ToolTip.Tip="勾选后即使工作区无变更也执行 git commit --allow-empty，忽略空提交防护"
+                              IsCheckedChanged="ChkForceCommit_Changed"/>
+                    <CheckBox x:Name="ChkForcePush" Content="强制推送 --force（覆盖远端历史，谨慎使用）" Margin="0,2,0,2" Foreground="#C00000"
+                              ToolTip.Tip="勾选后推送命令追加 --force，可解决非快进被拒；会覆盖远端提交历史，请谨慎使用"
+                              IsCheckedChanged="ChkForcePush_Changed"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ============ 四、主执行按钮 ============ -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
+            <Button x:Name="BtnCommitPush" Content="执行提交并推送全部远端" Width="250" Height="38"
+                    FontSize="15" FontWeight="Bold" Click="BtnCommitPush_Click"/>
+            <TextBlock x:Name="TxtBranchInfo" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#666"/>
+        </StackPanel>
+
+        <!-- ============ 五、手动命令执行区 ============ -->
+        <Border Grid.Row="4" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Margin="0,0,0,8">
+            <Grid Margin="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Classes="sectionTitle"
+                           Text="手动命令执行区（在当前仓库目录执行任意 git/shell 命令）" Margin="0,0,0,6"/>
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="TxtCommand" Grid.Column="0" VerticalContentAlignment="Center"
+                             ToolTip.Tip="例如：git status / git log --oneline -5 / ls -la"
+                             KeyDown="TxtCommand_KeyDown"/>
+                    <Button x:Name="BtnRunCommand" Grid.Column="1" Content="执行命令" Click="BtnRunCommand_Click" Margin="6,2,0,2"/>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- ============ 六、日志输出区 ============ -->
+        <Border Grid.Row="5" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">
+            <Grid Margin="8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0" Classes="sectionTitle" Text="日志输出" Margin="0,0,0,6"/>
+                <Border Grid.Row="1" BorderBrush="#444" BorderThickness="1" Background="#1E1E1E">
+                    <TextBox x:Name="TxtLog"
+                             IsReadOnly="True"
+                             AcceptsReturn="True"
+                             TextWrapping="NoWrap"
+                             Background="#1E1E1E" Foreground="#DCDCDC"
+                             BorderThickness="0"
+                             FontFamily="Menlo" FontSize="12"/>
+                </Border>
+                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4,0,0" HorizontalAlignment="Left">
+                    <Button x:Name="BtnClearLog" Content="清空日志" Click="BtnClearLog_Click" Padding="10,2"/>
+                    <CheckBox x:Name="ChkAutoScroll" Content="自动滚动到底部" IsChecked="True" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    <TextBlock x:Name="TxtGitStatus" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#666"
+                               TextTrimming="CharacterEllipsis" MaxWidth="560"
+                               ToolTip.Tip="当前生效的 git（点击上方【Git 环境】按钮可修改来源）"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
