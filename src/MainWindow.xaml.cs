@@ -189,6 +189,8 @@ namespace MultiGitCommit
                 ListRemotes.Items.Clear();
                 ChkAddAll.IsChecked = false;
                 ChkPushTags.IsChecked = false;
+                ChkForceCommit.IsChecked = false;
+                ChkForcePush.IsChecked = false;
                 TxtBranchInfo.Text = string.Empty;
                 BtnEditRemote.IsEnabled = false;
                 BtnDeleteRemote.IsEnabled = false;
@@ -229,6 +231,8 @@ namespace MultiGitCommit
                 }
                 ChkAddAll.IsChecked = _config.CheckAddAll;
                 ChkPushTags.IsChecked = _config.CheckPushTags;
+                ChkForceCommit.IsChecked = _config.CheckForceCommit;
+                ChkForcePush.IsChecked = _config.CheckForcePush;
 
                 string urlSummary = _config.RemoteUrls.Count == 0
                     ? "（空）"
@@ -765,6 +769,22 @@ namespace MultiGitCommit
             SaveConfig();
         }
 
+        /// <summary>复选【强制提交 --allow-empty】状态自动写入项目配置。</summary>
+        private void ChkForceCommit_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading || _config == null) return;
+            _config.CheckForceCommit = ChkForceCommit.IsChecked == true;
+            SaveConfig();
+        }
+
+        /// <summary>复选【强制推送 --force】状态自动写入项目配置。</summary>
+        private void ChkForcePush_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loading || _config == null) return;
+            _config.CheckForcePush = ChkForcePush.IsChecked == true;
+            SaveConfig();
+        }
+
         // ==================== 主流程：执行提交并推送全部远端 ====================
 
         private async void BtnCommitPush_Click(object sender, RoutedEventArgs e)
@@ -821,14 +841,19 @@ namespace MultiGitCommit
                 }
 
                 // 4) 使用 git status 判断工作区状态：无变更则跳过 commit，不生成空提交
+                //    勾选【强制提交 --allow-empty】时忽略该防护，仍然执行一次提交（可用于触发远端 CI / 生成时间戳提交）
+                bool forceCommit = _config.CheckForceCommit;
                 var status = await RunCommandAsync(repoDir, GitLocator.GitExe, "status --porcelain", "git status --porcelain");
                 bool hasChanges = !string.IsNullOrWhiteSpace(status.Stdout);
-                if (!hasChanges)
+                if (!hasChanges && !forceCommit)
                 {
                     Log("工作区无任何变更（nothing to commit），跳过 git commit，不生成空提交。");
                 }
                 else
                 {
+                    if (!hasChanges)
+                        Log("工作区无变更，但已勾选【强制提交】，仍执行一次空提交（--allow-empty）。");
+
                     // 5) 组装 commit 消息：固定格式 yyyy-MM-dd HH:mm:ss 用户备注
                     string time = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                     string remark = TxtCommitMessage.Text.Trim();
@@ -838,7 +863,9 @@ namespace MultiGitCommit
                     string escapedMessage = commitMessage.Replace("\"", "\\\"");
                     Log($"提交消息：{commitMessage}");
 
-                    var commit = await RunCommandAsync(repoDir, GitLocator.GitExe, $"commit -m \"{escapedMessage}\"", "git commit -m \"...\"");
+                    string commitArgs = "commit -m \"" + escapedMessage + "\"" + (forceCommit ? " --allow-empty" : string.Empty);
+                    string commitLabel = "git commit -m \"...\"" + (forceCommit ? " --allow-empty" : string.Empty);
+                    var commit = await RunCommandAsync(repoDir, GitLocator.GitExe, commitArgs, commitLabel);
                     if (!commit.Success)
                     {
                         Log("git commit 执行失败，继续尝试推送已提交的内容。");
@@ -847,12 +874,16 @@ namespace MultiGitCommit
 
                 // 6) 循环遍历每一个远端 URL 逐个推送；一个远端失败不阻断后续
                 bool allSuccess = true;
+                bool forcePush = _config.CheckForcePush;
+                if (forcePush)
+                    Log("警告：已勾选【强制推送 --force】，将覆盖远端同名分支的提交历史。");
                 foreach (var url in urls)
                 {
                     bool withTags = _config.CheckPushTags;
-                    string pushArgs = $"push {url} {branch}" + (withTags ? " --tags" : string.Empty);
-                    string pushLabel = $"git push {url} {branch}" + (withTags ? " --tags" : string.Empty);
-                    Log($"--- 推送到：{url}（分支：{branch}）---");
+                    string forceFlag = forcePush ? " --force" : string.Empty;
+                    string pushArgs = $"push{forceFlag} {url} {branch}" + (withTags ? " --tags" : string.Empty);
+                    string pushLabel = $"git push{forceFlag} {url} {branch}" + (withTags ? " --tags" : string.Empty);
+                    Log($"--- 推送到：{url}（分支：{branch}{(forcePush ? "，强制推送" : string.Empty)}）---");
                     var push = await RunCommandAsync(repoDir, GitLocator.GitExe, pushArgs, pushLabel);
                     if (push.Success)
                     {

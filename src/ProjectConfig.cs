@@ -32,6 +32,14 @@ namespace MultiGitCommit
         [JsonPropertyName("CheckPushTags")]
         public bool CheckPushTags { get; set; } = false;
 
+        /// <summary>是否强制提交（commit 追加 --allow-empty，默认为 false）：工作区无变更时仍生成空提交。</summary>
+        [JsonPropertyName("CheckForceCommit")]
+        public bool CheckForceCommit { get; set; } = false;
+
+        /// <summary>是否强制推送（push 追加 --force，默认为 false）：覆盖远端历史，用于非快进被拒场景。</summary>
+        [JsonPropertyName("CheckForcePush")]
+        public bool CheckForcePush { get; set; } = false;
+
         /// <summary>配置文件完整路径（仓库根目录 + 文件名）。</summary>
         [JsonIgnore]
         public string ConfigFilePath { get; private set; } = string.Empty;

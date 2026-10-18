@@ -101,8 +101,14 @@
                 <StackPanel Grid.Row="1" Orientation="Horizontal">
                     <CheckBox x:Name="ChkAddAll" Content="执行 git add . （默认不勾选，避免误提交垃圾文件）" Margin="0,2,20,2" VerticalAlignment="Center"
                               Checked="ChkAddAll_Changed" Unchecked="ChkAddAll_Changed"/>
-                    <CheckBox x:Name="ChkPushTags" Content="推送标签 --tags（默认不勾选）" Margin="0,2,0,2" VerticalAlignment="Center"
+                    <CheckBox x:Name="ChkPushTags" Content="推送标签 --tags（默认不勾选）" Margin="0,2,20,2" VerticalAlignment="Center"
                               Checked="ChkPushTags_Changed" Unchecked="ChkPushTags_Changed"/>
+                    <CheckBox x:Name="ChkForceCommit" Content="强制提交 --allow-empty（无变更也生成空提交）" Margin="0,2,20,2" VerticalAlignment="Center"
+                              ToolTip="勾选后即使工作区无变更也执行 git commit --allow-empty，忽略空提交防护"
+                              Checked="ChkForceCommit_Changed" Unchecked="ChkForceCommit_Changed"/>
+                    <CheckBox x:Name="ChkForcePush" Content="强制推送 --force（覆盖远端历史，谨慎使用）" Margin="0,2,0,2" VerticalAlignment="Center" Foreground="#C00000"
+                              ToolTip="勾选后推送命令追加 --force，可解决非快进被拒；会覆盖远端提交历史，请谨慎使用"
+                              Checked="ChkForcePush_Changed" Unchecked="ChkForcePush_Changed"/>
                 </StackPanel>
             </Grid>
         </GroupBox>

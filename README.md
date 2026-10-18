@@ -11,7 +11,8 @@
 - **每个仓库独立配置**：远端列表、复选框状态保存在各自仓库根目录的 `multigitcommit.config.json`，切换仓库自动加载对应项目的配置。
 - **固定提交格式**：commit 消息固定为 `yyyy-MM-dd HH:mm:ss 用户备注`；备注为空时仅使用本地时间戳。
 - **动态分支**：自动获取当前分支名推送，不硬编码 main/master。
-- **空提交防护**：工作区无变更时自动跳过 `git commit`，不生成空提交。
+- **空提交防护**：工作区无变更时自动跳过 `git commit`，不生成空提交；勾选【强制提交】可忽略该防护（`--allow-empty`）。
+- **强制推送**：勾选【强制推送】后推送命令追加 `--force`，用于非快进被拒、变基/回退后覆盖远端历史（谨慎使用）。
 - **手动命令执行**：可在当前仓库目录执行任意 git/cmd 命令，stdout/stderr 全量输出日志。
 - **中文不乱码**：进程调用统一 UTF-8 编码。
 - **不依赖系统 git**：内置【Git 环境】设置，支持四种 git.exe 来源——自动检测（软件内嵌便携版 Git → 常见安装位置 → 系统 PATH）、仅软件内嵌便携版 Git、仅系统 PATH（环境 git）、指定 git.exe / Git 目录（软件自带、便携版 Git）；配置保存到 `%APPDATA%\MultiGitCommit\settings.json`，切换来源无需重装系统 git。
@@ -60,7 +61,7 @@ dotnet build
 1. 本地还没有仓库？点击【克隆项目】，填写远端 URL、本地父目录与目录名（目录名默认按 URL 自动推导），可选指定分支 / 递归子模块 / 浅克隆，确认后自动克隆并切换到该仓库。
 2. 点击【选择文件夹】，选择任意 Git 仓库根目录（与 `.git` 同级）。
 3. 在【远端地址管理】中添加远端 URL（支持 ssh/https 格式，如 `git@gitee.com:user/repo.git`、`https://github.com/user/repo.git`），可添加多个。
-4. 填写提交备注（可选），按需勾选 `git add .` 与 `--tags` 推送标签。
+4. 填写提交备注（可选），按需勾选 `git add .`、`--tags` 推送标签、【强制提交 `--allow-empty`】与【强制推送 `--force`】。
 5. 点击【执行提交并推送全部远端】，日志区实时查看每一步命令与结果。
 
 ## 配置文件说明
@@ -72,6 +73,8 @@ dotnet build
 | `RemoteUrls` | string[] | 推送远端 URL 列表 |
 | `CheckAddAll` | bool | 是否执行 `git add .` |
 | `CheckPushTags` | bool | 是否推送标签 `--tags` |
+| `CheckForceCommit` | bool | 是否强制提交（commit 追加 `--allow-empty`，无变更也生成空提交） |
+| `CheckForcePush` | bool | 是否强制推送（push 追加 `--force`，覆盖远端历史） |
 
 Git 来源等全局设置（与仓库无关）保存在 **`%APPDATA%\MultiGitCommit\settings.json`**：
 
