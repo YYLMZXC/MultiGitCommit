@@ -58,6 +58,21 @@ open ../publish            # 得到 MultiGitCommit.app
 4. 填写提交备注（可选），按需勾选 `git add .`、`--tags` 推送标签、【强制提交】与【强制推送】。
 5. 点击【执行提交并推送全部远端】，日志区实时查看每一步命令与结果。
 
+## 非交互执行与超时保护
+
+GUI 环境下 git / ssh 若要「交互式」等待输入（远端账号密码、ssh 口令、主机密钥 yes/no 确认、GPG 签名口令），
+进程会永久阻塞——表现为【执行提交并推送全部远端】按钮一直灰着不恢复。为此本工具做两件事：
+
+1. **非交互执行**：子进程 stdin 立即关闭（读到 EOF），并设置 `GIT_TERMINAL_PROMPT=0`、
+   `GIT_SSH_COMMAND="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new"`。
+   需要交互时 git 直接**报错失败**并在日志里给出原因，而不是挂起。
+   凭据请提前配置好：https 用 macOS 钥匙串（`git credential-osxkeychain`），ssh 用已加载的密钥（`ssh-add`）。
+2. **超时兜底**：快速校验类命令 20 秒、普通 git 命令 10 分钟、克隆 30 分钟，
+   超时即终止进程并写日志，按钮必定恢复可用。执行期间按钮文案变为「执行中…」。
+
+> 若某次推送日志出现 `Permission denied (publickey)` / `Could not read from remote repository`，
+> 说明本机没有可用的远端凭据，先在终端里用一次 `ssh -T git@github.com` 之类的命令验证密钥即可。
+
 ## 配置文件说明
 
 每个 Git 仓库根目录下的 **`multigitcommit.config.json`**（与 Windows 版字段完全一致，可跨平台共用）：
@@ -117,3 +132,6 @@ mac/src/
 ├── GitLocator.cs                  # git 定位/校验 + 全局设置持久化
 └── res/icon.png                   # 应用图标
 ```
+
+
+t

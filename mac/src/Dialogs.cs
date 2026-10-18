@@ -14,7 +14,7 @@ internal static class Dialogs
     private const string AppIconUri = "avares://MultiGitCommit/res/icon.png";
 
     /// <summary>构建窗口通用外观的私有工厂。</summary>
-    private static Window CreateShell(string title, double width, Window? owner)
+    private static Window CreateShell(string title, double width, Window owner)
     {
         var win = new Window
         {
@@ -22,7 +22,7 @@ internal static class Dialogs
             Width = width,
             SizeToContent = SizeToContent.Height,
             CanResize = false,
-            WindowStartupLocation = owner == null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
             ShowInTaskbar = false,
             FontSize = 13
         };
@@ -46,7 +46,7 @@ internal static class Dialogs
     }
 
     /// <summary>显示单按钮提示框。</summary>
-    public static async Task ShowMessageAsync(Window? owner, string title, string message)
+    public static async Task ShowMessageAsync(Window owner, string title, string message)
     {
         var win = CreateShell(title, 460, owner);
 
@@ -67,7 +67,7 @@ internal static class Dialogs
     }
 
     /// <summary>显示确认框（确定 / 取消），返回用户是否点击确定。</summary>
-    public static async Task<bool> ConfirmAsync(Window? owner, string title, string message)
+    public static async Task<bool> ConfirmAsync(Window owner, string title, string message)
     {
         var win = CreateShell(title, 460, owner);
 
@@ -94,7 +94,7 @@ internal static class Dialogs
     /// <summary>
     /// 显示输入框，返回用户输入内容；用户取消返回 null。
     /// </summary>
-    public static async Task<string?> PromptAsync(Window? owner, string title, string message, string initialValue)
+    public static async Task<string?> PromptAsync(Window owner, string title, string message, string initialValue)
     {
         var win = CreateShell(title, 520, owner);
 

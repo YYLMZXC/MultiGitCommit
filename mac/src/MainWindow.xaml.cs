@@ -101,10 +101,18 @@ public partial class MainWindow : Window
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            // 重定向并立即关闭 stdin：git / ssh 需要交互输入时直接读到 EOF 失败，
+            // 而不是继承终端 stdin 一直等待（GUI 环境下会永久阻塞，按钮永远不恢复）
+            RedirectStandardInput = true,
             CreateNoWindow = true,
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+
+        // 非交互执行：禁止 git / ssh 弹出终端凭据提示，无凭据时直接报错而不是挂起等待
+        psi.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
+        if (string.IsNullOrEmpty(psi.EnvironmentVariables["GIT_SSH_COMMAND"]))
+            psi.EnvironmentVariables["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new";
 
         // 将解析到的 git 相关目录注入子进程 PATH：
         // 1. 内嵌 / 指定路径的 git 也能找到自带的 ssh、git-lfs 等程序；
@@ -120,16 +128,31 @@ public partial class MainWindow : Window
         return new Process { StartInfo = psi };
     }
 
-    /// <summary>同步执行命令（用于快速校验，输出量小），返回结果对象。</summary>
+    /// <summary>快速校验类命令的超时（同步执行，避免卡死 UI 线程）。</summary>
+    private static readonly TimeSpan QuickCommandTimeout = TimeSpan.FromSeconds(20);
+
+    /// <summary>普通 git 命令（add / commit / push …）的默认超时，超时即终止，保证按钮一定恢复可用。</summary>
+    private static readonly TimeSpan DefaultCommandTimeout = TimeSpan.FromMinutes(10);
+
+    /// <summary>克隆仓库的超时（大仓库耗时较长）。</summary>
+    private static readonly TimeSpan CloneCommandTimeout = TimeSpan.FromMinutes(30);
+
+    /// <summary>同步执行命令（用于快速校验，输出量小），带超时保护，返回结果对象。</summary>
     private static CommandResult RunCommand(string workingDir, string fileName, string arguments)
     {
         try
         {
             using var p = CreateProcess(workingDir, fileName, arguments);
             p.Start();
+            p.StandardInput.Close(); // 立即给 EOF，杜绝等待交互输入
             var outTask = p.StandardOutput.ReadToEndAsync();
             var errTask = p.StandardError.ReadToEndAsync();
-            Task.WaitAll(outTask, errTask);
+            if (!Task.WaitAll(new Task[] { outTask, errTask }, QuickCommandTimeout))
+            {
+                KillProcess(p);
+                return new CommandResult { ExitCode = -1, Stderr = $"命令执行超时（{QuickCommandTimeout.TotalSeconds:0} 秒），已终止：{fileName} {arguments}" };
+            }
+
             p.WaitForExit();
             return new CommandResult { ExitCode = p.ExitCode, Stdout = outTask.Result, Stderr = errTask.Result };
         }
@@ -139,20 +162,48 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>异步执行命令，stdout/stderr 逐行实时输出到日志区。</summary>
-    private async Task<CommandResult> RunCommandAsync(string workingDir, string fileName, string arguments, string? logLabel = null)
+    /// <summary>异步执行命令，stdout/stderr 逐行实时输出到日志区；支持超时，超时后终止进程并返回失败。</summary>
+    private async Task<CommandResult> RunCommandAsync(string workingDir, string fileName, string arguments,
+        string? logLabel = null, TimeSpan? timeout = null)
     {
+        TimeSpan limit = timeout ?? DefaultCommandTimeout;
         using var p = CreateProcess(workingDir, fileName, arguments);
         if (logLabel != null) Log("> " + logLabel);
         p.Start();
+        p.StandardInput.Close(); // 立即给 EOF，杜绝等待交互输入
 
         var outTask = DrainStreamAsync(p.StandardOutput);
         var errTask = DrainStreamAsync(p.StandardError);
-        string stdout = await outTask;
-        string stderr = await errTask;
+        var ioTask = Task.WhenAll(outTask, errTask);
+
+        var finished = await Task.WhenAny(ioTask, Task.Delay(limit));
+        if (finished != ioTask)
+        {
+            Log($"[超时] 命令执行超过 {limit.TotalMinutes:0.##} 分钟仍未结束，已强制终止：{logLabel ?? (fileName + " " + arguments)}");
+            Log("       常见原因：远端要求输入用户名/密码或 ssh 口令（本工具为非交互执行，不会弹框输入）、网络不通、仓库过大。");
+            KillProcess(p);
+            await Task.WhenAny(ioTask, Task.Delay(3000)); // 等输出流收尾，避免访问已释放资源
+            await Task.WhenAny(p.WaitForExitAsync(), Task.Delay(3000));
+            return new CommandResult { ExitCode = -1, Stderr = "执行超时，已终止" };
+        }
+
+        await ioTask;
         await p.WaitForExitAsync();
 
-        return new CommandResult { ExitCode = p.ExitCode, Stdout = stdout, Stderr = stderr };
+        return new CommandResult { ExitCode = p.ExitCode, Stdout = outTask.Result, Stderr = errTask.Result };
+    }
+
+    /// <summary>强制终止进程及其子进程树（失败时忽略）。</summary>
+    private static void KillProcess(Process p)
+    {
+        try
+        {
+            p.Kill(entireProcessTree: true);
+        }
+        catch (Exception)
+        {
+            // 进程可能已退出
+        }
     }
 
     /// <summary>逐行读取输出流并实时写入日志，同时累积完整文本用于返回。</summary>
@@ -352,7 +403,7 @@ public partial class MainWindow : Window
 
             Log($"========== 开始克隆仓库：{url} ==========");
             Log($"目标目录：{targetDir}");
-            var clone = await RunCommandAsync(parentDir, GitLocator.GitExe, fullArgs, $"git {fullArgs}");
+            var clone = await RunCommandAsync(parentDir, GitLocator.GitExe, fullArgs, $"git {fullArgs}", CloneCommandTimeout);
             if (!clone.Success)
             {
                 Log("克隆失败：请查看上方日志（常见原因：URL 无效或无权限、目标目录已存在且非空、网络/ssh 配置问题）。");
@@ -765,6 +816,8 @@ public partial class MainWindow : Window
 
     private async void BtnCommitPush_Click(object? sender, RoutedEventArgs e)
     {
+        string idleText = BtnCommitPush.Content?.ToString() ?? "执行提交并推送全部远端";
+        BtnCommitPush.Content = "执行中…";
         BtnCommitPush.IsEnabled = false;
         try
         {
@@ -879,6 +932,7 @@ public partial class MainWindow : Window
         }
         finally
         {
+            BtnCommitPush.Content = idleText;
             BtnCommitPush.IsEnabled = true;
         }
     }
