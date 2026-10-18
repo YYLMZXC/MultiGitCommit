@@ -22,6 +22,30 @@ public enum GitSourceMode
 }
 
 /// <summary>
+/// 推送凭据：按远端主机保存用户名与访问令牌。
+/// 仅用于 https / http 远端：工具为非交互执行（GIT_TERMINAL_PROMPT=0），
+/// 无凭据时 git 无法弹窗询问账号，推送必然失败。
+/// </summary>
+public class GitCredential
+{
+    /// <summary>远端主机（如 cnb.cool、gitee.com、github.com），也可填完整 URL。</summary>
+    [JsonPropertyName("Host")]
+    public string Host { get; set; } = string.Empty;
+
+    /// <summary>用户名（平台账号名）。</summary>
+    [JsonPropertyName("Username")]
+    public string Username { get; set; } = string.Empty;
+
+    /// <summary>访问令牌 / 密码（推送时作为密码使用）。</summary>
+    [JsonPropertyName("Token")]
+    public string Token { get; set; } = string.Empty;
+
+    /// <summary>列表展示文本（不含令牌）。</summary>
+    public override string ToString() =>
+        string.IsNullOrWhiteSpace(Username) ? Host : $"{Host} — {Username}";
+}
+
+/// <summary>
 /// 应用级全局设置（与具体仓库无关），macOS 下持久化到
 /// <c>~/Library/Application Support/MultiGitCommit/settings.json</c>。
 /// </summary>
@@ -34,6 +58,10 @@ public class AppSettings
     /// <summary>用户指定的 git 路径或 Git 根目录（仅 Custom 模式使用）。</summary>
     [JsonPropertyName("CustomGitPath")]
     public string CustomGitPath { get; set; } = string.Empty;
+
+    /// <summary>https 远端推送凭据列表（按主机匹配，与具体仓库无关）。</summary>
+    [JsonPropertyName("Credentials")]
+    public List<GitCredential> Credentials { get; set; } = new();
 
     /// <summary>设置文件完整路径（加载时填充）。</summary>
     [JsonIgnore]
@@ -62,6 +90,7 @@ public class AppSettings
                 {
                     loaded.SettingsFilePath = settings.SettingsFilePath;
                     loaded.CustomGitPath ??= string.Empty;
+                    loaded.Credentials ??= new List<GitCredential>();
                     return loaded;
                 }
             }
@@ -420,5 +449,127 @@ public static class GitLocator
         }
 
         return null;
+    }
+}
+
+/// <summary>
+/// 远端 URL 凭据处理：按主机查找凭据、把凭据注入 https URL、日志脱敏。
+///
+/// 工具为非交互执行（GIT_TERMINAL_PROMPT=0），https 远端没有凭据时 git 无法弹窗问账号，
+/// 推送必然失败（fatal: could not read Username ... terminal prompts disabled）。
+/// 因此这里把 用户名:令牌 直接注入 URL：https://user:token@host/path。
+/// </summary>
+public static class GitCredentials
+{
+    /// <summary>提取远端 URL 的主机（小写，去端口、去 userinfo）；无法解析返回 null。</summary>
+    public static string? GetHost(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return null;
+
+        string s = url.Trim();
+        string authority;
+
+        int schemeEnd = s.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd >= 0)
+        {
+            string rest = s[(schemeEnd + 3)..];
+            int slash = rest.IndexOf('/');
+            authority = slash < 0 ? rest : rest[..slash];
+        }
+        else if (s.Contains('@') && s.Contains(':'))
+        {
+            // scp 形式：git@host:group/repo.git
+            int at = s.IndexOf('@', StringComparison.Ordinal);
+            int colon = s.IndexOf(':', at + 1);
+            authority = colon < 0 ? s[(at + 1)..] : s[(at + 1)..colon];
+        }
+        else
+        {
+            // 仅填了主机名或完整 URL 之外的简写
+            return s.Length == 0 ? null : s.ToLowerInvariant();
+        }
+
+        int userInfoEnd = authority.IndexOf('@', StringComparison.Ordinal);
+        if (userInfoEnd >= 0) authority = authority[(userInfoEnd + 1)..];
+
+        int portSep = authority.IndexOf(':', StringComparison.Ordinal);
+        if (portSep >= 0) authority = authority[..portSep];
+
+        return authority.Length == 0 ? null : authority.ToLowerInvariant();
+    }
+
+    /// <summary>从凭据列表中查找与该远端 URL 主机匹配的凭据。</summary>
+    public static GitCredential? Find(string? url, IEnumerable<GitCredential> credentials)
+    {
+        string? host = GetHost(url);
+        if (string.IsNullOrEmpty(host)) return null;
+
+        foreach (var cred in credentials)
+        {
+            if (cred == null || string.IsNullOrWhiteSpace(cred.Host)) continue;
+            string credHost = GetHost(cred.Host) ?? cred.Host.Trim().ToLowerInvariant();
+            if (string.Equals(credHost, host, StringComparison.OrdinalIgnoreCase))
+                return cred;
+        }
+
+        return null;
+    }
+
+    /// <summary>该远端是否需要凭据：仅 https/http 且 URL 中尚未内嵌用户名。</summary>
+    public static bool NeedsCredential(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+
+        string s = url.Trim();
+        if (!s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+            !s.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        int schemeEnd = s.IndexOf("://", StringComparison.Ordinal);
+        string rest = s[(schemeEnd + 3)..];
+        int slash = rest.IndexOf('/');
+        string authority = slash < 0 ? rest : rest[..slash];
+        return !authority.Contains('@', StringComparison.Ordinal);
+    }
+
+    /// <summary>把凭据注入远端 URL，返回 https://user:token@host/path（令牌做 URL 编码）。</summary>
+    public static string Apply(string url, GitCredential cred)
+    {
+        int schemeEnd = url.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd < 0) return url;
+
+        string scheme = url[..schemeEnd];
+        string rest = url[(schemeEnd + 3)..];
+        int slash = rest.IndexOf('/');
+        string authority = slash < 0 ? rest : rest[..slash];
+        string tail = slash < 0 ? string.Empty : rest[slash..];
+
+        int userInfoEnd = authority.IndexOf('@', StringComparison.Ordinal);
+        string host = userInfoEnd >= 0 ? authority[(userInfoEnd + 1)..] : authority;
+
+        string userInfo = Uri.EscapeDataString(cred.Username ?? string.Empty) + ":" +
+                          Uri.EscapeDataString(cred.Token ?? string.Empty);
+        return $"{scheme}://{userInfo}@{host}{tail}";
+    }
+
+    /// <summary>日志脱敏：把 URL 中的令牌替换为 ***，避免令牌明文进入日志。</summary>
+    public static string Mask(string url)
+    {
+        int schemeEnd = url.IndexOf("://", StringComparison.Ordinal);
+        if (schemeEnd < 0) return url;
+
+        string rest = url[(schemeEnd + 3)..];
+        int slash = rest.IndexOf('/');
+        string authority = slash < 0 ? rest : rest[..slash];
+        string tail = slash < 0 ? string.Empty : rest[slash..];
+
+        int userInfoEnd = authority.IndexOf('@', StringComparison.Ordinal);
+        if (userInfoEnd < 0) return url;
+
+        string userInfo = authority[..userInfoEnd];
+        int colon = userInfo.IndexOf(':', StringComparison.Ordinal);
+        string name = colon < 0 ? userInfo : userInfo[..colon];
+
+        return $"{url[..(schemeEnd + 3)]}{name}:***@{authority[(userInfoEnd + 1)..]}{tail}";
     }
 }

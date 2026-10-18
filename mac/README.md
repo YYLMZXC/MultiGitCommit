@@ -66,12 +66,34 @@ GUI 环境下 git / ssh 若要「交互式」等待输入（远端账号密码�
 1. **非交互执行**：子进程 stdin 立即关闭（读到 EOF），并设置 `GIT_TERMINAL_PROMPT=0`、
    `GIT_SSH_COMMAND="ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new"`。
    需要交互时 git 直接**报错失败**并在日志里给出原因，而不是挂起。
-   凭据请提前配置好：https 用 macOS 钥匙串（`git credential-osxkeychain`），ssh 用已加载的密钥（`ssh-add`）。
+   凭据请提前配置好：https 用【推送凭据】里保存的用户名 + 访问令牌（见下节），ssh 用已加载的密钥（`ssh-add`）。
 2. **超时兜底**：快速校验类命令 20 秒、普通 git 命令 10 分钟、克隆 30 分钟，
    超时即终止进程并写日志，按钮必定恢复可用。执行期间按钮文案变为「执行中…」。
 
 > 若某次推送日志出现 `Permission denied (publickey)` / `Could not read from remote repository`，
 > 说明本机没有可用的远端凭据，先在终端里用一次 `ssh -T git@github.com` 之类的命令验证密钥即可。
+
+## 推送凭据（https 远端）
+
+工具为非交互执行，`GIT_TERMINAL_PROMPT=0` 会禁止 git 弹窗询问账号，
+所以 https 远端**必须**预先提供凭据，否则推送必然失败：
+
+```
+fatal: could not read Username for 'https://cnb.cool': terminal prompts disabled
+```
+
+在【Git 环境】窗口的「推送凭据」区域按主机配置，可配多条（cnb.cool / gitee.com / github.com 各一条）：
+
+| 项目 | 说明 |
+|---|---|
+| 主机 | 远端主机名，如 `cnb.cool`；也可直接粘贴完整 URL |
+| 用户名 | 平台账号名 |
+| 令牌 | 平台生成的访问令牌（PAT），比填登录密码更安全 |
+
+推送时程序自动把凭据注入 URL（`https://user:token@host/...`），**日志中的令牌一律显示为 `***`**。
+ssh 远端（`git@host:...`）不走凭据，使用 ssh-agent 已加载的密钥。
+
+> 凭据以明文保存在 `~/Library/Application Support/MultiGitCommit/settings.json`，注意该文件的访问权限与备份。
 
 ## 配置文件说明
 
@@ -91,6 +113,7 @@ Git 来源等全局设置保存在 **`~/Library/Application Support/MultiGitComm
 |---|---|---|
 | `GitSource` | int | git 来源：`0` 自动检测 / `1` 系统 PATH / `2` 指定路径 / `3` 软件内嵌 |
 | `CustomGitPath` | string | 指定模式下的 git 路径或 Git 根目录 |
+| `Credentials` | object[] | https 推送凭据列表：`{ "Host": "cnb.cool", "Username": "...", "Token": "..." }`（按主机匹配，明文保存） |
 
 > **注意**
 > - 本工具**不会修改** git 原生的 `.git/config`；远端地址只保存在上述工具独立配置文件中。
@@ -125,13 +148,10 @@ mac/src/
 ├── App.axaml / App.axaml.cs       # 应用定义（Fluent 主题）
 ├── MainWindow.axaml(.cs)          # 主界面与全部事件驱动逻辑
 ├── CloneWindow.axaml(.cs)         # 克隆项目窗口
-├── GitSettingsWindow.axaml(.cs)   # Git 环境设置窗口（来源选择/浏览/测试）
+├── GitSettingsWindow.axaml(.cs)   # Git 环境设置窗口（来源选择/浏览/测试 + 推送凭据）
 ├── AboutWindow.axaml(.cs)         # 关于窗口
 ├── Dialogs.cs                     # 自建提示 / 确认 / 输入对话框
 ├── ProjectConfig.cs               # 项目配置读写（multigitcommit.config.json）
 ├── GitLocator.cs                  # git 定位/校验 + 全局设置持久化
 └── res/icon.png                   # 应用图标
 ```
-
-
-t

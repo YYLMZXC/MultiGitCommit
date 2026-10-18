@@ -25,6 +25,9 @@ public partial class MainWindow : Window
     /// <summary>当前有效 git 仓库根目录；为 null 表示未选择/校验失败。</summary>
     private string? _repoRoot;
 
+    /// <summary>本次加载配置时用户输入的路径（可能与 _repoRoot 不同：输入的是仓库子目录）。</summary>
+    private string? _loadedInputPath;
+
     /// <summary>加载配置的标志位，防止加载过程中触发复选框事件导致重复保存。</summary>
     private bool _loading;
 
@@ -66,8 +69,25 @@ public partial class MainWindow : Window
         // 解析 git 来源（内嵌 / 自动检测 / 系统 PATH / 指定路径），不依赖系统安装 git
         RefreshGitEnvironment();
 
-        // 启动时默认使用当前工作目录（GUI 启动时通常为程序目录），若为 git 仓库则自动加载其配置
-        TxtRepoPath.Text = Environment.CurrentDirectory;
+        // 启动时默认使用当前工作目录；若当前目录就是程序自身的输出目录（bin/Debug/net10.0 等），
+        // 则留空由用户手动选择：这类目录通常被 .gitignore 的 bin/ 忽略，作为仓库目录会导致 git add . 直接失败。
+        string cwd = Environment.CurrentDirectory;
+        string baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+        string cwdFull = string.IsNullOrWhiteSpace(cwd)
+            ? string.Empty
+            : Path.GetFullPath(cwd).TrimEnd(Path.DirectorySeparatorChar);
+
+        if (cwdFull.Length == 0 ||
+            string.Equals(cwdFull, baseDir, StringComparison.Ordinal) ||
+            cwdFull.StartsWith(baseDir + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+        {
+            TxtRepoPath.Text = string.Empty;
+            Log("未自动填充仓库目录：当前工作目录是程序自身目录，请点击【浏览】选择 Git 仓库根目录。");
+        }
+        else
+        {
+            TxtRepoPath.Text = cwd;
+        }
     }
 
     // ==================== 日志输出 ====================
@@ -110,8 +130,9 @@ public partial class MainWindow : Window
         };
 
         // 非交互执行：禁止 git / ssh 弹出终端凭据提示，无凭据时直接报错而不是挂起等待
+        // 注意：EnvironmentVariables 的索引器在 key 不存在时会抛 KeyNotFoundException，必须用 ContainsKey / TryGetValue
         psi.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
-        if (string.IsNullOrEmpty(psi.EnvironmentVariables["GIT_SSH_COMMAND"]))
+        if (!psi.EnvironmentVariables.ContainsKey("GIT_SSH_COMMAND"))
             psi.EnvironmentVariables["GIT_SSH_COMMAND"] = "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new";
 
         // 将解析到的 git 相关目录注入子进程 PATH：
@@ -120,7 +141,9 @@ public partial class MainWindow : Window
         var pathEntries = GitLocator.GetPathEntries();
         if (pathEntries.Count > 0)
         {
-            string oldPath = psi.EnvironmentVariables["PATH"] ?? string.Empty;
+            string oldPath = psi.EnvironmentVariables.ContainsKey("PATH")
+                ? psi.EnvironmentVariables["PATH"] ?? string.Empty
+                : string.Empty;
             psi.EnvironmentVariables["PATH"] =
                 string.Join(Path.PathSeparator, pathEntries) + Path.PathSeparator + oldPath;
         }
@@ -225,10 +248,17 @@ public partial class MainWindow : Window
     /// <summary>
     /// 根据当前仓库路径文本框内容加载项目配置；切换不同仓库自动加载对应项目自己的远端列表。
     /// </summary>
-    private void LoadConfigFromPath()
+    private void LoadConfigFromPath(bool force = false)
     {
         string path = TxtRepoPath.Text?.Trim() ?? string.Empty;
+
+        // 已成功加载过同一路径时跳过：回填仓库根目录会再次触发 TextChanged，避免重复执行 git 命令
+        if (!force && _repoRoot != null && _loadedInputPath != null &&
+            string.Equals(path, _loadedInputPath, StringComparison.Ordinal))
+            return;
+
         _repoRoot = null;
+        _loadedInputPath = null;
         _config = null;
 
         _loading = true;
@@ -255,20 +285,36 @@ public partial class MainWindow : Window
 
             if (!EnsureGitAvailable()) return;
 
-            // 校验是否为合法 git 仓库
-            var check = RunCommand(path, GitLocator.GitExe, "rev-parse --is-inside-work-tree");
-            if (!check.Success || !check.Stdout.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
+            // 校验是否为合法 git 仓库，并取真正的仓库根目录：
+            // 输入目录可能是仓库的任意子目录（甚至是被 .gitignore 忽略的 bin/ 输出目录），
+            // 若直接用子目录作为仓库根，配置文件会散落在子目录里，且 git add . 会因目录被忽略而失败。
+            var top = RunCommand(path, GitLocator.GitExe, "rev-parse --show-toplevel");
+            string repoRoot = top.Stdout.Trim();
+            if (!top.Success || repoRoot.Length == 0 || !Directory.Exists(repoRoot))
             {
                 Log($"不是合法的 git 仓库目录：{path}（未发现有效的 .git 仓库）");
+                // 输出 git 的真实报错（权限不足 / 目录不可访问 / 进程启动失败等），便于定位
+                string detail = top.Stderr?.Trim() ?? string.Empty;
+                if (detail.Length > 0)
+                    Log("       git 返回：" + detail);
                 return;
             }
 
-            _repoRoot = path;
+            _repoRoot = repoRoot;
+            _loadedInputPath = repoRoot;
+
+            // 输入的是子目录时回填真正的仓库根目录，保证配置文件始终与 .git 同级、git add . 在根执行
+            if (!string.Equals(path, repoRoot, StringComparison.Ordinal))
+            {
+                Log($"已定位到仓库根目录：{repoRoot}");
+                TxtRepoPath.Text = repoRoot;
+            }
+
             // 读取本项目独立配置；不存在则返回空白配置（首次保存时才写入文件）
-            _config = ProjectConfig.Load(path);
+            _config = ProjectConfig.Load(repoRoot);
             if (_config == null)
             {
-                Log($"读取项目配置失败：{path}");
+                Log($"读取项目配置失败：{repoRoot}");
                 return;
             }
 
@@ -286,7 +332,7 @@ public partial class MainWindow : Window
             string urlSummary = _config.RemoteUrls.Count == 0
                 ? "（空）"
                 : string.Join("、", _config.RemoteUrls);
-            Log($"已加载项目配置：{ProjectConfig.ConfigFileName}（目录：{path}）");
+            Log($"已加载项目配置：{ProjectConfig.ConfigFileName}（目录：{repoRoot}）");
             Log($"当前项目远端共 {_config.RemoteUrls.Count} 个：{urlSummary}");
         }
         finally
@@ -355,8 +401,9 @@ public partial class MainWindow : Window
         string? path = folders[0].TryGetLocalPath();
         if (string.IsNullOrWhiteSpace(path)) return;
 
-        _pathDebounce.Stop(); // 取消防抖，立即加载，避免重复加载
         TxtRepoPath.Text = path.TrimEnd(Path.DirectorySeparatorChar);
+        // 赋值会触发 TextChanged 并重新开启防抖计时器，须在赋值后再次停止，避免 400ms 后重复加载一次
+        _pathDebounce.Stop();
         LoadConfigFromPath();
     }
 
@@ -364,7 +411,7 @@ public partial class MainWindow : Window
     private void BtnLoadConfig_Click(object? sender, RoutedEventArgs e)
     {
         _pathDebounce.Stop();
-        LoadConfigFromPath();
+        LoadConfigFromPath(force: true);
     }
 
     /// <summary>打开“关于”窗口。</summary>
@@ -823,10 +870,10 @@ public partial class MainWindow : Window
         {
             // 若路径文本框与当前加载的仓库不一致，先重新加载配置
             if (_repoRoot == null ||
-                !string.Equals(TxtRepoPath.Text?.Trim(), _repoRoot, StringComparison.Ordinal))
+                !string.Equals(TxtRepoPath.Text?.Trim(), _loadedInputPath, StringComparison.Ordinal))
             {
                 _pathDebounce.Stop();
-                LoadConfigFromPath();
+                LoadConfigFromPath(force: true);
             }
 
             if (_repoRoot == null || _config == null)
@@ -907,9 +954,30 @@ public partial class MainWindow : Window
             {
                 bool withTags = _config.CheckPushTags;
                 string forceFlag = forcePush ? " --force" : string.Empty;
-                string pushArgs = $"push{forceFlag} {url} {branch}" + (withTags ? " --tags" : string.Empty);
-                string pushLabel = $"git push{forceFlag} {url} {branch}" + (withTags ? " --tags" : string.Empty);
-                Log($"--- 推送到：{url}（分支：{branch}{(forcePush ? "，强制推送" : string.Empty)}）---");
+
+                // https 远端：把已配置的用户名 / 令牌注入 URL。
+                // 工具为非交互执行（GIT_TERMINAL_PROMPT=0），无凭据时 git 不能弹窗问账号，推送必然失败。
+                string pushUrl = url;
+                if (GitCredentials.NeedsCredential(url))
+                {
+                    var cred = GitCredentials.Find(url, GitLocator.Settings.Credentials);
+                    if (cred != null)
+                    {
+                        pushUrl = GitCredentials.Apply(url, cred);
+                        Log($"已为 {GitCredentials.Mask(pushUrl)} 注入已保存的推送凭据。");
+                    }
+                    else
+                    {
+                        Log($"提示：{GitCredentials.Mask(url)} 未配置推送凭据，https 远端在非交互模式下很可能失败" +
+                            "（可在【Git 环境】中填写该主机的用户名与访问令牌）。");
+                    }
+                }
+
+                // 日志一律脱敏，令牌不落日志
+                string displayUrl = GitCredentials.Mask(pushUrl);
+                string pushArgs = $"push{forceFlag} {pushUrl} {branch}" + (withTags ? " --tags" : string.Empty);
+                string pushLabel = $"git push{forceFlag} {displayUrl} {branch}" + (withTags ? " --tags" : string.Empty);
+                Log($"--- 推送到：{displayUrl}（分支：{branch}{(forcePush ? "，强制推送" : string.Empty)}）---");
                 var push = await RunCommandAsync(repoDir, GitLocator.GitExe, pushArgs, pushLabel);
                 if (push.Success)
                 {
