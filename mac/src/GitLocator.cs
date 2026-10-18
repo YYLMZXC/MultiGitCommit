@@ -1,5 +1,6 @@
     using System.Diagnostics;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -109,6 +110,19 @@ public class AppSettings
         Directory.CreateDirectory(SettingsDir);
         string json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(SettingsFilePath, json, new UTF8Encoding(false));
+
+        // 凭据以明文保存，收紧为仅当前用户可读写（chmod 600），避免同机其他账号读取
+        if (!OperatingSystem.IsWindows())
+        {
+            try
+            {
+                File.SetUnixFileMode(SettingsFilePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            catch (Exception)
+            {
+                // 文件系统不支持权限位时忽略
+            }
+        }
     }
 }
 
@@ -550,6 +564,22 @@ public static class GitCredentials
         string userInfo = Uri.EscapeDataString(cred.Username ?? string.Empty) + ":" +
                           Uri.EscapeDataString(cred.Token ?? string.Empty);
         return $"{scheme}://{userInfo}@{host}{tail}";
+    }
+
+    /// <summary>匹配任意文本中的 URL 凭据部分：scheme://user:secret@host</summary>
+    private static readonly Regex CredentialPattern = new(
+        @"(?<scheme>[a-zA-Z][a-zA-Z0-9+.\-]*://)(?<user>[^\s:/@]+):(?<secret>[^@\s]+)@",
+        RegexOptions.Compiled);
+
+    /// <summary>
+    /// 对任意文本做凭据脱敏：把 scheme://user:secret@host 中的密钥替换为 ***。
+    /// 用于兜底——git 自身的报错 / 回显里可能带出完整 URL，不能让令牌明文落入日志。
+    /// </summary>
+    public static string MaskText(string? text)
+    {
+        if (string.IsNullOrEmpty(text)) return string.Empty;
+        return CredentialPattern.Replace(text,
+            m => $"{m.Groups["scheme"].Value}{m.Groups["user"].Value}:***@");
     }
 
     /// <summary>日志脱敏：把 URL 中的令牌替换为 ***，避免令牌明文进入日志。</summary>

@@ -101,7 +101,8 @@ public partial class MainWindow : Window
             return;
         }
 
-        TxtLog.Text += $"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}";
+        // 统一脱敏：git 输出中可能回显带凭据的 URL，令牌绝不落日志
+        TxtLog.Text += $"[{DateTime.Now:HH:mm:ss}] {GitCredentials.MaskText(message)}{Environment.NewLine}";
         if (ChkAutoScroll.IsChecked == true)
         {
             TxtLog.CaretIndex = TxtLog.Text?.Length ?? 0;
