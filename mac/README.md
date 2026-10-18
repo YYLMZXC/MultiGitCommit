@@ -93,7 +93,9 @@ fatal: could not read Username for 'https://cnb.cool': terminal prompts disabled
 推送时程序自动把凭据注入 URL（`https://user:token@host/...`），**日志中的令牌一律显示为 `***`**。
 ssh 远端（`git@host:...`）不走凭据，使用 ssh-agent 已加载的密钥。
 
-> 凭据以明文保存在 `~/Library/Application Support/MultiGitCommit/settings.json`，注意该文件的访问权限与备份。
+> **凭据不会被提交到仓库**：它只保存在**仓库之外**的 `~/Library/Application Support/MultiGitCommit/settings.json`（文件权限 600，仅本人可读写），
+> 仓库内的 `multigitcommit.config.json` 不含任何凭据字段，日志里的令牌一律显示为 `***`。
+> 因此 `git add .` 与 `git push` 都不会把账号或令牌带到远端；注意不要手工把该文件复制进仓库。
 
 ## 配置文件说明
 
