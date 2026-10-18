@@ -6,6 +6,7 @@
 
 ## 功能特性
 
+- **克隆项目**：输入远端 URL 一键 `git clone` 到本地，支持指定分支（`--branch`）、递归子模块（`--recursive`）、浅克隆（`--depth 1`）；目录名自动从 URL 推导，克隆完成后自动切换为该仓库，并可把来源 URL 直接写入推送远端列表，一键完成「克隆 → 提交 → 推送」闭环。
 - **多远端推送**：一个 Git 仓库可配置 1 个或多个推送远端地址，推送时逐个执行，单个远端失败不影响其余远端。
 - **每个仓库独立配置**：远端列表、复选框状态保存在各自仓库根目录的 `multigitcommit.config.json`，切换仓库自动加载对应项目的配置。
 - **固定提交格式**：commit 消息固定为 `yyyy-MM-dd HH:mm:ss 用户备注`；备注为空时仅使用本地时间戳。
@@ -56,10 +57,11 @@ dotnet build
 
 ## 使用说明
 
-1. 点击【选择文件夹】，选择任意 Git 仓库根目录（与 `.git` 同级）。
-2. 在【远端地址管理】中添加远端 URL（支持 ssh/https 格式，如 `git@gitee.com:user/repo.git`、`https://github.com/user/repo.git`），可添加多个。
-3. 填写提交备注（可选），按需勾选 `git add .` 与 `--tags` 推送标签。
-4. 点击【执行提交并推送全部远端】，日志区实时查看每一步命令与结果。
+1. 本地还没有仓库？点击【克隆项目】，填写远端 URL、本地父目录与目录名（目录名默认按 URL 自动推导），可选指定分支 / 递归子模块 / 浅克隆，确认后自动克隆并切换到该仓库。
+2. 点击【选择文件夹】，选择任意 Git 仓库根目录（与 `.git` 同级）。
+3. 在【远端地址管理】中添加远端 URL（支持 ssh/https 格式，如 `git@gitee.com:user/repo.git`、`https://github.com/user/repo.git`），可添加多个。
+4. 填写提交备注（可选），按需勾选 `git add .` 与 `--tags` 推送标签。
+5. 点击【执行提交并推送全部远端】，日志区实时查看每一步命令与结果。
 
 ## 配置文件说明
 
@@ -100,5 +102,6 @@ src/
 ├── MultiGitCommit.csproj       # 项目文件（net10.0-windows）
 ├── ProjectConfig.cs            # 项目配置读写帮助类
 ├── GitLocator.cs               # git.exe 定位/校验 + 全局设置持久化
-└── GitSettingsWindow.xaml(.cs) # Git 环境设置窗口（来源选择/路径浏览/测试）
+├── GitSettingsWindow.xaml(.cs) # Git 环境设置窗口（来源选择/路径浏览/测试）
+└── CloneWindow.xaml(.cs)       # 克隆项目窗口（URL/目录/分支/选项 + 命令预览）
 ```

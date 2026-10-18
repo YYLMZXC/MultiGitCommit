@@ -324,6 +324,83 @@ namespace MultiGitCommit
             new AboutWindow { Owner = this }.ShowDialog();
         }
 
+        // ==================== 克隆项目 ====================
+
+        /// <summary>
+        /// 打开克隆窗口，按用户填写的参数执行 git clone；
+        /// 成功后自动切换到该仓库目录、加载其独立配置，并按需把来源 URL 写入推送远端列表。
+        /// </summary>
+        private async void BtnClone_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureGitAvailable()) return;
+
+            // 父目录默认取当前仓库目录（存在时），否则取程序工作目录
+            string initialDir = Directory.Exists(TxtRepoPath.Text.Trim())
+                ? TxtRepoPath.Text.Trim()
+                : Environment.CurrentDirectory;
+
+            var win = new CloneWindow(initialDir) { Owner = this };
+            if (win.ShowDialog() != true) return;
+
+            string url = win.RepoUrl;
+            string parentDir = win.ParentDir;
+            string targetDir = win.TargetDir;
+
+            BtnClone.IsEnabled = false;
+            try
+            {
+                // url 与目标目录分别加引号，兼容其中包含空格的情况
+                string args = CloneWindow.BuildCloneArgs(win.BranchName, win.Recursive, win.Shallow);
+                string fullArgs = $"{args}\"{url}\" \"{targetDir}\"";
+
+                Log($"========== 开始克隆仓库：{url} ==========");
+                Log($"目标目录：{targetDir}");
+                var clone = await RunCommandAsync(parentDir, GitLocator.GitExe, fullArgs, $"git {fullArgs}");
+                if (!clone.Success)
+                {
+                    Log("克隆失败：请查看上方日志（常见原因：URL 无效或无权限、目标目录已存在且非空、网络/ssh 配置问题）。");
+                    return;
+                }
+                Log($"克隆成功：{targetDir}");
+
+                // 克隆完成后切换到该仓库并加载其独立配置
+                TxtRepoPath.Text = targetDir;
+                LoadConfigFromPath();
+                _pathDebounce.Stop(); // 路径变化触发的防抖加载已执行，避免重复加载
+
+                // 按需把克隆来源 URL 写入本项目推送远端列表（工具独立配置，不动 .git/config）
+                if (win.AddToRemotes)
+                {
+                    if (_config == null)
+                    {
+                        Log("警告：项目配置未加载，未能将该 URL 写入推送远端列表。");
+                    }
+                    else if (_config.RemoteUrls.Contains(url))
+                    {
+                        Log($"推送远端列表中已存在该 URL：{url}");
+                    }
+                    else
+                    {
+                        _config.RemoteUrls.Add(url);
+                        RefreshRemoteList();
+                        SaveConfig();
+                        Log($"已将该 URL 添加到推送远端列表：{url}");
+                    }
+                }
+
+                await GetCurrentBranchAsync(_repoRoot ?? targetDir);
+                Log("========== 克隆流程完成 ==========");
+            }
+            catch (Exception ex)
+            {
+                Log("克隆异常：" + ex);
+            }
+            finally
+            {
+                BtnClone.IsEnabled = true;
+            }
+        }
+
         // ==================== Git 环境管理（不依赖系统安装 git） ====================
 
         /// <summary>打开 Git 环境设置窗口：选择 自动检测 / 系统 PATH / 指定便携版或软件自带 git。</summary>
@@ -568,7 +645,7 @@ namespace MultiGitCommit
         }
 
         /// <summary>校验分支名是否符合 git 引用命名基本规则。</summary>
-        private static bool IsValidBranchName(string name)
+        internal static bool IsValidBranchName(string name)
         {
             if (string.IsNullOrWhiteSpace(name)) return false;
             if (name.Any(char.IsWhiteSpace)) return false;

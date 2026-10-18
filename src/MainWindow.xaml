@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="MultiGitCommit - 一键提交推送工具"
         Icon="res\icon.ico"
-        Width="980" Height="760"
-        MinWidth="820" MinHeight="620"
+        Width="1080" Height="760"
+        MinWidth="900" MinHeight="620"
         WindowStartupLocation="CenterScreen"
         FontFamily="Microsoft YaHei UI" FontSize="13">
 
@@ -40,6 +40,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>   <!-- 关于 -->
                 <ColumnDefinition Width="Auto"/>   <!-- Git 环境 -->
             </Grid.ColumnDefinitions>
@@ -48,15 +49,17 @@
                      TextChanged="TxtRepoPath_TextChanged"
                      ToolTip="Git 仓库本地根目录路径，与 .git 文件夹同级"/>
             <Button x:Name="BtnBrowse" Grid.Column="2" Content="选择文件夹" Click="BtnBrowse_Click" Margin="6,2,4,2"/>
-            <Button x:Name="BtnInitRepo" Grid.Column="3" Content="初始化仓库" Click="BtnInitRepo_Click" Margin="4,2,0,2"
+            <Button x:Name="BtnClone" Grid.Column="3" Content="克隆项目" Click="BtnClone_Click" Margin="4,2,0,2"
+                    ToolTip="从远端 URL 克隆仓库到本地目录，完成后自动切换为该仓库并可写入推送远端列表"/>
+            <Button x:Name="BtnInitRepo" Grid.Column="4" Content="初始化仓库" Click="BtnInitRepo_Click" Margin="4,2,0,2"
                     ToolTip="对当前目录执行 git init 初始化仓库，并创建默认分支（目录不存在时提示新建）"/>
-            <Button x:Name="BtnCreateBranch" Grid.Column="4" Content="创建默认分支" Click="BtnCreateBranch_Click" Margin="4,2,0,2"
+            <Button x:Name="BtnCreateBranch" Grid.Column="5" Content="创建默认分支" Click="BtnCreateBranch_Click" Margin="4,2,0,2"
                     ToolTip="为当前仓库创建/切换默认分支；空仓库直接设置 HEAD 指向该分支"/>
-            <Button x:Name="BtnLoadConfig" Grid.Column="5" Content="重新加载配置" Click="BtnLoadConfig_Click" Margin="4,2,0,2"
+            <Button x:Name="BtnLoadConfig" Grid.Column="6" Content="重新加载配置" Click="BtnLoadConfig_Click" Margin="4,2,0,2"
                     ToolTip="重新读取当前目录下的 multigitcommit.config.json"/>
-            <Button x:Name="BtnAbout" Grid.Column="6" Content="关于" Click="BtnAbout_Click" Margin="4,2,0,2"
+            <Button x:Name="BtnAbout" Grid.Column="7" Content="关于" Click="BtnAbout_Click" Margin="4,2,0,2"
                     ToolTip="关于 MultiGitCommit 及项目地址"/>
-            <Button x:Name="BtnGitEnv" Grid.Column="7" Content="Git 环境" Click="BtnGitEnv_Click" Margin="4,2,0,2"
+            <Button x:Name="BtnGitEnv" Grid.Column="8" Content="Git 环境" Click="BtnGitEnv_Click" Margin="4,2,0,2"
                     ToolTip="配置 git.exe 来源：自动检测 / 系统 PATH（环境 git）/ 指定便携版或软件自带 Git，不依赖系统安装 git"/>
         </Grid>
 
