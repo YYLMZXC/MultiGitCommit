@@ -168,7 +168,27 @@
                              TextWrapping="NoWrap"
                              Background="#1E1E1E" Foreground="#DCDCDC"
                              BorderThickness="0"
-                             FontFamily="Consolas,Menlo" FontSize="12"/>
+                             FontFamily="Consolas,Menlo" FontSize="12">
+                        <!-- Fluent 主题会按控件状态（悬停 / 聚焦 / 禁用）换掉 TextBox 的背景与边框，
+                             这些状态样式写在控件模板内部元素上，直接设 Background 属性挡不住，
+                             因此在这里覆盖同名主题资源，让日志区在任何状态下都保持深色。 -->
+                        <TextBox.Resources>
+                            <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#1E1E1E"/>
+                            <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#1E1E1E"/>
+                            <SolidColorBrush x:Key="TextControlBackgroundDisabled" Color="#1E1E1E"/>
+                            <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#1E1E1E"/>
+                            <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#1E1E1E"/>
+                        </TextBox.Resources>
+                        <TextBox.Styles>
+                            <!-- 双保险：万一主题未使用上述资源名，直接改模板内边框的背景 -->
+                            <Style Selector="TextBox:pointerover /template/ Border">
+                                <Setter Property="Background" Value="#1E1E1E"/>
+                            </Style>
+                            <Style Selector="TextBox:focus /template/ Border">
+                                <Setter Property="Background" Value="#1E1E1E"/>
+                            </Style>
+                        </TextBox.Styles>
+                    </TextBox>
                 </Border>
                 <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4,0,0" HorizontalAlignment="Left">
                     <Button x:Name="BtnClearLog" Content="清空日志" Click="BtnClearLog_Click" Padding="10,2"/>

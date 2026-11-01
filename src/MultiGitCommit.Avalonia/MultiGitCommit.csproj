@@ -26,6 +26,7 @@
     <PackageReference Include="Avalonia.Desktop" Version="11.3.11" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.11" />
     <PackageReference Include="Avalonia.Diagnostics" Version="11.3.11" Condition="'$(Configuration)' == 'Debug'" />
+    <PackageReference Include="Tmds.DBus.Protocol" Version="0.95.2" />
   </ItemGroup>
 
   <!-- 应用图标：以 Avalonia 资源嵌入，供 Window.Icon / App 图标使用（两平台共用 png） -->
