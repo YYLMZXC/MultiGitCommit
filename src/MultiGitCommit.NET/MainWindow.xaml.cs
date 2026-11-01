@@ -32,6 +32,9 @@ namespace MultiGitCommit
         /// <summary>当前有效 git 仓库根目录；为 null 表示未选择/校验失败。</summary>
         private string? _repoRoot;
 
+        /// <summary>本次加载配置时用户输入的路径（可能与 _repoRoot 不同：输入的是仓库子目录）。</summary>
+        private string? _loadedInputPath;
+
         /// <summary>加载配置的标志位，防止加载过程中触发复选框事件导致重复保存。</summary>
         private bool _loading;
 
@@ -64,8 +67,25 @@ namespace MultiGitCommit
             // 解析 git.exe 来源（环境 git / 自动检测 / 指定便携版），不依赖系统安装 git
             RefreshGitEnvironment();
 
-            // 启动时默认使用当前工作目录，若为 git 仓库则自动加载其配置
-            TxtRepoPath.Text = Environment.CurrentDirectory;
+            // 启动时默认使用当前工作目录；若当前目录就是程序自身的输出目录（bin\Debug\net10.0-windows 等），
+            // 则留空由用户手动选择：这类目录通常被 .gitignore 的 bin/ 忽略，作为仓库目录会导致 git add . 直接失败。
+            string cwd = Environment.CurrentDirectory;
+            string baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
+            string cwdFull = string.IsNullOrWhiteSpace(cwd)
+                ? string.Empty
+                : Path.GetFullPath(cwd).TrimEnd(Path.DirectorySeparatorChar);
+
+            if (cwdFull.Length == 0 ||
+                string.Equals(cwdFull, baseDir, StringComparison.OrdinalIgnoreCase) ||
+                cwdFull.StartsWith(baseDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            {
+                TxtRepoPath.Text = string.Empty;
+                Log("未自动填充仓库目录：当前工作目录是程序自身目录，请点击【选择文件夹】选择 Git 仓库根目录。");
+            }
+            else
+            {
+                TxtRepoPath.Text = cwd;
+            }
         }
 
         // ==================== 日志输出 ====================
@@ -82,7 +102,8 @@ namespace MultiGitCommit
                 return;
             }
 
-            TxtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {message}{Environment.NewLine}");
+            // 统一脱敏：git 输出中可能回显带凭据的 URL，令牌绝不落日志
+            TxtLog.AppendText($"[{DateTime.Now:HH:mm:ss}] {GitCredentials.MaskText(message)}{Environment.NewLine}");
             if (ChkAutoScroll.IsChecked == true)
             {
                 TxtLog.ScrollToEnd();
@@ -102,11 +123,25 @@ namespace MultiGitCommit
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
+                // 重定向并立即关闭 stdin：git / ssh 需要交互输入时直接读到 EOF 失败，
+                // 而不是继承控制台 stdin 一直等待（GUI 环境下会永久阻塞，按钮永远不恢复）
+                RedirectStandardInput = true,
                 CreateNoWindow = true,
                 // 指定 UTF-8 编码，避免中文乱码
                 StandardOutputEncoding = Encoding.UTF8,
                 StandardErrorEncoding = Encoding.UTF8
             };
+
+            // 非交互执行：禁止 git / ssh 弹出凭据提示，无凭据时直接报错而不是挂起等待
+            psi.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
+            if (!psi.EnvironmentVariables.ContainsKey("GIT_SSH_COMMAND"))
+            {
+                // 仅在确实能找到 ssh.exe 时才设置，避免覆盖 git 自身的 ssh 查找逻辑
+                string? ssh = GitLocator.FindSshExe();
+                if (ssh != null)
+                    psi.EnvironmentVariables["GIT_SSH_COMMAND"] =
+                        $"\"{ssh}\" -o BatchMode=yes -o StrictHostKeyChecking=accept-new";
+            }
 
             // 将解析到的 git 相关目录注入子进程 PATH：
             // 1. 便携版 / 指定路径 / 内嵌的 git 也能找到自带的 ssh、git-lfs 等程序；
@@ -122,16 +157,35 @@ namespace MultiGitCommit
             return new Process { StartInfo = psi };
         }
 
-        /// <summary>同步执行命令（用于快速校验，输出量小），返回结果对象。</summary>
+        /// <summary>快速校验类命令的超时（同步执行，避免卡死 UI 线程）。</summary>
+        private static readonly TimeSpan QuickCommandTimeout = TimeSpan.FromSeconds(20);
+
+        /// <summary>普通 git 命令（add / commit / push …）的默认超时，超时即终止，保证按钮一定恢复可用。</summary>
+        private static readonly TimeSpan DefaultCommandTimeout = TimeSpan.FromMinutes(10);
+
+        /// <summary>克隆仓库的超时（大仓库耗时较长）。</summary>
+        private static readonly TimeSpan CloneCommandTimeout = TimeSpan.FromMinutes(30);
+
+        /// <summary>同步执行命令（用于快速校验，输出量小），带超时保护，返回结果对象。</summary>
         private static CommandResult RunCommand(string workingDir, string fileName, string arguments)
         {
             try
             {
                 using var p = CreateProcess(workingDir, fileName, arguments);
                 p.Start();
+                p.StandardInput.Close(); // 立即给 EOF，杜绝等待交互输入
                 var outTask = p.StandardOutput.ReadToEndAsync();
                 var errTask = p.StandardError.ReadToEndAsync();
-                Task.WaitAll(outTask, errTask);
+                if (!Task.WaitAll(new Task[] { outTask, errTask }, QuickCommandTimeout))
+                {
+                    KillProcess(p);
+                    return new CommandResult
+                    {
+                        ExitCode = -1,
+                        Stderr = $"命令执行超时（{QuickCommandTimeout.TotalSeconds:0} 秒），已终止：{fileName} {arguments}"
+                    };
+                }
+
                 p.WaitForExit();
                 return new CommandResult { ExitCode = p.ExitCode, Stdout = outTask.Result, Stderr = errTask.Result };
             }
@@ -141,20 +195,48 @@ namespace MultiGitCommit
             }
         }
 
-        /// <summary>异步执行命令，stdout/stderr 逐行实时输出到日志区。</summary>
-        private async Task<CommandResult> RunCommandAsync(string workingDir, string fileName, string arguments, string? logLabel = null)
+        /// <summary>异步执行命令，stdout/stderr 逐行实时输出到日志区；支持超时，超时后终止进程并返回失败。</summary>
+        private async Task<CommandResult> RunCommandAsync(string workingDir, string fileName, string arguments,
+            string? logLabel = null, TimeSpan? timeout = null)
         {
+            TimeSpan limit = timeout ?? DefaultCommandTimeout;
             using var p = CreateProcess(workingDir, fileName, arguments);
             if (logLabel != null) Log("> " + logLabel);
             p.Start();
+            p.StandardInput.Close(); // 立即给 EOF，杜绝等待交互输入
 
             var outTask = DrainStreamAsync(p.StandardOutput);
             var errTask = DrainStreamAsync(p.StandardError);
-            string stdout = await outTask;
-            string stderr = await errTask;
+            var ioTask = Task.WhenAll(outTask, errTask);
+
+            var finished = await Task.WhenAny(ioTask, Task.Delay(limit));
+            if (finished != ioTask)
+            {
+                Log($"[超时] 命令执行超过 {limit.TotalMinutes:0.##} 分钟仍未结束，已强制终止：{logLabel ?? (fileName + " " + arguments)}");
+                Log("       常见原因：远端要求输入用户名/密码或 ssh 口令（本工具为非交互执行，不会弹框输入）、网络不通、仓库过大。");
+                KillProcess(p);
+                await Task.WhenAny(ioTask, Task.Delay(3000)); // 等输出流收尾，避免访问已释放资源
+                await Task.WhenAny(p.WaitForExitAsync(), Task.Delay(3000));
+                return new CommandResult { ExitCode = -1, Stderr = "执行超时，已终止" };
+            }
+
+            await ioTask;
             await p.WaitForExitAsync();
 
-            return new CommandResult { ExitCode = p.ExitCode, Stdout = stdout, Stderr = stderr };
+            return new CommandResult { ExitCode = p.ExitCode, Stdout = outTask.Result, Stderr = errTask.Result };
+        }
+
+        /// <summary>强制终止进程及其子进程树（失败时忽略）。</summary>
+        private static void KillProcess(Process p)
+        {
+            try
+            {
+                p.Kill(entireProcessTree: true);
+            }
+            catch (Exception)
+            {
+                // 进程可能已退出
+            }
         }
 
         /// <summary>逐行读取输出流并实时写入日志，同时累积完整文本用于返回。</summary>
@@ -177,10 +259,17 @@ namespace MultiGitCommit
         /// 规则：目录存在且为合法 git 仓库 → 读取 multigitcommit.config.json（不存在则新建空白配置）；
         /// 切换不同仓库自动加载对应项目自己的远端列表。
         /// </summary>
-        private void LoadConfigFromPath()
+        private void LoadConfigFromPath(bool force = false)
         {
             string path = TxtRepoPath.Text.Trim();
+
+            // 已成功加载过同一路径时跳过：回填仓库根目录会再次触发 TextChanged，避免重复执行 git 命令
+            if (!force && _repoRoot != null && _loadedInputPath != null &&
+                string.Equals(path, _loadedInputPath, StringComparison.OrdinalIgnoreCase))
+                return;
+
             _repoRoot = null;
+            _loadedInputPath = null;
             _config = null;
 
             _loading = true;
@@ -207,20 +296,38 @@ namespace MultiGitCommit
 
                 if (!EnsureGitAvailable()) return;
 
-                // 校验是否为合法 git 仓库（git rev-parse --is-inside-work-tree）
-                var check = RunCommand(path, GitLocator.GitExe, "rev-parse --is-inside-work-tree");
-                if (!check.Success || !check.Stdout.Trim().Equals("true", StringComparison.OrdinalIgnoreCase))
+                // 校验是否为合法 git 仓库，并取真正的仓库根目录：
+                // 输入目录可能是仓库的任意子目录（甚至是被 .gitignore 忽略的 bin\ 输出目录），
+                // 若直接用子目录作为仓库根，配置文件会散落在子目录里，且 git add . 会因目录被忽略而失败。
+                var top = RunCommand(path, GitLocator.GitExe, "rev-parse --show-toplevel");
+                string repoRoot = top.Stdout.Trim();
+                if (!top.Success || repoRoot.Length == 0 || !Directory.Exists(repoRoot))
                 {
                     Log($"不是合法的 git 仓库目录：{path}（未发现有效的 .git 仓库）");
+                    // 输出 git 的真实报错（权限不足 / 目录不可访问 / 进程启动失败等），便于定位
+                    string detail = top.Stderr?.Trim() ?? string.Empty;
+                    if (detail.Length > 0)
+                        Log("       git 返回：" + detail);
                     return;
                 }
 
-                _repoRoot = path;
+                // git 输出使用 / 分隔，统一成本地分隔符形式再比较与回填
+                repoRoot = Path.GetFullPath(repoRoot);
+                _repoRoot = repoRoot;
+                _loadedInputPath = repoRoot;
+
+                // 输入的是子目录时回填真正的仓库根目录，保证配置文件始终与 .git 同级、git add . 在根执行
+                if (!string.Equals(path, repoRoot, StringComparison.OrdinalIgnoreCase))
+                {
+                    Log($"已定位到仓库根目录：{repoRoot}");
+                    TxtRepoPath.Text = repoRoot;
+                }
+
                 // 读取本项目独立配置；不存在则返回空白配置（首次保存时才写入文件）
-                _config = ProjectConfig.Load(path);
+                _config = ProjectConfig.Load(repoRoot);
                 if (_config == null)
                 {
-                    Log($"读取项目配置失败：{path}");
+                    Log($"读取项目配置失败：{repoRoot}");
                     return;
                 }
 
@@ -237,7 +344,7 @@ namespace MultiGitCommit
                 string urlSummary = _config.RemoteUrls.Count == 0
                     ? "（空）"
                     : string.Join("、", _config.RemoteUrls);
-                Log($"已加载项目配置：{ProjectConfig.ConfigFileName}（目录：{path}）");
+                Log($"已加载项目配置：{ProjectConfig.ConfigFileName}（目录：{repoRoot}）");
                 Log($"当前项目远端共 {_config.RemoteUrls.Count} 个：{urlSummary}");
             }
             finally
@@ -319,7 +426,7 @@ namespace MultiGitCommit
         private void BtnLoadConfig_Click(object sender, RoutedEventArgs e)
         {
             _pathDebounce.Stop();
-            LoadConfigFromPath();
+            LoadConfigFromPath(force: true);
         }
 
         /// <summary>打开“关于”窗口，展示软件信息与项目地址。</summary>
@@ -359,7 +466,7 @@ namespace MultiGitCommit
 
                 Log($"========== 开始克隆仓库：{url} ==========");
                 Log($"目标目录：{targetDir}");
-                var clone = await RunCommandAsync(parentDir, GitLocator.GitExe, fullArgs, $"git {fullArgs}");
+                var clone = await RunCommandAsync(parentDir, GitLocator.GitExe, fullArgs, $"git {fullArgs}", CloneCommandTimeout);
                 if (!clone.Success)
                 {
                     Log("克隆失败：请查看上方日志（常见原因：URL 无效或无权限、目标目录已存在且非空、网络/ssh 配置问题）。");
@@ -789,15 +896,17 @@ namespace MultiGitCommit
 
         private async void BtnCommitPush_Click(object sender, RoutedEventArgs e)
         {
+            string idleText = BtnCommitPush.Content?.ToString() ?? "执行提交并推送全部远端";
+            BtnCommitPush.Content = "执行中…";
             BtnCommitPush.IsEnabled = false;
             try
             {
                 // 若路径文本框与当前加载的仓库不一致，先重新加载配置
                 if (_repoRoot == null ||
-                    !string.Equals(TxtRepoPath.Text.Trim(), _repoRoot, StringComparison.OrdinalIgnoreCase))
+                    !string.Equals(TxtRepoPath.Text.Trim(), _loadedInputPath, StringComparison.OrdinalIgnoreCase))
                 {
                     _pathDebounce.Stop();
-                    LoadConfigFromPath();
+                    LoadConfigFromPath(force: true);
                 }
                 if (_repoRoot == null || _config == null)
                 {
@@ -881,9 +990,30 @@ namespace MultiGitCommit
                 {
                     bool withTags = _config.CheckPushTags;
                     string forceFlag = forcePush ? " --force" : string.Empty;
-                    string pushArgs = $"push{forceFlag} {url} {branch}" + (withTags ? " --tags" : string.Empty);
-                    string pushLabel = $"git push{forceFlag} {url} {branch}" + (withTags ? " --tags" : string.Empty);
-                    Log($"--- 推送到：{url}（分支：{branch}{(forcePush ? "，强制推送" : string.Empty)}）---");
+
+                    // https 远端：把已配置的用户名 / 令牌（账号凭据）注入 URL。
+                    // 工具为非交互执行（GIT_TERMINAL_PROMPT=0），无凭据时 git 不能弹窗问账号，推送必然失败。
+                    string pushUrl = url;
+                    if (GitCredentials.NeedsCredential(url))
+                    {
+                        var cred = GitCredentials.Find(url, GitLocator.Settings.Credentials);
+                        if (cred != null)
+                        {
+                            pushUrl = GitCredentials.Apply(url, cred);
+                            Log($"已为 {GitCredentials.Mask(pushUrl)} 注入已保存的推送凭据。");
+                        }
+                        else
+                        {
+                            Log($"提示：{GitCredentials.Mask(url)} 未配置推送凭据，https 远端在非交互模式下很可能失败" +
+                                "（可在【Git 环境】中填写该主机的用户名与访问令牌）。");
+                        }
+                    }
+
+                    // 日志一律脱敏，令牌不落日志
+                    string displayUrl = GitCredentials.Mask(pushUrl);
+                    string pushArgs = $"push{forceFlag} {pushUrl} {branch}" + (withTags ? " --tags" : string.Empty);
+                    string pushLabel = $"git push{forceFlag} {displayUrl} {branch}" + (withTags ? " --tags" : string.Empty);
+                    Log($"--- 推送到：{displayUrl}（分支：{branch}{(forcePush ? "，强制推送" : string.Empty)}）---");
                     var push = await RunCommandAsync(repoDir, GitLocator.GitExe, pushArgs, pushLabel);
                     if (push.Success)
                     {
@@ -906,6 +1036,7 @@ namespace MultiGitCommit
             }
             finally
             {
+                BtnCommitPush.Content = idleText;
                 BtnCommitPush.IsEnabled = true;
             }
         }

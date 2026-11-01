@@ -17,6 +17,9 @@
 - **空提交防护**：工作区无变更时自动跳过 `git commit`，不生成空提交；勾选【强制提交】可忽略该防护（`--allow-empty`）。
 - **强制推送**：勾选【强制推送】后推送命令追加 `--force`，用于非快进被拒、变基/回退后覆盖远端历史（谨慎使用）。
 - **手动命令执行**：可在当前仓库目录执行任意 git/cmd 命令，stdout/stderr 全量输出日志。
+- **仓库初始化 / 默认分支**：`git init` + 指定默认分支，空仓库直接设置 HEAD 指向；输入仓库子目录时自动定位到真正的仓库根目录。
+- **推送凭据（账号）**：在【Git 环境】中按主机保存平台用户名 + 访问令牌，推送 https 远端时自动注入 URL，无需每次输入账号（详见下方【推送凭据】）。
+- **非交互执行 + 超时兜底**：不弹窗等待账号/口令，快速命令 20 秒、普通 git 命令 10 分钟、克隆 30 分钟超时即终止，按钮必定恢复（详见下方【非交互执行与超时保护】）。
 - **中文不乱码**：进程调用统一 UTF-8 编码。
 - **不依赖系统 git**：内置【Git 环境】设置，支持四种 git.exe 来源——自动检测（软件内嵌便携版 Git → 常见安装位置 → 系统 PATH）、仅软件内嵌便携版 Git、仅系统 PATH（环境 git）、指定 git.exe / Git 目录（软件自带、便携版 Git）；配置保存到 `%APPDATA%\MultiGitCommit\settings.json`，切换来源无需重装系统 git。
 
@@ -65,7 +68,46 @@ dotnet build
 2. 点击【选择文件夹】，选择任意 Git 仓库根目录（与 `.git` 同级）。
 3. 在【远端地址管理】中添加远端 URL（支持 ssh/https 格式，如 `git@gitee.com:user/repo.git`、`https://github.com/user/repo.git`），可添加多个。
 4. 填写提交备注（可选），按需勾选 `git add .`、`--tags` 推送标签、【强制提交 `--allow-empty`】与【强制推送 `--force`】。
-5. 点击【执行提交并推送全部远端】，日志区实时查看每一步命令与结果。
+5. 点击【执行提交并推送全部远端】，日志区实时查看每一步命令与结果（执行期间按钮显示「执行中…」）。
+
+## 非交互执行与超时保护
+
+GUI 环境下 git / ssh 若要「交互式」等待输入（远端账号密码、ssh 口令、主机密钥 yes/no 确认、GPG 签名口令），
+进程会永久阻塞——表现为【执行提交并推送全部远端】按钮一直灰着不恢复。为此本工具做两件事：
+
+1. **非交互执行**：子进程 stdin 立即关闭（读到 EOF），并设置 `GIT_TERMINAL_PROMPT=0`、
+   `GIT_SSH_COMMAND="ssh.exe -o BatchMode=yes -o StrictHostKeyChecking=accept-new"`（仅在能找到 ssh.exe 时设置，
+   否则保留 git 自身的 ssh 查找逻辑）。需要交互时 git 直接**报错失败**并在日志里给出原因，而不是挂起。
+   凭据请提前配置好：https 用【推送凭据】里保存的用户名 + 访问令牌（见下节），ssh 用已加载的密钥。
+2. **超时兜底**：快速校验类命令 20 秒、普通 git 命令 10 分钟、克隆 30 分钟，
+   超时即终止进程并写日志，按钮必定恢复可用。执行期间按钮文案变为「执行中…」。
+
+> 若某次推送日志出现 `Permission denied (publickey)` / `Could not read from remote repository`，
+> 说明本机没有可用的远端凭据；https 远端请到【Git 环境】→【推送凭据】配置账号，ssh 远端请先配置好密钥。
+
+## 推送凭据（https 远端）
+
+工具为非交互执行，`GIT_TERMINAL_PROMPT=0` 会禁止 git 弹窗询问账号，
+所以 https 远端**必须**预先提供凭据，否则推送必然失败：
+
+```
+fatal: could not read Username for 'https://cnb.cool': terminal prompts disabled
+```
+
+在【Git 环境】窗口的「推送凭据」区域按主机配置，可配多条（cnb.cool / gitee.com / github.com 各一条）：
+
+| 项目 | 说明 |
+|---|---|
+| 主机 | 远端主机名，如 `cnb.cool`；也可直接粘贴完整 URL |
+| 用户名 | 平台账号名 |
+| 令牌 | 平台生成的访问令牌（PAT），比填登录密码更安全（输入时以掩码显示） |
+
+推送时程序自动把凭据注入 URL（`https://user:token@host/...`），**日志中的令牌一律显示为 `***`**。
+ssh 远端（`git@host:...`）不走凭据，使用 ssh 密钥。
+
+> **凭据不会被提交到仓库**：它只保存在**仓库之外**的 `%APPDATA%\MultiGitCommit\settings.json`，
+> 仓库内的 `multigitcommit.config.json` 不含任何凭据字段，日志里的令牌一律显示为 `***`。
+> 因此 `git add .` 与 `git push` 都不会把账号或令牌带到远端；注意不要手工把该文件复制进仓库。
 
 ## 配置文件说明
 
@@ -85,6 +127,7 @@ Git 来源等全局设置（与仓库无关）保存在 **`%APPDATA%\MultiGitCom
 |---|---|---|
 | `GitSource` | int | git.exe 来源：`0` 自动检测 / `1` 系统 PATH / `2` 指定路径 / `3` 软件内嵌便携版 |
 | `CustomGitPath` | string | 指定模式下的 git.exe 或 Git 根目录路径 |
+| `Credentials` | object[] | https 推送凭据列表：`{ "Host": "cnb.cool", "Username": "...", "Token": "..." }`（按主机匹配，明文保存） |
 
 > **注意**
 > - 本工具**不会修改** git 原生的 `.git/config` 文件；远端地址只保存在上述工具独立配置文件中。

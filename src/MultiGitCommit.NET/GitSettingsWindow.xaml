@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Git 环境设置"
         Icon="res\icon.ico"
-        Width="600" SizeToContent="Height"
+        Width="620" SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
         FontFamily="Microsoft YaHei UI" FontSize="13"
@@ -39,6 +39,41 @@
 
         <TextBlock x:Name="TxtResult" TextWrapping="Wrap" Margin="0,8,0,0"
                    MinHeight="18" Foreground="#666"/>
+
+        <TextBlock Text="推送凭据（https 远端免交互推送用，按主机匹配，可配置多个）"
+                   Margin="0,14,0,4" FontWeight="Bold"/>
+        <TextBlock Text="工具为非交互执行（禁用终端提示），https 远端没有凭据时 git 无法弹窗询问账号，推送必然失败。填入平台的用户名与访问令牌，推送时自动注入 URL（令牌在日志中显示为 ***）。"
+                   TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
+
+        <ListBox x:Name="ListCred" Height="90" SelectionChanged="ListCred_SelectionChanged"/>
+
+        <Grid Margin="0,6,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="170"/>
+                <ColumnDefinition Width="110"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="主机（如 cnb.cool）" FontSize="11" Foreground="#666" Margin="0,0,0,2"/>
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="用户名" FontSize="11" Foreground="#666" Margin="6,0,0,2"/>
+            <TextBlock Grid.Row="0" Grid.Column="2" Text="访问令牌 / 密码" FontSize="11" Foreground="#666" Margin="6,0,0,2"/>
+            <TextBox x:Name="TxtCredHost" Grid.Row="1" Grid.Column="0" VerticalContentAlignment="Center"
+                     ToolTip="远端主机名（cnb.cool / gitee.com / github.com），也可直接粘贴完整 URL"/>
+            <TextBox x:Name="TxtCredUser" Grid.Row="1" Grid.Column="1" Margin="6,0,0,0" VerticalContentAlignment="Center"
+                     ToolTip="平台账号名"/>
+            <PasswordBox x:Name="TxtCredToken" Grid.Row="1" Grid.Column="2" Margin="6,0,0,0" VerticalContentAlignment="Center"
+                         ToolTip="平台的访问令牌（Personal Access Token），比填登录密码更安全"/>
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+            <Button x:Name="BtnCredAdd" Content="添加/更新" Padding="10,2" Click="BtnCredAdd_Click"/>
+            <Button x:Name="BtnCredDelete" Content="删除" Padding="10,2" Margin="6,0,0,0" Click="BtnCredDelete_Click"/>
+            <TextBlock Text="凭据明文保存在 %APPDATA%\MultiGitCommit\settings.json"
+                       VerticalAlignment="Center" Margin="10,0,0,0" Foreground="#888" FontSize="11"/>
+        </StackPanel>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
             <Button Content="确定" Width="80" IsDefault="True" Padding="8,2" Click="BtnOk_Click"/>
