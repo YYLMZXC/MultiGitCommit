@@ -503,7 +503,8 @@ public partial class MainWindow : Window
     /// <summary>打开 Git 环境设置窗口：选择 自动检测 / 系统 PATH / 指定路径 / 内嵌 Git。</summary>
     private async void BtnGitEnv_Click(object? sender, RoutedEventArgs e)
     {
-        var win = new GitSettingsWindow(GitLocator.Settings);
+        // 传入当前项目的远端 URL：验证账号时优先用同主机的真实远端做探测
+        var win = new GitSettingsWindow(GitLocator.Settings, _config?.RemoteUrls);
         if (await win.ShowDialog<bool?>(this) != true) return;
 
         GitLocator.Settings.GitSource = win.SelectedSource;

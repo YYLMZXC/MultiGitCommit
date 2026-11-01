@@ -32,8 +32,11 @@ namespace MultiGitCommit
         /// <summary>InitializeComponent / 初始化过程中抑制事件（避免抢焦点、避免重复检测）。</summary>
         private bool _suppress;
 
-        /// <summary>当前项目的远端 URL，用于自动检测时优先探测这些主机。</summary>
+        /// <summary>当前项目的远端 URL，用于自动检测时优先探测这些主机、验证账号时优先探测真实远端。</summary>
         private readonly IReadOnlyList<string>? _remoteUrls;
+
+        /// <summary>账号验证的取消令牌（【取消验证】按钮 / 关闭窗口时使用）。</summary>
+        private CancellationTokenSource? _credTestCts;
 
         /// <summary>当前仓库根目录（设置提交身份时写入仓库级 config 用）。</summary>
         private readonly string? _repoPath;
@@ -83,8 +86,12 @@ namespace MultiGitCommit
 
             _suppress = false;
 
+            // 关闭窗口时中止未完成的账号验证，避免后台 git 进程继续空跑
+            Closing += (_, _) => _credTestCts?.Cancel();
+
             RefreshCredList();
             RefreshIdentityInfo();
+            RefreshHelperInfo();
             UpdateEnabled();
             Test(); // 打开窗口即显示当前配置的检测结果
         }
@@ -108,8 +115,11 @@ namespace MultiGitCommit
             TxtCredToken.Password = cred.Token;
         }
 
-        /// <summary>添加或更新一条凭据（同一主机只保留一条）。</summary>
-        private void BtnCredAdd_Click(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// 添加或更新一条凭据：先用一次 git ls-remote 验证账号是否可用（有超时、可取消），
+        /// 验证不通过时让用户确认是否仍然保存，避免保存一个推送必然失败的账号。
+        /// </summary>
+        private async void BtnCredAdd_Click(object sender, RoutedEventArgs e)
         {
             string host = TxtCredHost.Text.Trim();
             string user = TxtCredUser.Text.Trim();
@@ -127,6 +137,111 @@ namespace MultiGitCommit
                 return;
             }
 
+            var result = await VerifyCredentialAsync(host, user, token);
+            if (result == null) return; // 无可用 git.exe：不写入
+
+            if (!result.Success)
+            {
+                string reason = string.IsNullOrWhiteSpace(result.Detail)
+                    ? result.Message
+                    : result.Message + "\n\n服务端返回：" + result.Detail;
+
+                var choice = MessageBox.Show(this,
+                    reason + "\n\n该账号未验证通过，仍要保存吗？（未验证的账号推送时很可能失败）",
+                    "账号验证", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (choice != MessageBoxResult.Yes)
+                {
+                    ShowResult("已放弃保存，该账号未写入列表。", null);
+                    return;
+                }
+            }
+
+            SaveCredential(host, user, token);
+            ShowResult((result.Success ? "√ 验证通过：" : "! 未验证通过但已保存：") +
+                       $" {host} 的推送凭据（点【确定】后生效）。", result.Success);
+        }
+
+        /// <summary>
+        /// 【验证账号】：用一次 git ls-remote 实测输入框中的账号能否通过服务端认证。
+        /// 验证进行中再点一次该按钮即中止（按钮文字会变为【取消验证】）。
+        /// </summary>
+        private async void BtnCredTest_Click(object sender, RoutedEventArgs e)
+        {
+            if (_credTestCts != null)
+            {
+                _credTestCts.Cancel(); // 正在验证：再点一次就是中止
+                return;
+            }
+
+            string host = TxtCredHost.Text.Trim();
+            string user = TxtCredUser.Text.Trim();
+            string token = TxtCredToken.Password.Trim();
+
+            if (host.Length == 0)
+            {
+                ShowResult("× 请先填写远端主机（如 cnb.cool）。", false);
+                return;
+            }
+
+            if (user.Length == 0 || token.Length == 0)
+            {
+                ShowResult("× 请同时填写用户名与访问令牌。", false);
+                return;
+            }
+
+            await VerifyCredentialAsync(host, user, token);
+        }
+
+        /// <summary>
+        /// 实测账号是否可用：全程异步、默认 20 秒超时、可随时取消，绝不会卡住界面。
+        /// 返回 null 表示未执行（没有可用的 git.exe）。
+        /// </summary>
+        private async Task<CredentialTestResult?> VerifyCredentialAsync(string host, string user, string token)
+        {
+            // 按窗口里当前选择的 git 来源实时解析，未点【确定】也能用刚选的 git 验证
+            string? exe = GitLocator.ResolvePreview(CurrentMode, TxtCustomPath.Text.Trim(), out _);
+            if (exe == null)
+            {
+                ShowResult("× 当前 git 来源下未找到可用的 git.exe，请先配置 git 来源再验证账号。", false);
+                return null;
+            }
+
+            _credTestCts?.Dispose();
+            _credTestCts = new CancellationTokenSource();
+            var ct = _credTestCts.Token;
+
+            BtnCredTest.Content = "取消验证";
+            BtnCredAdd.IsEnabled = false;
+            ShowResult($"正在验证 {user}@{host}（git ls-remote 实测，最多 {CredentialTester.DefaultTimeoutSeconds} 秒，可点【取消验证】中止）…", null);
+
+            try
+            {
+                var result = await CredentialTester.TestAsync(
+                    exe,
+                    new GitCredential { Host = host, Username = user, Token = token },
+                    _remoteUrls,
+                    ct);
+
+                ShowResult((result.Success ? "√ " : "× ") + result.Message, result.Success);
+                return result;
+            }
+            catch (Exception ex)
+            {
+                ShowResult("× 验证账号失败：" + ex.Message, false);
+                return null;
+            }
+            finally
+            {
+                BtnCredTest.Content = "验证账号";
+                BtnCredAdd.IsEnabled = true;
+                _credTestCts?.Dispose();
+                _credTestCts = null;
+            }
+        }
+
+        /// <summary>写入（或更新同主机的）一条凭据并刷新列表。</summary>
+        private void SaveCredential(string host, string user, string token)
+        {
             string hostKey = GitCredentials.GetHost(host) ?? host.ToLowerInvariant();
             var existing = _credentials.FirstOrDefault(c =>
                 string.Equals(GitCredentials.GetHost(c.Host) ?? c.Host.Trim().ToLowerInvariant(),
@@ -144,7 +259,6 @@ namespace MultiGitCommit
             }
 
             RefreshCredList();
-            ShowResult($"√ 已保存 {host} 的推送凭据（点【确定】后生效）。", true);
         }
 
         /// <summary>删除选中的凭据。</summary>
@@ -321,6 +435,23 @@ namespace MultiGitCommit
         }
 
         /// <summary>按当前窗口选择实时解析并显示结果。</summary>
+        // ==================== 凭据助手（credential.helper） ====================
+
+        /// <summary>
+        /// 显示当前 git 的凭据助手状态：配置值是否可用，不可用时会自动改用哪个助手。
+        /// 这是"推送时取不到系统账号"最常见的根因（精简便携版 git 缺少 git-credential-manager.exe）。
+        /// </summary>
+        private void RefreshHelperInfo()
+        {
+            GitCredentialHelper.Invalidate();
+            string text = GitCredentialHelper.Describe();
+
+            TxtHelperInfo.Text = text;
+            TxtHelperInfo.Foreground = GitCredentialHelper.ConfiguredUsable()
+                ? Brushes.SeaGreen
+                : Brushes.Firebrick;
+        }
+
         // ==================== 提交身份（user.name / user.email） ====================
 
         /// <summary>显示当前生效的提交身份（读取 git config --get，取仓库级 → 全局的生效值）。</summary>

@@ -254,12 +254,22 @@ namespace MultiGitCommit
         /// <summary>克隆仓库的超时（大仓库耗时较长）。</summary>
         private static readonly TimeSpan CloneCommandTimeout = TimeSpan.FromMinutes(30);
 
+        /// <summary>
+        /// 给 git 命令统一加上默认选项：core.quotepath=false，
+        /// 让中文/非 ASCII 文件名在日志里正常显示，而不是被转义成 "\346\226\260..." 这类八进制序列。
+        /// </summary>
+        private static string WithGitDefaults(string fileName, string arguments)
+        {
+            if (!string.Equals(fileName, GitLocator.GitExe, StringComparison.OrdinalIgnoreCase)) return arguments;
+            return "-c core.quotepath=false " + arguments;
+        }
+
         /// <summary>同步执行命令（用于快速校验，输出量小），带超时保护，返回结果对象。</summary>
         private static CommandResult RunCommand(string workingDir, string fileName, string arguments)
         {
             try
             {
-                using var p = CreateProcess(workingDir, fileName, arguments);
+                using var p = CreateProcess(workingDir, fileName, WithGitDefaults(fileName, arguments));
                 p.Start();
                 p.StandardInput.Close(); // 立即给 EOF，杜绝等待交互输入
                 var outTask = p.StandardOutput.ReadToEndAsync();
@@ -288,7 +298,7 @@ namespace MultiGitCommit
             string? logLabel = null, TimeSpan? timeout = null)
         {
             TimeSpan limit = timeout ?? DefaultCommandTimeout;
-            using var p = CreateProcess(workingDir, fileName, arguments);
+            using var p = CreateProcess(workingDir, fileName, WithGitDefaults(fileName, arguments));
             if (logLabel != null) Log("> " + logLabel);
             p.Start();
             p.StandardInput.Close(); // 立即给 EOF，杜绝等待交互输入
@@ -639,6 +649,7 @@ namespace MultiGitCommit
         /// <summary>按当前设置重新解析 git.exe，更新状态栏显示并输出日志。</summary>
         private void RefreshGitEnvironment()
         {
+            GitCredentialHelper.Invalidate(); // git 换了，凭据助手的缓存需重新扫描
             bool ok = GitLocator.Resolve();
             TxtGitStatus.Text = ok
                 ? $"Git：{GitLocator.GitExePath}"
@@ -1091,6 +1102,10 @@ namespace MultiGitCommit
                 }
 
                 // 6) 循环遍历每一个远端 URL 逐个推送；一个远端失败不阻断后续
+                //    存在 https 远端时，先说明凭据助手状态（助手不可用时会导致"取不到账号"的典型故障）
+                if (urls.Any(u => GitCredentials.NeedsCredential(u)))
+                    Log("凭据助手：" + GitCredentialHelper.Describe());
+
                 bool allSuccess = true;
                 bool forcePush = _config.CheckForcePush;
                 if (forcePush)
@@ -1124,7 +1139,10 @@ namespace MultiGitCommit
 
                     // 日志一律脱敏，令牌不落日志
                     string displayUrl = GitCredentials.Mask(pushUrl);
-                    string pushArgs = $"push{forceFlag} {pushUrl} {branch}" + (withTags ? " --tags" : string.Empty);
+                    // 配置的 credential.helper 在当前 git 里不可用时（如缺少 git-credential-manager.exe），
+                    // 临时改用实际存在的助手，保证能从 Windows 凭据管理器取到已保存的账号（不改动用户 git 配置）
+                    string helperArg = GitCredentialHelper.OverrideArgument() ?? string.Empty;
+                    string pushArgs = $"{helperArg}push{forceFlag} {pushUrl} {branch}" + (withTags ? " --tags" : string.Empty);
                     string pushLabel = $"git push{forceFlag} {displayUrl} {branch}" + (withTags ? " --tags" : string.Empty);
                     Log($"--- 推送到：{displayUrl}（分支：{branch}{(forcePush ? "，强制推送" : string.Empty)}）---");
                     var push = await RunCommandAsync(repoDir, GitLocator.GitExe, pushArgs, pushLabel);
@@ -1175,8 +1193,11 @@ namespace MultiGitCommit
 
             if (mode == CredentialSourceMode.Custom) return null;
 
-            // 系统凭据：Windows 凭据管理器 / ~/.git-credentials / credential helper（5 秒超时，不会卡住）
-            return await SystemCredentialProbe.ProbeAsync(GitCredentials.GetHost(url), GitLocator.GitExe);
+            // 系统凭据：Windows 凭据管理器 / ~/.git-credentials / credential helper（5 秒超时，不会卡住）。
+            // 配置的助手在当前 git 中不存在时（如缺少 git-credential-manager.exe）自动改用实际可用的助手。
+            string helperArg = GitCredentialHelper.OverrideArgument() ?? string.Empty;
+            return await SystemCredentialProbe.ProbeAsync(
+                GitCredentials.GetHost(url), GitLocator.GitExe, default, helperArg);
         }
 
         // ==================== 提交身份（user.name / user.email） ====================

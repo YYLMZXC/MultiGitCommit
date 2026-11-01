@@ -146,6 +146,10 @@ namespace MultiGitCommit
             var ct = _cts.Token;
             int found = 0;
 
+            // 配置的 credential.helper 在当前 git 中不可用时（缺少 git-credential-manager.exe），
+            // 改用实际存在的助手，否则探测会直接失败、一个账号都找不到
+            string helperArg = GitCredentialHelper.OverrideArgument() ?? string.Empty;
+
             try
             {
                 for (int i = 0; i < targets.Count; i++)
@@ -155,7 +159,7 @@ namespace MultiGitCommit
                     string host = targets[i];
                     TxtProgress.Text = $"正在检测 {i + 1}/{targets.Count}：{host}";
 
-                    var cred = await SystemCredentialProbe.ProbeAsync(host, GitLocator.GitExe, ct)
+                    var cred = await SystemCredentialProbe.ProbeAsync(host, GitLocator.GitExe, ct, helperArg)
                         .ConfigureAwait(true);
 
                     if (cred != null)

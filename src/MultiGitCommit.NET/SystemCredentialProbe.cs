@@ -227,8 +227,13 @@ namespace MultiGitCommit
         /// <param name="host">远端主机或完整 URL。</param>
         /// <param name="gitExe">git.exe（用当前生效的，支持便携版 / 内嵌 / 指定路径）。</param>
         /// <param name="ct">取消令牌（检测窗口【停止】时使用）。</param>
+        /// <param name="helperArg">
+        /// 覆盖 credential.helper 的命令行前缀（形如 "-c credential.helper=wincred "）；
+        /// 当前 git 配置的助手不可用时由调用方传入，避免探测因坏配置直接失败。
+        /// </param>
         /// <returns>探测到的凭据；未找到 / 超时 / 被取消返回 null。</returns>
-        public static async Task<DetectedCredential?> ProbeAsync(string? host, string gitExe, CancellationToken ct = default)
+        public static async Task<DetectedCredential?> ProbeAsync(string? host, string gitExe,
+            CancellationToken ct = default, string? helperArg = null)
         {
             string? h = GitCredentials.GetHost(host);
             if (string.IsNullOrEmpty(h)) return null;
@@ -240,18 +245,19 @@ namespace MultiGitCommit
             if (fromFile != null) return fromFile;
 
             // 2) 系统 credential helper：https 优先，其次 http
-            var https = await FillAsync("https", h, gitExe, ct).ConfigureAwait(false);
+            var https = await FillAsync("https", h, gitExe, ct, helperArg).ConfigureAwait(false);
             if (https != null) return https;
 
             ct.ThrowIfCancellationRequested();
-            return await FillAsync("http", h, gitExe, ct).ConfigureAwait(false);
+            return await FillAsync("http", h, gitExe, ct, helperArg).ConfigureAwait(false);
         }
 
         /// <summary>
         /// 执行 <c>git credential fill</c> 并取得 username / password。
         /// 非交互（GIT_TERMINAL_PROMPT=0、GCM_INTERACTIVE=never），超时 / 取消即终止进程树，绝不挂起。
         /// </summary>
-        private static async Task<DetectedCredential?> FillAsync(string protocol, string host, string gitExe, CancellationToken ct)
+        private static async Task<DetectedCredential?> FillAsync(string protocol, string host, string gitExe,
+            CancellationToken ct, string? helperArg = null)
         {
             Process? p = null;
             try
@@ -261,7 +267,8 @@ namespace MultiGitCommit
                 var psi = new ProcessStartInfo
                 {
                     FileName = gitExe,
-                    Arguments = "credential fill",
+                    // helperArg 用于绕过不可用的 credential.helper 配置（如缺少 git-credential-manager.exe）
+                    Arguments = (helperArg ?? string.Empty) + "credential fill",
                     UseShellExecute = false,
                     RedirectStandardInput = true,
                     RedirectStandardOutput = true,

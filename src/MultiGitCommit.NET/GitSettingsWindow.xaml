@@ -42,6 +42,11 @@
         <TextBlock x:Name="TxtResult" TextWrapping="Wrap" Margin="0,8,0,0"
                    MinHeight="18" Foreground="#666"/>
 
+        <TextBlock Text="凭据助手（credential.helper）"
+                   Margin="0,14,0,4" FontWeight="Bold"/>
+        <TextBlock x:Name="TxtHelperInfo" TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"
+                   ToolTip="git 取用系统保存的账号所依赖的助手；若配置的助手在当前 git 中不存在（常见于精简便携版），推送时会报 'credential-manager' is not a git command"/>
+
         <TextBlock Text="提交身份（git user.name / user.email）"
                    Margin="0,14,0,4" FontWeight="Bold"/>
         <TextBlock Text="生成 commit 的前置条件：二者缺一时 git 直接报错（Please tell me who you are），根本生成不了提交。未配置时，首次提交会自动弹窗引导填写。"
@@ -65,7 +70,7 @@
         <RadioButton x:Name="RbCredNone" Content="不使用凭据：ssh 远端，或已自行配置（ssh-agent / URL 内已带账号）"
                      GroupName="CredentialSourceGroup" Margin="0,3" Checked="CredMode_Changed"/>
 
-        <TextBlock Text="自定义账号列表（按主机匹配，可配置多个；点【检测系统凭据】可把系统已保存的账号导入到这里）"
+        <TextBlock Text="自定义账号列表（按主机匹配，可配置多个）：【添加/更新】与【验证账号】都会先实测一次该账号能否通过认证，未通过时可自行决定仍保存；点【检测系统凭据】可把系统已保存的账号导入到这里"
                    Margin="0,10,0,4"/>
 
         <ListBox x:Name="ListCred" Height="90" SelectionChanged="ListCred_SelectionChanged"/>
@@ -92,7 +97,9 @@
         </Grid>
 
         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-            <Button x:Name="BtnCredAdd" Content="添加/更新" Padding="10,2" Click="BtnCredAdd_Click"/>
+            <Button x:Name="BtnCredTest" Content="验证账号" Padding="10,2" Click="BtnCredTest_Click"
+                    ToolTip="用一次 git ls-remote 实测该账号能否通过服务端认证（最多 20 秒，可随时取消）"/>
+            <Button x:Name="BtnCredAdd" Content="添加/更新" Padding="10,2" Margin="6,0,0,0" Click="BtnCredAdd_Click"/>
             <Button x:Name="BtnCredDelete" Content="删除" Padding="10,2" Margin="6,0,0,0" Click="BtnCredDelete_Click"/>
             <Button x:Name="BtnCredDetect" Content="检测系统凭据…" Padding="10,2" Margin="6,0,0,0" Click="BtnCredDetect_Click"
                     ToolTip="打开检测窗口：自行选择要检测的主机，再按需导入（可选择停止，不会全量扫描）"/>

@@ -23,8 +23,17 @@ public partial class GitSettingsWindow : Window
     /// <summary>当前编辑中的凭据副本（点确定才写回设置，取消不影响）。</summary>
     private readonly List<GitCredential> _credentials;
 
-    public GitSettingsWindow(AppSettings current)
+    /// <summary>当前项目的远端 URL（验证账号时优先用同主机的真实远端做探测）。</summary>
+    private readonly IReadOnlyList<string>? _remoteUrls;
+
+    /// <summary>账号验证的取消令牌（【取消验证】按钮 / 关闭窗口时使用）。</summary>
+    private CancellationTokenSource? _credTestCts;
+
+    /// <param name="current">全局设置。</param>
+    /// <param name="remoteUrls">当前项目的推送远端 URL（可选，验证账号时用同主机远端做真实探测）。</param>
+    public GitSettingsWindow(AppSettings current, IEnumerable<string>? remoteUrls = null)
     {
+        _remoteUrls = remoteUrls?.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
         _settings = current;
         _credentials = (current.Credentials ?? new List<GitCredential>())
             .Where(c => c != null)
@@ -46,6 +55,9 @@ public partial class GitSettingsWindow : Window
         RbSystem.IsChecked = current.GitSource == GitSourceMode.System;
         RbCustom.IsChecked = current.GitSource == GitSourceMode.Custom;
         TxtCustomPath.Text = current.CustomGitPath ?? string.Empty;
+
+        // 关闭窗口时中止未完成的账号验证，避免后台 git 进程继续空跑
+        Closing += (_, _) => _credTestCts?.Cancel();
 
         RefreshCredList();
         UpdateEnabled();
@@ -71,8 +83,11 @@ public partial class GitSettingsWindow : Window
         TxtCredToken.Text = cred.Token;
     }
 
-    /// <summary>添加或更新一条凭据（同一主机只保留一条）。</summary>
-    private void BtnCredAdd_Click(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// 添加或更新一条凭据：先用一次 git ls-remote 验证账号是否可用（有超时、可取消），
+    /// 验证不通过时让用户确认是否仍然保存，避免保存一个推送必然失败的账号。
+    /// </summary>
+    private async void BtnCredAdd_Click(object? sender, RoutedEventArgs e)
     {
         string host = TxtCredHost.Text?.Trim() ?? string.Empty;
         string user = TxtCredUser.Text?.Trim() ?? string.Empty;
@@ -80,18 +95,42 @@ public partial class GitSettingsWindow : Window
 
         if (host.Length == 0)
         {
-            TxtResult.Text = "× 请先填写远端主机（如 cnb.cool）。";
-            TxtResult.Foreground = Brush.Parse("#B00020");
+            ShowResult("× 请先填写远端主机（如 cnb.cool）。", false);
             return;
         }
 
         if (user.Length == 0 || token.Length == 0)
         {
-            TxtResult.Text = "× 请同时填写用户名与访问令牌。";
-            TxtResult.Foreground = Brush.Parse("#B00020");
+            ShowResult("× 请同时填写用户名与访问令牌。", false);
             return;
         }
 
+        var result = await VerifyCredentialAsync(host, user, token);
+        if (result == null) return; // 无可用 git / 用户取消：不写入
+
+        if (!result.Success)
+        {
+            string reason = string.IsNullOrWhiteSpace(result.Detail)
+                ? result.Message
+                : result.Message + "\n\n服务端返回：" + result.Detail;
+
+            bool keep = await Dialogs.ConfirmAsync(this, "账号验证",
+                reason + "\n\n该账号未验证通过，仍要保存吗？（未验证的账号推送时很可能失败）");
+            if (!keep)
+            {
+                ShowResult("已放弃保存，该账号未写入列表。", null);
+                return;
+            }
+        }
+
+        SaveCredential(host, user, token);
+        ShowResult((result.Success ? "√ 验证通过：" : "! 未验证通过但已保存：") +
+                   $" {host} 的推送凭据（点【确定】后生效）。", result.Success);
+    }
+
+    /// <summary>写入（或更新同主机的）一条凭据并刷新列表。</summary>
+    private void SaveCredential(string host, string user, string token)
+    {
         string hostKey = GitCredentials.GetHost(host) ?? host.ToLowerInvariant();
         var existing = _credentials.FirstOrDefault(c =>
             string.Equals(GitCredentials.GetHost(c.Host) ?? c.Host.Trim().ToLowerInvariant(),
@@ -109,8 +148,95 @@ public partial class GitSettingsWindow : Window
         }
 
         RefreshCredList();
-        TxtResult.Text = $"√ 已保存 {host} 的推送凭据（点【确定】后生效）。";
-        TxtResult.Foreground = Brush.Parse("#1E8E3E");
+    }
+
+    /// <summary>
+    /// 【验证账号】：用一次 git ls-remote 实测输入框中的账号能否通过服务端认证。
+    /// 验证进行中再点一次该按钮即中止（按钮文字会变为【取消验证】）。
+    /// </summary>
+    private async void BtnCredTest_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_credTestCts != null)
+        {
+            _credTestCts.Cancel(); // 正在验证：再点一次就是中止
+            return;
+        }
+
+        string host = TxtCredHost.Text?.Trim() ?? string.Empty;
+        string user = TxtCredUser.Text?.Trim() ?? string.Empty;
+        string token = TxtCredToken.Text?.Trim() ?? string.Empty;
+
+        if (host.Length == 0)
+        {
+            ShowResult("× 请先填写远端主机（如 cnb.cool）。", false);
+            return;
+        }
+
+        if (user.Length == 0 || token.Length == 0)
+        {
+            ShowResult("× 请同时填写用户名与访问令牌。", false);
+            return;
+        }
+
+        await VerifyCredentialAsync(host, user, token);
+    }
+
+    /// <summary>
+    /// 实测账号是否可用：全程异步、默认 20 秒超时、可随时取消，绝不会卡住界面。
+    /// 返回 null 表示未执行（没有可用的 git）。
+    /// </summary>
+    private async Task<CredentialTestResult?> VerifyCredentialAsync(string host, string user, string token)
+    {
+        // 按窗口里当前选择的 git 来源实时解析，未点【确定】也能用刚选的 git 验证
+        string? exe = GitLocator.ResolvePreview(CurrentMode, TxtCustomPath.Text?.Trim() ?? string.Empty, out _);
+        if (exe == null)
+        {
+            ShowResult("× 当前 git 来源下未找到可用的 git，请先配置 git 来源再验证账号。", false);
+            return null;
+        }
+
+        _credTestCts?.Dispose();
+        _credTestCts = new CancellationTokenSource();
+        var ct = _credTestCts.Token;
+
+        BtnCredTest.Content = "取消验证";
+        BtnCredAdd.IsEnabled = false;
+        ShowResult($"正在验证 {user}@{host}（git ls-remote 实测，最多 {CredentialTester.DefaultTimeoutSeconds} 秒，可点【取消验证】中止）…", null);
+
+        try
+        {
+            var result = await CredentialTester.TestAsync(
+                exe,
+                new GitCredential { Host = host, Username = user, Token = token },
+                _remoteUrls,
+                ct);
+
+            ShowResult((result.Success ? "√ " : "× ") + result.Message, result.Success);
+            return result;
+        }
+        catch (Exception ex)
+        {
+            ShowResult("× 验证账号失败：" + ex.Message, false);
+            return null;
+        }
+        finally
+        {
+            BtnCredTest.Content = "验证账号";
+            BtnCredAdd.IsEnabled = true;
+            _credTestCts?.Dispose();
+            _credTestCts = null;
+        }
+    }
+
+    /// <summary>把操作结果写入 TxtResult（true 成功 / false 失败 / null 中性提示）。</summary>
+    private void ShowResult(string message, bool? ok)
+    {
+        TxtResult.Text = message;
+        TxtResult.Foreground = ok == true
+            ? Brush.Parse("#1E8E3E")
+            : ok == false
+                ? Brush.Parse("#B00020")
+                : Brush.Parse("#666666");
     }
 
     /// <summary>删除选中的凭据。</summary>

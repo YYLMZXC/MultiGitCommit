@@ -41,7 +41,7 @@
 
         <TextBlock Text="推送凭据（https 远端免交互推送用，按主机匹配，可配置多个）"
                    Margin="0,14,0,4" FontWeight="SemiBold"/>
-        <TextBlock Text="工具为非交互执行（禁用终端提示），https 远端没有凭据时 git 无法弹窗询问账号，推送必然失败。填入平台的用户名与访问令牌，推送时自动注入 URL（令牌在日志中显示为 ***）。"
+        <TextBlock Text="工具为非交互执行（禁用终端提示），https 远端没有凭据时 git 无法弹窗询问账号，推送必然失败。填入平台的用户名与访问令牌，推送时自动注入 URL（令牌在日志中显示为 ***）。【添加/更新】与【验证账号】都会实测一次该账号能否通过认证，未通过时可自行决定是否仍保存。"
                    TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
 
         <ListBox x:Name="ListCred" Height="90" SelectionChanged="ListCred_SelectionChanged"/>
@@ -63,7 +63,9 @@
         </Grid>
 
         <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-            <Button x:Name="BtnCredAdd" Content="添加/更新" Padding="10,2" Click="BtnCredAdd_Click"/>
+            <Button x:Name="BtnCredTest" Content="验证账号" Padding="10,2" Click="BtnCredTest_Click"
+                    ToolTip.Tip="用一次 git ls-remote 实测该账号能否通过服务端认证（最多 20 秒，可随时取消）"/>
+            <Button x:Name="BtnCredAdd" Content="添加/更新" Padding="10,2" Margin="6,0,0,0" Click="BtnCredAdd_Click"/>
             <Button x:Name="BtnCredDelete" Content="删除" Padding="10,2" Margin="6,0,0,0" Click="BtnCredDelete_Click"/>
             <TextBlock Text="凭据明文保存在 ~/Library/Application Support/MultiGitCommit/settings.json"
                        VerticalAlignment="Center" Margin="10,0,0,0" Foreground="#888" FontSize="11"/>
