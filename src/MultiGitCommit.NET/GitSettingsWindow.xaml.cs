@@ -28,8 +28,14 @@ namespace MultiGitCommit
         /// <summary>InitializeComponent / 初始化过程中抑制事件（避免抢焦点、避免重复检测）。</summary>
         private bool _suppress;
 
-        public GitSettingsWindow(AppSettings current)
+        /// <summary>当前项目的远端 URL，用于自动检测时优先探测这些主机。</summary>
+        private readonly IReadOnlyList<string>? _remoteUrls;
+
+        /// <param name="current">全局设置（凭据写回它）。</param>
+        /// <param name="remoteUrls">当前项目的推送远端 URL（可选，用于缩小自动检测范围）。</param>
+        public GitSettingsWindow(AppSettings current, IEnumerable<string>? remoteUrls = null)
         {
+            _remoteUrls = remoteUrls?.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
             _settings = current;
             _credentials = (current.Credentials ?? new List<GitCredential>())
                 .Where(c => c != null)
@@ -129,6 +135,85 @@ namespace MultiGitCommit
             TxtCredUser.Text = string.Empty;
             TxtCredToken.Password = string.Empty;
             ShowResult($"已删除 {cred.Host} 的凭据（点【确定】后生效）。", null);
+        }
+
+        /// <summary>
+        /// 自动检测系统凭据：扫描凭据管理器 / 凭据文件 / credential helper 中已保存的账号，
+        /// 列出结果供用户勾选导入；导入后与自定义填写的凭据一样保存在凭据列表中。
+        /// </summary>
+        private async void BtnCredDetect_Click(object sender, RoutedEventArgs e)
+        {
+            BtnCredDetect.IsEnabled = false;
+            try
+            {
+                if (GitLocator.GitExePath == null)
+                {
+                    ShowResult("× 未找到可用的 git.exe，请先配置 git 来源再检测系统凭据。", false);
+                    return;
+                }
+
+                ShowResult("正在检测系统 git 凭据（Windows 凭据管理器 / ~/.git-credentials / credential helper）…", null);
+
+                var hosts = SystemCredentialProbe.CandidateHosts(_remoteUrls);
+                var found = new List<DetectedCredential>();
+                foreach (string host in hosts)
+                {
+                    var cred = await SystemCredentialProbe.ProbeAsync(host, GitLocator.GitExe);
+                    if (cred != null) found.Add(cred);
+                }
+
+                if (found.Count == 0)
+                {
+                    ShowResult("未在系统中检测到已保存的 git 凭据：可先在命令行成功推送一次（凭据会被系统保存），或直接手动填写账号。", false);
+                    return;
+                }
+
+                var win = new CredentialImportWindow(found) { Owner = this };
+                if (win.ShowDialog() != true)
+                {
+                    ShowResult($"已检测到 {found.Count} 个系统账号，未导入。", null);
+                    return;
+                }
+
+                int imported = 0;
+                foreach (var cred in win.SelectedCredentials)
+                {
+                    string hostKey = GitCredentials.GetHost(cred.Host) ?? cred.Host.Trim().ToLowerInvariant();
+                    var existing = _credentials.FirstOrDefault(c =>
+                        string.Equals(GitCredentials.GetHost(c.Host) ?? c.Host.Trim().ToLowerInvariant(),
+                            hostKey, StringComparison.OrdinalIgnoreCase));
+
+                    if (existing != null)
+                    {
+                        // 同一主机只保留一条，导入的系统凭据覆盖原有
+                        existing.Host = cred.Host;
+                        existing.Username = cred.Username;
+                        existing.Token = cred.Token;
+                    }
+                    else
+                    {
+                        _credentials.Add(new GitCredential
+                        {
+                            Host = cred.Host,
+                            Username = cred.Username,
+                            Token = cred.Token
+                        });
+                    }
+
+                    imported++;
+                }
+
+                RefreshCredList();
+                ShowResult($"√ 已从系统导入 {imported} 个账号（点【确定】后生效）。", true);
+            }
+            catch (Exception ex)
+            {
+                ShowResult("× 检测系统凭据失败：" + ex.Message, false);
+            }
+            finally
+            {
+                BtnCredDetect.IsEnabled = true;
+            }
         }
 
         /// <summary>把操作结果写入 TxtResult（true 成功 / false 失败 / null 中性提示）。</summary>

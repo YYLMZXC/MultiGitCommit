@@ -517,7 +517,8 @@ namespace MultiGitCommit
         /// <summary>打开 Git 环境设置窗口：选择 自动检测 / 系统 PATH / 指定便携版或软件自带 git。</summary>
         private void BtnGitEnv_Click(object sender, RoutedEventArgs e)
         {
-            var win = new GitSettingsWindow(GitLocator.Settings) { Owner = this };
+            // 传入当前项目的远端 URL：自动检测系统凭据时优先探测这些主机
+            var win = new GitSettingsWindow(GitLocator.Settings, _config?.RemoteUrls) { Owner = this };
             if (win.ShowDialog() == true)
             {
                 GitLocator.Settings.GitSource = win.SelectedSource;
@@ -996,6 +997,7 @@ namespace MultiGitCommit
                     string pushUrl = url;
                     if (GitCredentials.NeedsCredential(url))
                     {
+                        // 1) 优先使用自定义配置的凭据（【Git 环境】→【推送凭据】里保存或导入的账号）
                         var cred = GitCredentials.Find(url, GitLocator.Settings.Credentials);
                         if (cred != null)
                         {
@@ -1004,8 +1006,19 @@ namespace MultiGitCommit
                         }
                         else
                         {
-                            Log($"提示：{GitCredentials.Mask(url)} 未配置推送凭据，https 远端在非交互模式下很可能失败" +
-                                "（可在【Git 环境】中填写该主机的用户名与访问令牌）。");
+                            // 2) 未自定义时自动检测系统凭据（Windows 凭据管理器 / ~/.git-credentials / credential helper）
+                            var detected = await SystemCredentialProbe.ProbeAsync(
+                                GitCredentials.GetHost(url), GitLocator.GitExe);
+                            if (detected != null)
+                            {
+                                pushUrl = GitCredentials.Apply(url, detected);
+                                Log($"已自动使用系统 git 凭据（{detected.Source}）：{GitCredentials.Mask(pushUrl)}");
+                            }
+                            else
+                            {
+                                Log($"提示：{GitCredentials.Mask(url)} 未配置也未检测到可用的推送凭据，https 远端的非交互推送很可能失败" +
+                                    "（可在【Git 环境】中点击【自动检测系统凭据】导入，或手动填写该主机的用户名与访问令牌）。");
+                            }
                         }
                     }
 
