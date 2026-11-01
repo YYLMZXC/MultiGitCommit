@@ -1,7 +1,11 @@
-# MultiGitCommit（macOS 版）
+# MultiGitCommit（macOS 版，已归档）
 
-Windows WPF 版（仓库根目录 `src/`）的 macOS 对应实现：**C# + .NET 10 + Avalonia 11**。
-功能、界面布局、配置文件与 Windows 版一一对应，**每个仓库的 `multigitcommit.config.json` 两平台完全通用**。
+> **本目录为已归档的旧 macOS 版实现，不再更新。**
+> 现行版本是仓库根目录下 `src/MultiGitCommit.Avalonia` 的**跨平台统一版**：一套代码同时支持 Windows 与 macOS，
+> 配置文件与之完全通用。请以根目录 [README.md](../../../README.md) 为准。
+
+早期与 Windows WPF 版（当时在仓库根目录 `src/`，现已归档到 `src/old-version/MultiGitCommit.NET`）对应的 macOS 实现：**C# + .NET 10 + Avalonia 11**。
+功能、界面布局、配置文件与当时的 Windows 版一一对应，**每个仓库的 `multigitcommit.config.json` 两平台完全通用**。
 
 选择本地 Git 仓库后，自动加载该仓库专属的远端列表，一键完成 **提交 + 推送到多个远端平台**（Gitee、GitHub、cnb.cool 等），提交信息自动携带本地时间戳。
 

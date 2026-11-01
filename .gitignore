@@ -25,6 +25,4 @@ Thumbs.db
 Desktop.ini
 
 # ===== 内嵌便携版 MinGit（由 download-portable-git.ps1 下载，不入库） =====
-src/git/
-# ===== macOS 版内嵌 Git（解压到 mac/src/git/，不入库） =====
-mac/src/git/
+src/MultiGitCommit.Avalonia/git/

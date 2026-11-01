@@ -1,10 +1,10 @@
 ﻿<#
 .SYNOPSIS
-    下载便携版 MinGit 并解压到 src\git\，使 MultiGitCommit 无需用户额外安装 git。
+    下载便携版 MinGit 并解压到 src\MultiGitCommit.Avalonia\git\，使 MultiGitCommit 无需用户额外安装 git。
 
 .DESCRIPTION
     MinGit 是 Git for Windows 官方发布的免安装精简版（约 45MB），
-    解压到 src\git\ 后，csproj 会自动把它复制到输出目录的 git\ 子目录，
+    解压到 src\MultiGitCommit.Avalonia\git\ 后，csproj 会自动把它复制到输出目录的 git\ 子目录，
     程序启动时由 GitLocator 自动检测并优先使用（软件目录便携版 > 常见安装位置 > 系统 PATH）。
 
     脚本依次尝试以下镜像（前两个为国内镜像，无需代理）：
@@ -22,7 +22,8 @@
 #>
 param(
     [string]$Version = "2.50.1",
-    [string]$Destination = (Join-Path $PSScriptRoot "src\git")
+    # 当前主项目（跨平台版）的内嵌 Git 目录，与 csproj 中的 git\**\* 复制规则对应
+    [string]$Destination = (Join-Path $PSScriptRoot "src\MultiGitCommit.Avalonia\git")
 )
 
 $ErrorActionPreference = 'Stop'
