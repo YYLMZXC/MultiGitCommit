@@ -27,6 +27,24 @@ namespace MultiGitCommit
     }
 
     /// <summary>
+    /// 推送凭据（账号）的来源模式，与 git.exe 来源（<see cref="GitSourceMode"/>）风格一致。
+    /// </summary>
+    public enum CredentialSourceMode
+    {
+        /// <summary>自动检测（推荐）：优先用已保存的自定义账号，缺失时自动从系统凭据获取。</summary>
+        Auto = 0,
+
+        /// <summary>仅使用系统凭据：每次推送时实时向凭据管理器/helper 索取，令牌不保存到配置文件。</summary>
+        System = 1,
+
+        /// <summary>仅使用自定义账号：只使用本工具保存的凭据，不访问系统。</summary>
+        Custom = 2,
+
+        /// <summary>不使用凭据：ssh 远端或已自行配置（如 ssh-agent、URL 内已带账号）。</summary>
+        None = 3
+    }
+
+    /// <summary>
     /// 推送凭据：按远端主机保存用户名与访问令牌（账号）。
     /// 仅用于 https / http 远端：工具为非交互执行（GIT_TERMINAL_PROMPT=0），
     /// 无凭据时 git 无法弹窗询问账号，推送必然失败。
@@ -67,6 +85,10 @@ namespace MultiGitCommit
         /// <summary>https 远端推送凭据列表（按主机匹配，与具体仓库无关）。</summary>
         [JsonPropertyName("Credentials")]
         public List<GitCredential> Credentials { get; set; } = new();
+
+        /// <summary>推送凭据（账号）来源模式，默认自动检测。</summary>
+        [JsonPropertyName("CredentialSource")]
+        public CredentialSourceMode CredentialSource { get; set; } = CredentialSourceMode.Auto;
 
         /// <summary>设置文件完整路径（加载时填充）。</summary>
         [JsonIgnore]

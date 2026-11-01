@@ -19,6 +19,9 @@ namespace MultiGitCommit
         /// <summary>用户点击确定后选定的自定义路径（仅 Custom 模式有意义）。</summary>
         public string SelectedCustomPath { get; private set; } = string.Empty;
 
+        /// <summary>用户点击确定后选定的凭据（账号）来源模式。</summary>
+        public CredentialSourceMode SelectedCredentialSource { get; private set; } = CredentialSourceMode.Auto;
+
         /// <summary>传入的全局设置对象；点确定时把凭据（账号）写回它。</summary>
         private readonly AppSettings _settings;
 
@@ -56,6 +59,12 @@ namespace MultiGitCommit
             RbSystem.IsChecked = current.GitSource == GitSourceMode.System;
             RbCustom.IsChecked = current.GitSource == GitSourceMode.Custom;
             TxtCustomPath.Text = current.CustomGitPath ?? string.Empty;
+
+            // 凭据（账号）来源：与 git 来源一样可由用户选择
+            RbCredAuto.IsChecked = current.CredentialSource == CredentialSourceMode.Auto;
+            RbCredSystem.IsChecked = current.CredentialSource == CredentialSourceMode.System;
+            RbCredCustom.IsChecked = current.CredentialSource == CredentialSourceMode.Custom;
+            RbCredNone.IsChecked = current.CredentialSource == CredentialSourceMode.None;
 
             RefreshCredList();
             UpdateEnabled();
@@ -138,12 +147,11 @@ namespace MultiGitCommit
         }
 
         /// <summary>
-        /// 自动检测系统凭据：扫描凭据管理器 / 凭据文件 / credential helper 中已保存的账号，
-        /// 列出结果供用户勾选导入；导入后与自定义填写的凭据一样保存在凭据列表中。
+        /// 打开【检测系统凭据】窗口：由用户自行选择要检测的主机后再执行检测（可随时停止、有进度），
+        /// 勾选结果导入后与自定义填写的凭据一样保存在凭据列表中。
         /// </summary>
-        private async void BtnCredDetect_Click(object sender, RoutedEventArgs e)
+        private void BtnCredDetect_Click(object sender, RoutedEventArgs e)
         {
-            BtnCredDetect.IsEnabled = false;
             try
             {
                 if (GitLocator.GitExePath == null)
@@ -152,31 +160,23 @@ namespace MultiGitCommit
                     return;
                 }
 
-                ShowResult("正在检测系统 git 凭据（Windows 凭据管理器 / ~/.git-credentials / credential helper）…", null);
-
-                var hosts = SystemCredentialProbe.CandidateHosts(_remoteUrls);
-                var found = new List<DetectedCredential>();
-                foreach (string host in hosts)
+                // 打开检测窗口：由用户自行勾选要检测的主机后再执行，随时可停止，不会全量扫描导致卡住
+                var win = new CredentialDetectWindow(_remoteUrls) { Owner = this };
+                if (win.ShowDialog() != true)
                 {
-                    var cred = await SystemCredentialProbe.ProbeAsync(host, GitLocator.GitExe);
-                    if (cred != null) found.Add(cred);
-                }
-
-                if (found.Count == 0)
-                {
-                    ShowResult("未在系统中检测到已保存的 git 凭据：可先在命令行成功推送一次（凭据会被系统保存），或直接手动填写账号。", false);
+                    ShowResult("已取消，未导入任何系统账号。", null);
                     return;
                 }
 
-                var win = new CredentialImportWindow(found) { Owner = this };
-                if (win.ShowDialog() != true)
+                var found = win.SelectedCredentials;
+                if (found.Count == 0)
                 {
-                    ShowResult($"已检测到 {found.Count} 个系统账号，未导入。", null);
+                    ShowResult("未勾选任何账号，未导入。", null);
                     return;
                 }
 
                 int imported = 0;
-                foreach (var cred in win.SelectedCredentials)
+                foreach (var cred in found)
                 {
                     string hostKey = GitCredentials.GetHost(cred.Host) ?? cred.Host.Trim().ToLowerInvariant();
                     var existing = _credentials.FirstOrDefault(c =>
@@ -223,6 +223,37 @@ namespace MultiGitCommit
             TxtResult.Foreground = ok == true ? Brushes.SeaGreen
                 : ok == false ? Brushes.Firebrick
                 : new SolidColorBrush(Color.FromRgb(0x66, 0x66, 0x66));
+        }
+
+        /// <summary>当前选中的凭据（账号）来源模式。</summary>
+        private CredentialSourceMode CurrentCredentialSource => RbCredAuto.IsChecked == true
+            ? CredentialSourceMode.Auto
+            : RbCredSystem.IsChecked == true
+                ? CredentialSourceMode.System
+                : RbCredCustom.IsChecked == true
+                    ? CredentialSourceMode.Custom
+                    : CredentialSourceMode.None;
+
+        /// <summary>切换凭据来源时给出对应说明（不执行任何检测，避免卡顿）。</summary>
+        private void CredMode_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_suppress) return;
+
+            switch (CurrentCredentialSource)
+            {
+                case CredentialSourceMode.System:
+                    ShowResult("将只使用系统凭据：每次推送时实时索取，令牌不写入配置文件。", null);
+                    break;
+                case CredentialSourceMode.Custom:
+                    ShowResult("将只使用下方自定义账号：不会访问 Windows 凭据管理器。", null);
+                    break;
+                case CredentialSourceMode.None:
+                    ShowResult("将不使用任何账号：适用于 ssh 远端或 URL 中自带凭据的情况。", null);
+                    break;
+                default:
+                    ShowResult("自动检测：优先使用已保存的账号，找不到时自动从系统凭据获取。", null);
+                    break;
+            }
         }
 
         private GitSourceMode CurrentMode => RbAuto.IsChecked == true
@@ -311,8 +342,9 @@ namespace MultiGitCommit
                 }
             }
 
-            // 凭据（账号）写回设置对象（调用方在点确定后统一保存；点取消不会落盘）
+            // 凭据（账号）与来源模式写回设置对象（调用方在点确定后统一保存；点取消不会落盘）
             _settings.Credentials = _credentials;
+            _settings.CredentialSource = SelectedCredentialSource = CurrentCredentialSource;
 
             DialogResult = true;
         }

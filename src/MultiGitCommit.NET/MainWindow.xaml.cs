@@ -523,6 +523,7 @@ namespace MultiGitCommit
             {
                 GitLocator.Settings.GitSource = win.SelectedSource;
                 GitLocator.Settings.CustomGitPath = win.SelectedCustomPath;
+                GitLocator.Settings.CredentialSource = win.SelectedCredentialSource;
                 try
                 {
                     GitLocator.Settings.Save();
@@ -997,28 +998,20 @@ namespace MultiGitCommit
                     string pushUrl = url;
                     if (GitCredentials.NeedsCredential(url))
                     {
-                        // 1) 优先使用自定义配置的凭据（【Git 环境】→【推送凭据】里保存或导入的账号）
-                        var cred = GitCredentials.Find(url, GitLocator.Settings.Credentials);
+                        var cred = await ResolveCredentialAsync(url);
                         if (cred != null)
                         {
                             pushUrl = GitCredentials.Apply(url, cred);
-                            Log($"已为 {GitCredentials.Mask(pushUrl)} 注入已保存的推送凭据。");
-                        }
-                        else
-                        {
-                            // 2) 未自定义时自动检测系统凭据（Windows 凭据管理器 / ~/.git-credentials / credential helper）
-                            var detected = await SystemCredentialProbe.ProbeAsync(
-                                GitCredentials.GetHost(url), GitLocator.GitExe);
-                            if (detected != null)
-                            {
-                                pushUrl = GitCredentials.Apply(url, detected);
+                            // 系统凭据带来源说明，自定义凭据没有
+                            if (cred is DetectedCredential detected)
                                 Log($"已自动使用系统 git 凭据（{detected.Source}）：{GitCredentials.Mask(pushUrl)}");
-                            }
                             else
-                            {
-                                Log($"提示：{GitCredentials.Mask(url)} 未配置也未检测到可用的推送凭据，https 远端的非交互推送很可能失败" +
-                                    "（可在【Git 环境】中点击【自动检测系统凭据】导入，或手动填写该主机的用户名与访问令牌）。");
-                            }
+                                Log($"已为 {GitCredentials.Mask(pushUrl)} 注入已保存的推送凭据。");
+                        }
+                        else if (GitLocator.Settings.CredentialSource != CredentialSourceMode.None)
+                        {
+                            Log($"提示：{GitCredentials.Mask(url)} 未找到可用的推送凭据，https 远端的非交互推送很可能失败" +
+                                "（可在【Git 环境】中选择账号来源，并用【检测系统凭据…】导入或手动填写）。");
                         }
                     }
 
@@ -1052,6 +1045,31 @@ namespace MultiGitCommit
                 BtnCommitPush.Content = idleText;
                 BtnCommitPush.IsEnabled = true;
             }
+        }
+
+        /// <summary>
+        /// 按【Git 环境】中选择的账号来源取得该远端的推送凭据：
+        /// - Auto   自定义优先，缺失时自动从系统凭据获取；
+        /// - System 只用系统凭据（实时索取，令牌不落盘）；
+        /// - Custom 只用自定义凭据；
+        /// - None   返回 null（ssh 远端或已自行配置）。
+        /// 返回的 <see cref="DetectedCredential"/> 表示来自系统，普通 <see cref="GitCredential"/> 表示来自自定义列表。
+        /// </summary>
+        private static async Task<GitCredential?> ResolveCredentialAsync(string url)
+        {
+            var mode = GitLocator.Settings.CredentialSource;
+            if (mode == CredentialSourceMode.None) return null;
+
+            if (mode != CredentialSourceMode.System)
+            {
+                var custom = GitCredentials.Find(url, GitLocator.Settings.Credentials);
+                if (custom != null) return custom;
+            }
+
+            if (mode == CredentialSourceMode.Custom) return null;
+
+            // 系统凭据：Windows 凭据管理器 / ~/.git-credentials / credential helper（5 秒超时，不会卡住）
+            return await SystemCredentialProbe.ProbeAsync(GitCredentials.GetHost(url), GitLocator.GitExe);
         }
 
         /// <summary>获取当前 git 分支名称（git branch --show-current），不硬编码 main/master；空仓库（尚无提交）也能正确返回 unborn 分支名。</summary>

@@ -18,7 +18,7 @@
 - **强制推送**：勾选【强制推送】后推送命令追加 `--force`，用于非快进被拒、变基/回退后覆盖远端历史（谨慎使用）。
 - **手动命令执行**：可在当前仓库目录执行任意 git/cmd 命令，stdout/stderr 全量输出日志。
 - **仓库初始化 / 默认分支**：`git init` + 指定默认分支，空仓库直接设置 HEAD 指向；输入仓库子目录时自动定位到真正的仓库根目录。
-- **推送凭据（账号）**：支持两种来源——①**自动检测系统凭据**：一键扫描 Windows 凭据管理器（Git Credential Manager / wincred）、`~/.git-credentials` 与任意 `credential helper` 中已保存的账号并导入；②**自定义**：按主机手工填写平台用户名 + 访问令牌。推送 https 远端时自动注入 URL，无需每次输入账号（详见下方【推送凭据】）。
+- **推送凭据（账号）**：像【Git 环境】选择 git.exe 来源一样，账号也可**选择来源**——自动检测（自定义优先，缺失时取系统）/ 仅系统凭据 / 仅自定义 / 不使用；系统账号可按需**检测并导入**（先选主机再检测，可随时停止）。推送 https 远端时自动注入 URL，无需每次输入账号（详见下方【推送凭据】）。
 - **非交互执行 + 超时兜底**：不弹窗等待账号/口令，快速命令 20 秒、普通 git 命令 10 分钟、克隆 30 分钟超时即终止，按钮必定恢复（详见下方【非交互执行与超时保护】）。
 - **中文不乱码**：进程调用统一 UTF-8 编码。
 - **不依赖系统 git**：内置【Git 环境】设置，支持四种 git.exe 来源——自动检测（软件内嵌便携版 Git → 常见安装位置 → 系统 PATH）、仅软件内嵌便携版 Git、仅系统 PATH（环境 git）、指定 git.exe / Git 目录（软件自带、便携版 Git）；配置保存到 `%APPDATA%\MultiGitCommit\settings.json`，切换来源无需重装系统 git。
@@ -94,22 +94,36 @@ GUI 环境下 git / ssh 若要「交互式」等待输入（远端账号密码�
 fatal: could not read Username for 'https://cnb.cool': terminal prompts disabled
 ```
 
-凭据有两种来源，可混用（按主机匹配，一个平台一条）：
+### 账号来源（像 git 环境一样可选择）
 
-**① 自动检测系统凭据（推荐）**
+在【Git 环境】→【推送凭据 / 账号】顶部选择来源，配置保存在 `%APPDATA%\MultiGitCommit\settings.json`：
 
-点击【Git 环境】→【推送凭据】→【自动检测系统凭据】，程序会自动扫描本机已保存的账号：
+| 来源 | 说明 |
+|---|---|
+| 自动检测（推荐） | 优先使用已保存的自定义账号，该主机没配时自动从系统凭据获取 |
+| 仅系统凭据 | 每次推送实时向凭据管理器 / helper 索取，**令牌不写入配置文件** |
+| 仅自定义账号 | 只使用下方保存的账号，完全不访问系统 |
+| 不使用凭据 | ssh 远端，或已自行配置（ssh-agent / URL 内已带账号） |
+
+### 检测并导入系统账号
+
+点击【检测系统凭据…】打开检测窗口，分三步，**不会一上来就全量扫描**：
+
+1. **选择主机**：默认只勾选有明确线索的主机（当前项目远端 → Windows 凭据管理器中的 git 目标 → 凭据文件），
+   常用平台（github / gitee / cnb.cool …）默认不勾选，也可手动添加主机；
+2. **开始检测**：逐个探测并显示进度（`1/3：cnb.cool`），随时可点【停止】；
+3. **勾选导入**：列出 主机 / 用户名 / 来源，勾选后导入，导入后与手工填写的完全一样，可继续编辑或删除。
 
 | 检测来源 | 说明 |
 |---|---|
-| Windows 凭据管理器 | Git Credential Manager / wincred 保存的账号（用 `cmdkey` 枚举目标主机，再用 `git credential fill` 取账号与令牌） |
+| Windows 凭据管理器 | Git Credential Manager / wincred 保存的账号（`cmdkey` 枚举目标 + `git credential fill` 取账号与令牌） |
 | `~/.git-credentials` | `credential.helper=store` 生成的明文凭据文件，直接解析 `https://user:token@host` |
 | 其他 credential helper | 通过 `git credential fill` 统一索取，支持任意自定义 helper |
 
-扫描到的账号会列出（主机 / 用户名 / 来源），勾选即可导入，导入后与手工填写的完全一样，可继续编辑或删除。
-候选主机按「当前项目的远端 → 凭据管理器中的 git 目标 → 凭据文件 → 常用平台」排序，检测全程非交互、不弹窗、单次 8 秒超时。
+> **防卡死**：每个主机单次探测 5 秒超时即杀掉进程树，整体可【停止】，
+> 且全程非交互（`GIT_TERMINAL_PROMPT=0`、`GCM_INTERACTIVE=never`），不会弹出凭据管理器窗口。
 
-**② 自定义填写**
+### 自定义填写
 
 | 项目 | 说明 |
 |---|---|
@@ -117,8 +131,8 @@ fatal: could not read Username for 'https://cnb.cool': terminal prompts disabled
 | 用户名 | 平台账号名 |
 | 令牌 | 平台生成的访问令牌（PAT），比填登录密码更安全（输入时以掩码显示） |
 
-推送时的取用顺序：**自定义凭据 → 自动检测系统凭据 → 日志提示未找到**。
-程序自动把凭据注入 URL（`https://user:token@host/...`），**日志中的令牌一律显示为 `***`**。
+程序自动把凭据注入 URL（`https://user:token@host/...`），**日志中的令牌一律显示为 `***`**，
+并会注明该凭据来自「已保存」还是「系统凭据管理器」。
 ssh 远端（`git@host:...`）不走凭据，使用 ssh 密钥。
 
 > **凭据不会被提交到仓库**：它只保存在**仓库之外**的 `%APPDATA%\MultiGitCommit\settings.json`，
@@ -144,6 +158,7 @@ Git 来源等全局设置（与仓库无关）保存在 **`%APPDATA%\MultiGitCom
 | `GitSource` | int | git.exe 来源：`0` 自动检测 / `1` 系统 PATH / `2` 指定路径 / `3` 软件内嵌便携版 |
 | `CustomGitPath` | string | 指定模式下的 git.exe 或 Git 根目录路径 |
 | `Credentials` | object[] | https 推送凭据列表：`{ "Host": "cnb.cool", "Username": "...", "Token": "..." }`（按主机匹配，明文保存） |
+| `CredentialSource` | int | 账号来源：`0` 自动检测（自定义优先）/ `1` 仅系统凭据 / `2` 仅自定义 / `3` 不使用 |
 
 > **注意**
 > - 本工具**不会修改** git 原生的 `.git/config` 文件；远端地址只保存在上述工具独立配置文件中。
@@ -168,7 +183,7 @@ src/
 ├── ProjectConfig.cs            # 项目配置读写帮助类
 ├── GitLocator.cs               # git.exe 定位/校验 + 全局设置持久化
 ├── GitSettingsWindow.xaml(.cs) # Git 环境设置窗口（来源选择/路径浏览/测试 + 推送凭据与自动检测）
-├── CredentialImportWindow.xaml(.cs) # 系统凭据导入窗口（勾选导入）
-├── SystemCredentialProbe.cs    # 系统凭据自动检测（凭据管理器 / .git-credentials / credential helper）
+├── CredentialDetectWindow.xaml(.cs) # 系统凭据检测窗口（选主机 → 检测（可停止）→ 勾选导入）
+├── SystemCredentialProbe.cs    # 系统凭据探测（凭据管理器 / .git-credentials / credential helper，可取消、5 秒超时）
 └── CloneWindow.xaml(.cs)       # 克隆项目窗口（URL/目录/分支/选项 + 命令预览）
 ```

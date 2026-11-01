@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace MultiGitCommit
@@ -18,6 +19,19 @@ namespace MultiGitCommit
         /// <summary>来源说明（Windows 凭据管理器 / .git-credentials / credential helper）。</summary>
         [JsonPropertyName("Source")]
         public string Source { get; set; } = string.Empty;
+    }
+
+    /// <summary>一个可供检测的候选主机（附带它为什么被列为候选）。</summary>
+    public class CandidateHost
+    {
+        /// <summary>主机（小写）。</summary>
+        public string Host { get; set; } = string.Empty;
+
+        /// <summary>线索来源：当前项目远端 / 凭据管理器 / 凭据文件 / 常用平台。</summary>
+        public string Origin { get; set; } = string.Empty;
+
+        /// <summary>是否默认勾选检测（有明确线索的默认勾选，常用平台默认不勾选，避免全量扫描卡顿）。</summary>
+        public bool Preselected { get; set; }
     }
 
     /// <summary>导入窗口的一行数据：一条探测结果 + 是否勾选。</summary>
@@ -45,53 +59,59 @@ namespace MultiGitCommit
     /// 两种来源：
     /// 1. **系统的**：Windows 凭据管理器（Git Credential Manager / wincred）、
     ///    <c>~/.git-credentials</c> 明文文件、<c>git credential fill</c> 可命中的任意 credential helper；
-    /// 2. **自定义的**：用户在【Git 环境】→【推送凭据】里手工填写的账号（见 <see cref="GitCredential"/>）。
+    /// 2. **自定义的**：用户在【Git 环境】→【推送凭据】里手工填写或导入的账号。
     ///
-    /// 说明：探测全程非交互（GIT_TERMINAL_PROMPT=0 / GCM_INTERACTIVE=never），
-    /// 不会弹出凭据管理器窗口，也不会因等待输入而卡死；单次探测带超时保护。
+    /// 防卡死设计（重要）：
+    /// - 每个主机单次探测 5 秒超时，超时即杀掉整个进程树；
+    /// - 全程支持 <see cref="CancellationToken"/>，检测窗口可随时【停止】；
+    /// - 非交互（GIT_TERMINAL_PROMPT=0 / GCM_INTERACTIVE=never），不弹凭据管理器窗口；
+    /// - 候选主机默认只勾选「有明确线索」的（当前项目远端、凭据管理器、凭据文件），
+    ///   常用平台列表默认不勾选，由用户按需选择，避免逐个扫描造成长时间等待。
     /// </summary>
     public static class SystemCredentialProbe
     {
-        /// <summary>没有额外线索时的默认探测主机（国内外常用平台）。</summary>
+        /// <summary>没有额外线索时的补充探测主机（国内外常用平台），默认不勾选。</summary>
         public static readonly IReadOnlyList<string> DefaultHosts = new[]
         {
             "github.com", "gitee.com", "cnb.cool", "gitlab.com",
             "gitcode.com", "gitea.com", "codeup.aliyun.com", "bitbucket.org"
         };
 
-        /// <summary>单个主机探测的超时（凭据管理器响应慢时兜底）。</summary>
-        private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(8);
+        /// <summary>单个主机探测的超时（凭据管理器响应慢 / 弹窗被禁用时的兜底）。</summary>
+        public static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(5);
 
         /// <summary>凭据文件（credential.helper=store 的明文文件）路径。</summary>
         private static string CredentialsFilePath =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".git-credentials");
 
         /// <summary>
-        /// 构造候选主机列表：用户已有远端 → Windows 凭据管理器 → 凭据文件 → 默认平台。
-        /// 去重并保持上述优先级（越靠前越可能是用户真正要用的）。
+        /// 构造候选主机列表，按线索强度排序：当前项目远端 → 凭据管理器 → 凭据文件 → 常用平台。
+        /// 只有前三类默认勾选（<see cref="CandidateHost.Preselected"/>），常用平台需用户自行勾选。
         /// </summary>
-        public static IReadOnlyList<string> CandidateHosts(IEnumerable<string>? extraHosts = null)
+        /// <param name="extraHosts">当前项目的推送远端 URL（可选）。</param>
+        public static IReadOnlyList<CandidateHost> CandidateHosts(IEnumerable<string>? extraHosts = null)
         {
-            var hosts = new List<string>();
+            var list = new List<CandidateHost>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            void Add(string? raw)
+            void Add(string? raw, string origin, bool preselected)
             {
                 if (string.IsNullOrWhiteSpace(raw)) return;
                 string? host = GitCredentials.GetHost(raw) ?? raw!.Trim().ToLowerInvariant();
-                if (!string.IsNullOrEmpty(host) && !hosts.Contains(host, StringComparer.OrdinalIgnoreCase))
-                    hosts.Add(host);
+                if (string.IsNullOrEmpty(host) || !seen.Add(host)) return;
+                list.Add(new CandidateHost { Host = host, Origin = origin, Preselected = preselected });
             }
 
             if (extraHosts != null)
             {
-                foreach (string h in extraHosts) Add(h);
+                foreach (string h in extraHosts) Add(h, "当前项目远端", true);
             }
 
-            foreach (string h in WindowsCredentialManagerHosts()) Add(h);
-            foreach (var c in ReadCredentialsFile()) Add(c.Host);
-            foreach (string h in DefaultHosts) Add(h);
+            foreach (string h in WindowsCredentialManagerHosts()) Add(h, "Windows 凭据管理器", true);
+            foreach (var c in ReadCredentialsFile()) Add(c.Host, "凭据文件 .git-credentials", true);
+            foreach (string h in DefaultHosts) Add(h, "常用平台（默认不检测）", false);
 
-            return hosts;
+            return list;
         }
 
         /// <summary>
@@ -180,7 +200,7 @@ namespace MultiGitCommit
                 if (p == null) yield break;
 
                 output = p.StandardOutput.ReadToEnd();
-                if (!p.WaitForExit(5000))
+                if (!p.WaitForExit(3000))
                 {
                     try { p.Kill(); } catch { /* 忽略 */ }
                     yield break;
@@ -206,11 +226,13 @@ namespace MultiGitCommit
         /// </summary>
         /// <param name="host">远端主机或完整 URL。</param>
         /// <param name="gitExe">git.exe（用当前生效的，支持便携版 / 内嵌 / 指定路径）。</param>
-        /// <returns>探测到的凭据；未找到返回 null。</returns>
-        public static async Task<DetectedCredential?> ProbeAsync(string? host, string gitExe)
+        /// <param name="ct">取消令牌（检测窗口【停止】时使用）。</param>
+        /// <returns>探测到的凭据；未找到 / 超时 / 被取消返回 null。</returns>
+        public static async Task<DetectedCredential?> ProbeAsync(string? host, string gitExe, CancellationToken ct = default)
         {
             string? h = GitCredentials.GetHost(host);
             if (string.IsNullOrEmpty(h)) return null;
+            ct.ThrowIfCancellationRequested();
 
             // 1) 明文凭据文件：无需唤起凭据管理器，最快最稳
             var fromFile = ReadCredentialsFile().FirstOrDefault(c =>
@@ -218,20 +240,24 @@ namespace MultiGitCommit
             if (fromFile != null) return fromFile;
 
             // 2) 系统 credential helper：https 优先，其次 http
-            var https = await FillAsync("https", h, gitExe).ConfigureAwait(false);
+            var https = await FillAsync("https", h, gitExe, ct).ConfigureAwait(false);
             if (https != null) return https;
 
-            return await FillAsync("http", h, gitExe).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            return await FillAsync("http", h, gitExe, ct).ConfigureAwait(false);
         }
 
         /// <summary>
         /// 执行 <c>git credential fill</c> 并取得 username / password。
-        /// 非交互（GIT_TERMINAL_PROMPT=0、GCM_INTERACTIVE=never），超时即终止，绝不弹窗或挂起。
+        /// 非交互（GIT_TERMINAL_PROMPT=0、GCM_INTERACTIVE=never），超时 / 取消即终止进程树，绝不挂起。
         /// </summary>
-        private static async Task<DetectedCredential?> FillAsync(string protocol, string host, string gitExe)
+        private static async Task<DetectedCredential?> FillAsync(string protocol, string host, string gitExe, CancellationToken ct)
         {
+            Process? p = null;
             try
             {
+                ct.ThrowIfCancellationRequested();
+
                 var psi = new ProcessStartInfo
                 {
                     FileName = gitExe,
@@ -259,7 +285,7 @@ namespace MultiGitCommit
                         string.Join(Path.PathSeparator.ToString(), pathEntries) + Path.PathSeparator + oldPath;
                 }
 
-                using var p = Process.Start(psi);
+                p = Process.Start(psi);
                 if (p == null) return null;
 
                 // git credential 协议：属性行 + 空行结束，行分隔必须用 \n。
@@ -270,18 +296,21 @@ namespace MultiGitCommit
                 p.StandardInput.Close();
 
                 var readTask = p.StandardOutput.ReadToEndAsync();
-                var finished = await Task.WhenAny(readTask, Task.Delay(ProbeTimeout)).ConfigureAwait(false);
-                if (finished != readTask)
+                var timeoutTask = Task.Delay(ProbeTimeout, ct);
+
+                var finished = await Task.WhenAny(readTask, timeoutTask).ConfigureAwait(false);
+                bool completed = finished == readTask && readTask.IsCompletedSuccessfully;
+                if (!completed)
                 {
-                    try { p.Kill(entireProcessTree: true); } catch { /* 已退出 */ }
+                    KillTree(p);
+                    // 读任务可能随进程释放而失败，挂一个空 continuation 避免未观察异常
+                    _ = readTask.ContinueWith(t => { _ = t.Exception; },
+                        CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
                     return null;
                 }
 
                 string output = await readTask.ConfigureAwait(false);
-                if (!p.WaitForExit(2000))
-                {
-                    try { p.Kill(entireProcessTree: true); } catch { /* 已退出 */ }
-                }
+                if (!p.WaitForExit(2000)) KillTree(p);
 
                 string? username = null;
                 string? password = null;
@@ -304,9 +333,31 @@ namespace MultiGitCommit
                     Source = "系统凭据管理器（git credential helper）"
                 };
             }
+            catch (OperationCanceledException)
+            {
+                if (p != null) KillTree(p);
+                return null;
+            }
             catch (Exception)
             {
                 return null;
+            }
+            finally
+            {
+                p?.Dispose();
+            }
+        }
+
+        /// <summary>终止进程及其子进程树（失败时忽略）。</summary>
+        private static void KillTree(Process p)
+        {
+            try
+            {
+                p.Kill(entireProcessTree: true);
+            }
+            catch (Exception)
+            {
+                // 进程可能已退出
             }
         }
     }
