@@ -40,7 +40,10 @@
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <SelfContained>false</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <!-- 默认 RID 按构建主机决定：Windows 用 win-x64，macOS（Rider / dotnet build -c Release）用 osx-arm64，
+         避免在 Mac 上默认产出 Windows 版 exe；需要其他平台时仍可用 -r 覆盖。 -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</RuntimeIdentifier>
     <PublishTrimmed>false</PublishTrimmed>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <DebugType>none</DebugType>
