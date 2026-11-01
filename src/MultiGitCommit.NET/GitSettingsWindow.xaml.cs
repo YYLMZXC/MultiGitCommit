@@ -52,7 +52,6 @@ namespace MultiGitCommit
 
             _suppress = true;
             InitializeComponent();
-            _suppress = false;
 
             RbAuto.IsChecked = current.GitSource == GitSourceMode.Auto;
             RbEmbedded.IsChecked = current.GitSource == GitSourceMode.Embedded;
@@ -60,11 +59,23 @@ namespace MultiGitCommit
             RbCustom.IsChecked = current.GitSource == GitSourceMode.Custom;
             TxtCustomPath.Text = current.CustomGitPath ?? string.Empty;
 
-            // 凭据（账号）来源：与 git 来源一样可由用户选择
+            // 凭据（账号）来源：与 git 来源一样可由用户选择（两组靠 XAML 里的 GroupName 区分，互不干扰）。
+            // 初始化期间抑制事件：否则 CredMode_Changed 会覆盖掉下面 Test() 的 git 检测结果。
             RbCredAuto.IsChecked = current.CredentialSource == CredentialSourceMode.Auto;
             RbCredSystem.IsChecked = current.CredentialSource == CredentialSourceMode.System;
             RbCredCustom.IsChecked = current.CredentialSource == CredentialSourceMode.Custom;
             RbCredNone.IsChecked = current.CredentialSource == CredentialSourceMode.None;
+
+            // 兜底：配置值异常（或历史 bug 导致的脏数据）时保证两组都各有一项被选中
+            if (RbAuto.IsChecked != true && RbEmbedded.IsChecked != true &&
+                RbSystem.IsChecked != true && RbCustom.IsChecked != true)
+                RbAuto.IsChecked = true;
+
+            if (RbCredAuto.IsChecked != true && RbCredSystem.IsChecked != true &&
+                RbCredCustom.IsChecked != true && RbCredNone.IsChecked != true)
+                RbCredAuto.IsChecked = true;
+
+            _suppress = false;
 
             RefreshCredList();
             UpdateEnabled();

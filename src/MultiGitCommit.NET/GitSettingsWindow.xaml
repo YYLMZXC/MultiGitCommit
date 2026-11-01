@@ -13,14 +13,16 @@
         <TextBlock Text="选择本工具执行 git 命令所用的 git.exe 来源（不依赖系统是否安装 / 配置 git）："
                    TextWrapping="Wrap" Margin="0,0,0,8"/>
 
+        <!-- GroupName 必须显式指定：同一 StackPanel 内还有账号来源这一组，
+             若不分组 WPF 会按父容器把它们当成同一组，导致两组只能选中一个 -->
         <RadioButton x:Name="RbAuto" Content="自动检测（推荐）：软件内嵌便携版 Git → 常见安装位置 → 系统 PATH"
-                     Margin="0,3" Checked="Mode_Changed"/>
+                     GroupName="GitSourceGroup" Margin="0,3" Checked="Mode_Changed"/>
         <RadioButton x:Name="RbEmbedded" Content="仅使用软件内嵌的便携版 Git（软件目录 git\ 子目录，随软件分发）"
-                     Margin="0,3" Checked="Mode_Changed"/>
+                     GroupName="GitSourceGroup" Margin="0,3" Checked="Mode_Changed"/>
         <RadioButton x:Name="RbSystem" Content="仅使用系统 PATH 环境变量中的 git（环境 git）"
-                     Margin="0,3" Checked="Mode_Changed"/>
+                     GroupName="GitSourceGroup" Margin="0,3" Checked="Mode_Changed"/>
         <RadioButton x:Name="RbCustom" Content="指定 git.exe 或 Git 目录（软件自带 / 便携版 Git）"
-                     Margin="0,3" Checked="Mode_Changed"/>
+                     GroupName="GitSourceGroup" Margin="0,3" Checked="Mode_Changed"/>
 
         <Grid Margin="20,4,0,4">
             <Grid.ColumnDefinitions>
@@ -46,13 +48,13 @@
                    TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
 
         <RadioButton x:Name="RbCredAuto" Content="自动检测（推荐）：优先使用已保存的账号，缺失时自动从系统凭据获取"
-                     Margin="0,3" Checked="CredMode_Changed"/>
+                     GroupName="CredentialSourceGroup" Margin="0,3" Checked="CredMode_Changed"/>
         <RadioButton x:Name="RbCredSystem" Content="仅使用系统凭据：每次推送实时向凭据管理器/helper 索取（令牌不保存到配置文件）"
-                     Margin="0,3" Checked="CredMode_Changed"/>
+                     GroupName="CredentialSourceGroup" Margin="0,3" Checked="CredMode_Changed"/>
         <RadioButton x:Name="RbCredCustom" Content="仅使用自定义账号：只用下方保存的凭据，不访问系统"
-                     Margin="0,3" Checked="CredMode_Changed"/>
+                     GroupName="CredentialSourceGroup" Margin="0,3" Checked="CredMode_Changed"/>
         <RadioButton x:Name="RbCredNone" Content="不使用凭据：ssh 远端，或已自行配置（ssh-agent / URL 内已带账号）"
-                     Margin="0,3" Checked="CredMode_Changed"/>
+                     GroupName="CredentialSourceGroup" Margin="0,3" Checked="CredMode_Changed"/>
 
         <TextBlock Text="自定义账号列表（按主机匹配，可配置多个；点【检测系统凭据】可把系统已保存的账号导入到这里）"
                    Margin="0,10,0,4"/>

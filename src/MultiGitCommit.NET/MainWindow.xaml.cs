@@ -64,6 +64,14 @@ namespace MultiGitCommit
             Log("提示：本工具不会修改 git 原生 .git/config；远端地址保存在每个项目目录下的 multigitcommit.config.json。");
             Log("提示：每个 git 仓库拥有独立配置，切换仓库会自动加载对应项目的远端列表。");
 
+            // 修正历史脏配置：Custom 模式却没有路径时无法找到 git，回退为自动检测
+            if (GitLocator.Settings.GitSource == GitSourceMode.Custom &&
+                string.IsNullOrWhiteSpace(GitLocator.Settings.CustomGitPath))
+            {
+                GitLocator.Settings.GitSource = GitSourceMode.Auto;
+                try { GitLocator.Settings.Save(); } catch (Exception) { /* 保存失败不影响启动 */ }
+            }
+
             // 解析 git.exe 来源（环境 git / 自动检测 / 指定便携版），不依赖系统安装 git
             RefreshGitEnvironment();
 
