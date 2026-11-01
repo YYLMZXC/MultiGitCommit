@@ -454,9 +454,12 @@ public static class GitLocator
         }
     }
 
-    /// <summary>Unix 下检查任意执行位（用户/组/其他）。</summary>
+    /// <summary>Unix 下检查任意执行位（用户/组/其他）；Windows 上不适用，一律视为可执行。</summary>
     private static bool IsUnixExecutable(string path)
     {
+        // File.GetUnixFileMode 只在 Unix 上受支持，Windows 调用会抛 PlatformNotSupportedException
+        if (OperatingSystem.IsWindows()) return true;
+
         try
         {
             var mode = File.GetUnixFileMode(path);
@@ -516,6 +519,15 @@ public static class GitLocator
     private static IEnumerable<string> EmbeddedCandidates()
     {
         string appDir = AppContext.BaseDirectory;
+
+        // 单文件发布（Release）时 AppContext.BaseDirectory 不一定是 exe 所在目录，
+        // 用 exe 自身路径兜底，保证 git\ 子目录里的内嵌 Git 总能找到。
+        string? exeDir = Path.GetDirectoryName(Environment.ProcessPath);
+        if (!string.IsNullOrEmpty(exeDir))
+        {
+            yield return Path.Combine(exeDir, "git", "cmd", "git.exe");
+            yield return Path.Combine(exeDir, "git", "bin", "git");
+        }
 
         // Windows / 便携版 Git 布局（随软件分发的 MinGit）
         yield return Path.Combine(appDir, "git", "cmd", "git.exe");

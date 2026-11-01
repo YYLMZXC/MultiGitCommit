@@ -18,12 +18,32 @@
     <CFBundleIdentifier>com.yylmzxc.multigitcommit</CFBundleIdentifier>
     <CFBundleShortVersionString>26.11.01</CFBundleShortVersionString>
     <NSHighResolutionCapable>true</NSHighResolutionCapable>
+    <!-- AVLN3001：Avalonia 提示"窗口没有 public 无参构造函数，XAML 不能被运行时加载器访问"。
+         本项目的窗口都通过带参构造函数创建（如 GitSettingsWindow(settings)），设计时加载器用不到，
+         属预期行为，故静默该提示以保持生成日志干净。 -->
+    <NoWarn>$(NoWarn);AVLN3001</NoWarn>
   </PropertyGroup>
 
   <!-- Windows：exe 文件图标（资源管理器 / 任务栏显示），必须是 .ico；
        macOS 应用包图标不走这里（需 .icns，打包时再配），因此限定只在 Windows 构建时生效。 -->
   <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
     <ApplicationIcon>res\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <!-- Release 发布为【单文件 exe（依赖框架）】：Avalonia、Skia 等依赖全部打进 MultiGitCommit.exe，
+       输出目录只有 MultiGitCommit.exe + git 目录（不含 .NET 运行时，目标机器需已安装 .NET 10 运行时）。
+       默认 RID 为 win-x64；发布其他平台时用 -r 覆盖：
+         dotnet publish -c Release -r osx-arm64   （Apple 芯片 Mac）
+         dotnet publish -c Release -r osx-x64     （Intel Mac）
+       说明：单文件捆绑包的压缩只在独立模式（SelfContained）下支持，依赖框架模式不启用，故不设置。
+       Debug 模式保持普通多文件输出，便于调试。 -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <PublishTrimmed>false</PublishTrimmed>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>none</DebugType>
   </PropertyGroup>
 
   <!-- Avalonia 11 跨平台 UI（Windows 与 macOS 共用同一套 AXAML） -->
@@ -46,7 +66,8 @@
        构建时原样复制到输出目录 git\ 子目录，GitLocator 的 Embedded / Auto 模式会自动优先使用。
        目录不存在时此通配不匹配任何文件，不影响构建。 -->
   <ItemGroup>
-    <None Include="git\**\*" Visible="false" CopyToOutputDirectory="PreserveNewest" />
+    <!-- ExcludeFromSingleFile：git 是数据目录，不能被打进 exe，必须保持为 exe 同级的 git\ 文件夹 -->
+    <None Include="git\**\*" Visible="false" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
 </Project>
