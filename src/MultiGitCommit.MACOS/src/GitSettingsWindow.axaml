@@ -1,0 +1,77 @@
+<Window x:Class="MultiGitCommit.GitSettingsWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Git 环境设置"
+        Width="620" SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="PingFang SC" FontSize="13"
+        ShowInTaskbar="False">
+
+    <StackPanel Margin="14">
+        <TextBlock Text="选择本工具执行 git 命令所用的 git 来源（不依赖系统是否安装 / 配置 git）："
+                   TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+        <RadioButton x:Name="RbAuto" Content="自动检测（推荐）：软件内嵌 Git → 常见安装位置（Homebrew / Xcode / MacPorts）→ 系统 PATH"
+                     Margin="0,3" IsCheckedChanged="Mode_Changed"/>
+        <RadioButton x:Name="RbEmbedded" Content="仅使用软件内嵌的 Git（.app 内 Resources/git 或软件目录 git/ 子目录）"
+                     Margin="0,3" IsCheckedChanged="Mode_Changed"/>
+        <RadioButton x:Name="RbSystem" Content="仅使用系统 PATH 环境变量中的 git（环境 git）"
+                     Margin="0,3" IsCheckedChanged="Mode_Changed"/>
+        <RadioButton x:Name="RbCustom" Content="指定 git 可执行文件或 Git 目录（软件自带 / 便携版 Git）"
+                     Margin="0,3" IsCheckedChanged="Mode_Changed"/>
+
+        <Grid Margin="20,4,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="TxtCustomPath" Grid.Column="0" VerticalContentAlignment="Center"
+                     ToolTip.Tip="git 可执行文件完整路径，或 Git 安装 / 解压根目录（自动查找其中的 bin/git、cmd/git、libexec/git-core/git）"/>
+            <Button x:Name="BtnBrowse" Grid.Column="1" Content="浏览..." Margin="6,0,0,0"
+                    Padding="10,2" Click="BtnBrowse_Click"
+                    ToolTip.Tip="选择 git 可执行文件；若想指定 Git 根目录请直接粘贴目录路径"/>
+        </Grid>
+
+        <Button x:Name="BtnTest" Content="测试当前所选配置" HorizontalAlignment="Left"
+                Padding="10,2" Margin="0,10,0,0" Click="BtnTest_Click"/>
+
+        <TextBlock x:Name="TxtResult" TextWrapping="Wrap" Margin="0,8,0,0"
+                   MinHeight="18" Foreground="#666"/>
+
+        <TextBlock Text="推送凭据（https 远端免交互推送用，按主机匹配，可配置多个）"
+                   Margin="0,14,0,4" FontWeight="SemiBold"/>
+        <TextBlock Text="工具为非交互执行（禁用终端提示），https 远端没有凭据时 git 无法弹窗询问账号，推送必然失败。填入平台的用户名与访问令牌，推送时自动注入 URL（令牌在日志中显示为 ***）。"
+                   TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
+
+        <ListBox x:Name="ListCred" Height="90" SelectionChanged="ListCred_SelectionChanged"/>
+
+        <Grid Margin="0,6,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="110"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="TxtCredHost" Grid.Column="0" VerticalContentAlignment="Center"
+                     Watermark="主机，如 cnb.cool"
+                     ToolTip.Tip="远端主机名（cnb.cool / gitee.com / github.com），也可直接粘贴完整 URL"/>
+            <TextBox x:Name="TxtCredUser" Grid.Column="1" Margin="6,0,0,0" VerticalContentAlignment="Center"
+                     Watermark="用户名" ToolTip.Tip="平台账号名"/>
+            <TextBox x:Name="TxtCredToken" Grid.Column="2" Margin="6,0,0,0" VerticalContentAlignment="Center"
+                     Watermark="访问令牌 / 密码" PasswordChar="*"
+                     ToolTip.Tip="平台的访问令牌（Personal Access Token），不要填登录密码以外的敏感口令"/>
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+            <Button x:Name="BtnCredAdd" Content="添加/更新" Padding="10,2" Click="BtnCredAdd_Click"/>
+            <Button x:Name="BtnCredDelete" Content="删除" Padding="10,2" Margin="6,0,0,0" Click="BtnCredDelete_Click"/>
+            <TextBlock Text="凭据明文保存在 ~/Library/Application Support/MultiGitCommit/settings.json"
+                       VerticalAlignment="Center" Margin="10,0,0,0" Foreground="#888" FontSize="11"/>
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button Content="确定" Width="80" IsDefault="True" Padding="8,2" Click="BtnOk_Click"/>
+            <Button Content="取消" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

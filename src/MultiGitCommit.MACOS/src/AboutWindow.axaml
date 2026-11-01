@@ -1,0 +1,51 @@
+<Window x:Class="MultiGitCommit.AboutWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="关于 MultiGitCommit"
+        Width="500" Height="380"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="PingFang SC" FontSize="13"
+        ShowInTaskbar="False">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
+            <TextBlock Text="MultiGitCommit" FontSize="20" FontWeight="Bold" Foreground="#2B579A"/>
+            <TextBlock Text="  v26.10.18（macOS）" FontSize="13" Foreground="#888888" VerticalAlignment="Bottom" Margin="4,0,0,3"/>
+        </StackPanel>
+
+        <TextBlock Grid.Row="1" Text="个人自用的 Git 一键提交推送工具（macOS / Avalonia 版）。"
+                   TextAlignment="Center" TextWrapping="Wrap" Foreground="#555555" Margin="0,0,0,14"/>
+
+        <Border Grid.Row="2" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">
+            <StackPanel Margin="8">
+                <TextBlock Text="Gitee" FontWeight="Bold" Foreground="#555555"/>
+                <HyperlinkButton Content="https://gitee.com/yylmzxc/multi-git-commit"
+                                 NavigateUri="https://gitee.com/yylmzxc/multi-git-commit"
+                                 Click="Link_Click" Margin="0,2,0,8"/>
+
+                <TextBlock Text="cnb.cool" FontWeight="Bold" Foreground="#555555"/>
+                <HyperlinkButton Content="https://cnb.cool/YYLMZXC/MultiGitCommit"
+                                 NavigateUri="https://cnb.cool/YYLMZXC/MultiGitCommit"
+                                 Click="Link_Click" Margin="0,2,0,8"/>
+
+                <TextBlock Text="GitHub" FontWeight="Bold" Foreground="#555555"/>
+                <HyperlinkButton Content="https://github.com/YYLMZXC/MultiGitCommit"
+                                 NavigateUri="https://github.com/YYLMZXC/MultiGitCommit"
+                                 Click="Link_Click" Margin="0,2,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <StackPanel Grid.Row="4" HorizontalAlignment="Center" Margin="0,14,0,0">
+            <Button Content="确定" Width="90" IsDefault="True" Click="BtnOk_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
