@@ -75,24 +75,104 @@ namespace MultiGitCommit
             // 解析 git.exe 来源（环境 git / 自动检测 / 指定便携版），不依赖系统安装 git
             RefreshGitEnvironment();
 
-            // 启动时默认使用当前工作目录；若当前目录就是程序自身的输出目录（bin\Debug\net10.0-windows 等），
-            // 则留空由用户手动选择：这类目录通常被 .gitignore 的 bin/ 忽略，作为仓库目录会导致 git add . 直接失败。
+            // 启动时自动定位仓库目录并加载其 multigitcommit.config.json：
+            // ① 上次使用过的仓库 → ② 当前工作目录 → ③ 程序自身目录向上查找（IDE 调试 / 双击 exe 时当前目录就是程序目录）
+            string? startupDir = ResolveStartupRepoPath(out string startupMessage);
+            if (startupDir == null)
+            {
+                TxtRepoPath.Text = string.Empty;
+                Log(startupMessage);
+            }
+            else
+            {
+                if (startupMessage.Length > 0) Log(startupMessage);
+                TxtRepoPath.Text = startupDir;
+            }
+        }
+
+        /// <summary>
+        /// 决定启动时填入的仓库目录：
+        /// 1) 上次成功加载过的仓库（最符合"打开就看到上次项目"的预期）；
+        /// 2) 当前工作目录（非程序自身目录时直接使用）；
+        /// 3) 程序自身目录（bin\Debug\net10.0-windows 等）时向上逐级查找含 .git / multigitcommit.config.json 的祖先目录，
+        ///    使 IDE 调试或程序放在仓库内的场景也能自动加载配置；
+        /// 4) 都没有则返回 null（由用户点【选择文件夹】）。
+        /// </summary>
+        private static string? ResolveStartupRepoPath(out string message)
+        {
+            string last = GitLocator.Settings.LastRepoPath ?? string.Empty;
+            if (last.Length > 0 && Directory.Exists(last))
+            {
+                message = $"已载入上次使用的仓库目录：{last}";
+                return last;
+            }
+
             string cwd = Environment.CurrentDirectory;
             string baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
             string cwdFull = string.IsNullOrWhiteSpace(cwd)
                 ? string.Empty
                 : Path.GetFullPath(cwd).TrimEnd(Path.DirectorySeparatorChar);
 
-            if (cwdFull.Length == 0 ||
-                string.Equals(cwdFull, baseDir, StringComparison.OrdinalIgnoreCase) ||
-                cwdFull.StartsWith(baseDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+            bool isAppDir = cwdFull.Length == 0 ||
+                            string.Equals(cwdFull, baseDir, StringComparison.OrdinalIgnoreCase) ||
+                            cwdFull.StartsWith(baseDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+
+            if (!isAppDir)
             {
-                TxtRepoPath.Text = string.Empty;
-                Log("未自动填充仓库目录：当前工作目录是程序自身目录，请点击【选择文件夹】选择 Git 仓库根目录。");
+                message = string.Empty;
+                return cwd;
             }
-            else
+
+            // 程序自身目录不能当仓库（通常是被 .gitignore 忽略的 bin\ 输出目录），改为向上找真正的仓库
+            string? found = FindRepoAncestor(cwdFull.Length > 0 ? cwdFull : baseDir);
+            if (found != null)
             {
-                TxtRepoPath.Text = cwd;
+                message = $"已从程序目录向上定位到 Git 仓库：{found}";
+                return found;
+            }
+
+            message = "未自动填充仓库目录：当前目录及上级目录中未找到 Git 仓库，请点击【选择文件夹】选择 Git 仓库根目录。";
+            return null;
+        }
+
+        /// <summary>
+        /// 从指定目录起逐级向上查找 Git 仓库根目录（最多 12 层）：含 .git 目录/文件或 multigitcommit.config.json 即命中。
+        /// </summary>
+        private static string? FindRepoAncestor(string startDir)
+        {
+            try
+            {
+                var dir = new DirectoryInfo(startDir);
+                for (int i = 0; i < 12 && dir != null; i++, dir = dir.Parent)
+                {
+                    if (Directory.Exists(Path.Combine(dir.FullName, ".git")) ||
+                        File.Exists(Path.Combine(dir.FullName, ".git")) ||
+                        File.Exists(Path.Combine(dir.FullName, ProjectConfig.ConfigFileName)))
+                        return dir.FullName;
+                }
+            }
+            catch (Exception)
+            {
+                // 路径不可访问时忽略
+            }
+
+            return null;
+        }
+
+        /// <summary>记住本次成功加载的仓库目录，下次启动自动载入其项目配置。</summary>
+        private void RememberRepoPath(string repoRoot)
+        {
+            if (string.Equals(GitLocator.Settings.LastRepoPath, repoRoot, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            GitLocator.Settings.LastRepoPath = repoRoot;
+            try
+            {
+                GitLocator.Settings.Save();
+            }
+            catch (Exception)
+            {
+                // 保存失败不影响当前使用
             }
         }
 
@@ -317,6 +397,10 @@ namespace MultiGitCommit
                     string detail = top.Stderr?.Trim() ?? string.Empty;
                     if (detail.Length > 0)
                         Log("       git 返回：" + detail);
+
+                    // 记住的上次仓库已失效（被删除 / 不再是仓库）时清掉，避免每次启动都重复报错
+                    if (string.Equals(GitLocator.Settings.LastRepoPath, path, StringComparison.OrdinalIgnoreCase))
+                        RememberRepoPath(string.Empty);
                     return;
                 }
 
@@ -355,6 +439,9 @@ namespace MultiGitCommit
                     : string.Join("、", _config.RemoteUrls);
                 Log($"已加载项目配置：{ProjectConfig.ConfigFileName}（目录：{repoRoot}）");
                 Log($"当前项目远端共 {_config.RemoteUrls.Count} 个：{urlSummary}");
+
+                // 记住该仓库，下次启动自动载入
+                RememberRepoPath(repoRoot);
 
                 // 提交身份是生成 commit 的前置条件，加载仓库后即时显示，未设置时提前提醒
                 RefreshIdentityStatus();

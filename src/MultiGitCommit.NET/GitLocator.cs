@@ -130,6 +130,10 @@ namespace MultiGitCommit
         [JsonPropertyName("CommitIdentity")]
         public GitIdentity CommitIdentity { get; set; } = new();
 
+        /// <summary>上次成功加载的仓库根目录，下次启动自动载入该项目的 multigitcommit.config.json。</summary>
+        [JsonPropertyName("LastRepoPath")]
+        public string LastRepoPath { get; set; } = string.Empty;
+
         /// <summary>设置文件完整路径（加载时填充）。</summary>
         [JsonIgnore]
         public string SettingsFilePath { get; private set; } = string.Empty;
@@ -157,6 +161,7 @@ namespace MultiGitCommit
                         loaded.CustomGitPath ??= string.Empty;
                         loaded.Credentials ??= new List<GitCredential>();
                         loaded.CommitIdentity ??= new GitIdentity();
+                        loaded.LastRepoPath ??= string.Empty;
                         return loaded;
                     }
                 }

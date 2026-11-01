@@ -12,6 +12,7 @@
 - **克隆项目**：输入远端 URL 一键 `git clone` 到本地，支持指定分支（`--branch`）、递归子模块（`--recursive`）、浅克隆（`--depth 1`）；目录名自动从 URL 推导，克隆完成后自动切换为该仓库，并可把来源 URL 直接写入推送远端列表，一键完成「克隆 → 提交 → 推送」闭环。
 - **多远端推送**：一个 Git 仓库可配置 1 个或多个推送远端地址，推送时逐个执行，单个远端失败不影响其余远端。
 - **每个仓库独立配置**：远端列表、复选框状态保存在各自仓库根目录的 `multigitcommit.config.json`，切换仓库自动加载对应项目的配置。
+- **启动即自动加载**：打开程序自动定位仓库并载入其 `multigitcommit.config.json`——优先上次使用过的仓库；否则用当前工作目录；若当前目录就是程序自身目录（IDE 调试 / 双击 exe 常见），则从该目录向上逐级查找 `.git` 或 `multigitcommit.config.json` 定位真正的仓库根目录；都找不到才提示手动选择。
 - **固定提交格式**：commit 消息固定为 `yyyy-MM-dd HH:mm:ss 用户备注`；备注为空时仅使用本地时间戳。
 - **动态分支**：自动获取当前分支名推送，不硬编码 main/master。
 - **空提交防护**：工作区无变更时自动跳过 `git commit`，不生成空提交；勾选【强制提交】可忽略该防护（`--allow-empty`）。
@@ -187,6 +188,7 @@ Git 来源等全局设置（与仓库无关）保存在 **`%APPDATA%\MultiGitCom
 | `Credentials` | object[] | https 推送凭据列表：`{ "Host": "cnb.cool", "Username": "...", "Token": "..." }`（按主机匹配，明文保存） |
 | `CredentialSource` | int | 账号来源：`0` 自动检测（自定义优先）/ `1` 仅系统凭据 / `2` 仅自定义 / `3` 不使用 |
 | `CommitIdentity` | object | 提交身份：`{ "Name": "...", "Email": "...", "Scope": 0 }`（`Scope`：`0` 仅当前仓库 / `1` 全局） |
+| `LastRepoPath` | string | 上次成功加载的仓库根目录，下次启动自动载入其 `multigitcommit.config.json`（失效时自动清除） |
 
 > **注意**
 > - 本工具**不会修改** git 原生的 `.git/config` 文件；远端地址只保存在上述工具独立配置文件中。
