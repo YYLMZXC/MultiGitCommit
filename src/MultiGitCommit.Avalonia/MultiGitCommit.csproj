@@ -20,6 +20,12 @@
     <NSHighResolutionCapable>true</NSHighResolutionCapable>
   </PropertyGroup>
 
+  <!-- Windows：exe 文件图标（资源管理器 / 任务栏显示），必须是 .ico；
+       macOS 应用包图标不走这里（需 .icns，打包时再配），因此限定只在 Windows 构建时生效。 -->
+  <PropertyGroup Condition="'$(OS)' == 'Windows_NT'">
+    <ApplicationIcon>res\icon.ico</ApplicationIcon>
+  </PropertyGroup>
+
   <!-- Avalonia 11 跨平台 UI（Windows 与 macOS 共用同一套 AXAML） -->
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.11" />
