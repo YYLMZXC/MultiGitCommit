@@ -1,0 +1,45 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- 跨平台统一项目：一套代码同时支持 Windows 与 macOS（不依赖 WPF / WinForms） -->
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MultiGitCommit</RootNamespace>
+    <AssemblyName>MultiGitCommit</AssemblyName>
+    <Version>26.10.18</Version>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <!-- 发布目标平台：dotnet publish -r win-x64 / osx-arm64 / osx-x64 -->
+    <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
+    <!-- 发布为 macOS 应用包（.app）时使用的元数据（Windows 下这些属性被忽略） -->
+    <CFBundleName>MultiGitCommit</CFBundleName>
+    <CFBundleDisplayName>MultiGitCommit</CFBundleDisplayName>
+    <CFBundleIdentifier>com.yylmzxc.multigitcommit</CFBundleIdentifier>
+    <CFBundleShortVersionString>26.10.18</CFBundleShortVersionString>
+    <NSHighResolutionCapable>true</NSHighResolutionCapable>
+  </PropertyGroup>
+
+  <!-- Avalonia 11 跨平台 UI（Windows 与 macOS 共用同一套 AXAML） -->
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.11" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.11" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.11" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.11" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <!-- 应用图标：以 Avalonia 资源嵌入，供 Window.Icon / App 图标使用（两平台共用 png） -->
+  <ItemGroup>
+    <AvaloniaResource Include="res\icon.png" />
+  </ItemGroup>
+
+  <!-- 内嵌便携版 Git（随软件分发，开箱即用）：
+       Windows：把 git 发行包放在 src/MultiGitCommit.Avalonia/git/（cmd\git.exe、mingw64\ 等）；
+       macOS   ：放在 git/bin/git。
+       构建时原样复制到输出目录 git\ 子目录，GitLocator 的 Embedded / Auto 模式会自动优先使用。
+       目录不存在时此通配不匹配任何文件，不影响构建。 -->
+  <ItemGroup>
+    <None Include="git\**\*" Visible="false" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
