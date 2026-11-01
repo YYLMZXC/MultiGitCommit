@@ -292,6 +292,7 @@ namespace MultiGitCommit
                 BtnEditRemote.IsEnabled = false;
                 BtnDeleteRemote.IsEnabled = false;
                 BtnOpenRemote.IsEnabled = false;
+                RefreshIdentityStatus(); // 仓库切换/清空后同步提交身份状态
 
                 if (string.IsNullOrWhiteSpace(path))
                     return;
@@ -354,6 +355,9 @@ namespace MultiGitCommit
                     : string.Join("、", _config.RemoteUrls);
                 Log($"已加载项目配置：{ProjectConfig.ConfigFileName}（目录：{repoRoot}）");
                 Log($"当前项目远端共 {_config.RemoteUrls.Count} 个：{urlSummary}");
+
+                // 提交身份是生成 commit 的前置条件，加载仓库后即时显示，未设置时提前提醒
+                RefreshIdentityStatus();
             }
             finally
             {
@@ -526,7 +530,7 @@ namespace MultiGitCommit
         private void BtnGitEnv_Click(object sender, RoutedEventArgs e)
         {
             // 传入当前项目的远端 URL：自动检测系统凭据时优先探测这些主机
-            var win = new GitSettingsWindow(GitLocator.Settings, _config?.RemoteUrls) { Owner = this };
+            var win = new GitSettingsWindow(GitLocator.Settings, _config?.RemoteUrls, _repoRoot) { Owner = this };
             if (win.ShowDialog() == true)
             {
                 GitLocator.Settings.GitSource = win.SelectedSource;
@@ -973,6 +977,14 @@ namespace MultiGitCommit
                     if (!hasChanges)
                         Log("工作区无变更，但已勾选【强制提交】，仍执行一次空提交（--allow-empty）。");
 
+                    // 4.5) 提交前置条件：必须存在 user.name / user.email，否则 git 生成不了 commit。
+                    //      未配置时自动套用已保存的身份；仍没有则弹窗引导填写，取消则终止流程。
+                    if (!EnsureCommitIdentity(repoDir))
+                    {
+                        Log("流程终止：未设置提交身份（user.name / user.email），无法生成 commit。");
+                        return;
+                    }
+
                     // 5) 组装 commit 消息：固定格式 yyyy-MM-dd HH:mm:ss 用户备注
                     string time = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                     string remark = TxtCommitMessage.Text.Trim();
@@ -1078,6 +1090,152 @@ namespace MultiGitCommit
 
             // 系统凭据：Windows 凭据管理器 / ~/.git-credentials / credential helper（5 秒超时，不会卡住）
             return await SystemCredentialProbe.ProbeAsync(GitCredentials.GetHost(url), GitLocator.GitExe);
+        }
+
+        // ==================== 提交身份（user.name / user.email） ====================
+
+        /// <summary>git config 值的命令行转义：包在双引号里，内部的反斜杠与双引号先转义。</summary>
+        private static string EscapeConfigValue(string? value)
+        {
+            string v = value ?? string.Empty;
+            return v.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        }
+
+        /// <summary>
+        /// 读取当前生效的提交身份（user.name / user.email）。
+        /// `git config --get` 取的是生效值（仓库级 → 全局 → 系统级），任一缺失返回空串。
+        /// </summary>
+        private (string Name, string Email) ReadCommitIdentity()
+        {
+            string dir = _repoRoot ?? Environment.CurrentDirectory;
+
+            var nameResult = RunCommand(dir, GitLocator.GitExe, "config --get user.name");
+            var emailResult = RunCommand(dir, GitLocator.GitExe, "config --get user.email");
+
+            string name = nameResult.Success ? nameResult.Stdout.Trim() : string.Empty;
+            string email = emailResult.Success ? emailResult.Stdout.Trim() : string.Empty;
+            return (name, email);
+        }
+
+        /// <summary>刷新界面上的提交身份状态文本。</summary>
+        private void RefreshIdentityStatus()
+        {
+            if (TxtIdentity == null) return;
+
+            if (_repoRoot == null)
+            {
+                TxtIdentity.Text = "提交身份：未选择仓库";
+                TxtIdentity.Foreground = System.Windows.Media.Brushes.DimGray;
+                return;
+            }
+
+            var (name, email) = ReadCommitIdentity();
+            bool ok = name.Length > 0 && email.Length > 0;
+            TxtIdentity.Text = ok ? $"提交身份：{name} <{email}>" : "提交身份：未设置（提交前必须设置）";
+            TxtIdentity.Foreground = ok
+                ? System.Windows.Media.Brushes.DimGray
+                : System.Windows.Media.Brushes.Firebrick;
+        }
+
+        /// <summary>
+        /// 提交前置条件校验：确保 user.name / user.email 已配置。
+        /// 缺失时优先套用设置里已保存的身份；没有则弹窗引导填写；用户取消返回 false，调用方应终止提交。
+        /// </summary>
+        private bool EnsureCommitIdentity(string repoDir)
+        {
+            var (name, email) = ReadCommitIdentity();
+            if (name.Length > 0 && email.Length > 0)
+            {
+                Log($"提交身份：{name} <{email}>");
+                return true;
+            }
+
+            Log("未检测到 git 提交身份（user.name / user.email）：这是生成 commit 的前置条件，缺失时 git 会直接报错。");
+
+            var saved = GitLocator.Settings.CommitIdentity;
+            GitIdentity identity;
+
+            if (saved != null && saved.IsComplete)
+            {
+                identity = saved;
+                Log($"套用已保存的提交身份：{identity.Name} <{identity.Email}>");
+            }
+            else
+            {
+                var win = new IdentityWindow(saved) { Owner = this };
+                if (win.ShowDialog() != true)
+                {
+                    Log("已取消设置提交身份，无法生成 commit。");
+                    return false;
+                }
+
+                identity = win.Result;
+                GitLocator.Settings.CommitIdentity = identity;
+                try
+                {
+                    GitLocator.Settings.Save();
+                    Log($"已保存提交身份到：{GitLocator.Settings.SettingsFilePath}");
+                }
+                catch (Exception ex)
+                {
+                    Log("保存提交身份失败：" + ex.Message);
+                }
+            }
+
+            return ApplyCommitIdentity(identity, repoDir);
+        }
+
+        /// <summary>把身份写入 git config（仓库级或全局），并刷新界面状态。</summary>
+        private bool ApplyCommitIdentity(GitIdentity identity, string repoDir)
+        {
+            string scopeArg = identity.Scope == IdentityScope.Global ? "--global " : string.Empty;
+
+            var r1 = RunCommand(repoDir, GitLocator.GitExe,
+                $"config {scopeArg}user.name \"{EscapeConfigValue(identity.Name)}\"");
+            var r2 = RunCommand(repoDir, GitLocator.GitExe,
+                $"config {scopeArg}user.email \"{EscapeConfigValue(identity.Email)}\"");
+
+            if (!r1.Success || !r2.Success)
+            {
+                Log($"写入提交身份失败：{(r1.Success ? r2.Stderr : r1.Stderr)}");
+                return false;
+            }
+
+            Log($"已写入提交身份（{(identity.Scope == IdentityScope.Global ? "全局 --global" : "本仓库 --local")}）：" +
+                $"{identity.Name} <{identity.Email}>");
+            RefreshIdentityStatus();
+            return true;
+        }
+
+        /// <summary>手动打开【提交身份】设置窗口并立即应用。</summary>
+        private void BtnIdentity_Click(object sender, RoutedEventArgs e)
+        {
+            if (!EnsureGitAvailable()) return;
+
+            var (name, email) = ReadCommitIdentity();
+            var current = new GitIdentity
+            {
+                Name = name,
+                Email = email,
+                Scope = GitLocator.Settings.CommitIdentity?.Scope ?? IdentityScope.Local
+            };
+
+            var win = new IdentityWindow(current) { Owner = this };
+            if (win.ShowDialog() != true) return;
+
+            GitLocator.Settings.CommitIdentity = win.Result;
+            try
+            {
+                GitLocator.Settings.Save();
+            }
+            catch (Exception ex)
+            {
+                Log("保存提交身份失败：" + ex.Message);
+            }
+
+            string dir = _repoRoot ?? TxtRepoPath.Text.Trim();
+            if (string.IsNullOrWhiteSpace(dir)) dir = Environment.CurrentDirectory;
+            ApplyCommitIdentity(win.Result, dir);
         }
 
         /// <summary>获取当前 git 分支名称（git branch --show-current），不硬编码 main/master；空仓库（尚无提交）也能正确返回 unborn 分支名。</summary>

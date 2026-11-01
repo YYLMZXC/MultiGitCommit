@@ -42,6 +42,15 @@
         <TextBlock x:Name="TxtResult" TextWrapping="Wrap" Margin="0,8,0,0"
                    MinHeight="18" Foreground="#666"/>
 
+        <TextBlock Text="提交身份（git user.name / user.email）"
+                   Margin="0,14,0,4" FontWeight="Bold"/>
+        <TextBlock Text="生成 commit 的前置条件：二者缺一时 git 直接报错（Please tell me who you are），根本生成不了提交。未配置时，首次提交会自动弹窗引导填写。"
+                   TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
+        <StackPanel Orientation="Horizontal">
+            <TextBlock x:Name="TxtIdentityInfo" VerticalAlignment="Center" Foreground="#666"/>
+            <Button x:Name="BtnIdentity" Content="设置提交身份…" Padding="10,2" Margin="10,0,0,0" Click="BtnIdentity_Click"/>
+        </StackPanel>
+
         <TextBlock Text="推送凭据 / 账号（https 远端免交互推送用）"
                    Margin="0,14,0,4" FontWeight="Bold"/>
         <TextBlock Text="工具为非交互执行（禁用终端提示），https 远端没有账号时 git 无法弹窗询问，推送必然失败。可选择账号来源：自动检测（优先自定义，缺失时取系统）、仅系统、仅自定义、不使用。"

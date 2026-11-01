@@ -118,6 +118,10 @@
             <Button x:Name="BtnCommitPush" Content="执行提交并推送全部远端" Width="240" Height="38"
                     FontSize="15" FontWeight="Bold" Click="BtnCommitPush_Click"/>
             <TextBlock x:Name="TxtBranchInfo" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#666"/>
+            <TextBlock x:Name="TxtIdentity" VerticalAlignment="Center" Margin="16,0,0,0" Foreground="#666"
+                       ToolTip="提交身份 git user.name / user.email，是生成 commit 的前置条件"/>
+            <Button x:Name="BtnIdentity" Content="提交身份…" VerticalAlignment="Center" Margin="10,0,0,0" Padding="10,2"
+                    Click="BtnIdentity_Click" ToolTip="设置 git 提交身份（user.name / user.email）"/>
         </StackPanel>
 
         <!-- ============ 五、手动命令执行区 ============ -->

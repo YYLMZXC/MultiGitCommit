@@ -18,6 +18,7 @@
 - **强制推送**：勾选【强制推送】后推送命令追加 `--force`，用于非快进被拒、变基/回退后覆盖远端历史（谨慎使用）。
 - **手动命令执行**：可在当前仓库目录执行任意 git/cmd 命令，stdout/stderr 全量输出日志。
 - **仓库初始化 / 默认分支**：`git init` + 指定默认分支，空仓库直接设置 HEAD 指向；输入仓库子目录时自动定位到真正的仓库根目录。
+- **提交身份（user.name / user.email）**：提交的前置条件，界面实时显示当前生效身份；提交前自动校验，缺失时套用已保存身份或弹窗引导填写并写入 git config（可选仓库级 / 全局），未设置则终止提交而不是静默失败（详见下方【提交身份】）。
 - **推送凭据（账号）**：像【Git 环境】选择 git.exe 来源一样，账号也可**选择来源**——自动检测（自定义优先，缺失时取系统）/ 仅系统凭据 / 仅自定义 / 不使用；系统账号可按需**检测并导入**（先选主机再检测，可随时停止）。推送 https 远端时自动注入 URL，无需每次输入账号（详见下方【推送凭据】）。
 - **非交互执行 + 超时兜底**：不弹窗等待账号/口令，快速命令 20 秒、普通 git 命令 10 分钟、克隆 30 分钟超时即终止，按钮必定恢复（详见下方【非交互执行与超时保护】）。
 - **中文不乱码**：进程调用统一 UTF-8 编码。
@@ -84,6 +85,32 @@ GUI 环境下 git / ssh 若要「交互式」等待输入（远端账号密码�
 
 > 若某次推送日志出现 `Permission denied (publickey)` / `Could not read from remote repository`，
 > 说明本机没有可用的远端凭据；https 远端请到【Git 环境】→【推送凭据】配置账号，ssh 远端请先配置好密钥。
+
+## 提交身份（user.name / user.email）——提交的前置条件
+
+git 生成 commit **必须**有 `user.name` 与 `user.email`，二者缺一时 git 直接报错、根本生成不了提交：
+
+```
+*** Please tell me who you are.
+
+fatal: unable to auto-detect email address
+```
+
+本工具的处理方式：
+
+1. **状态可见**：主界面底部实时显示当前生效的提交身份（`git config --get` 的生效值：仓库级 → 全局），
+   未设置时红色显示「提交身份：未设置（提交前必须设置）」。
+2. **提交前强制校验**：点【执行提交并推送全部远端】时，若确实要生成 commit 而身份缺失，
+   会先自动套用已保存的身份；仍未设置则**弹窗引导填写**并写入 git config；取消则终止流程（不会静默失败）。
+3. **随时设置**：主界面【提交身份…】按钮，或【Git 环境】→【提交身份】→【设置提交身份…】。
+
+| 项目 | 说明 |
+|---|---|
+| 用户名 | `git config user.name`，提交记录里的作者名 |
+| 邮箱 | `git config user.email`，建议与代码平台注册邮箱一致，便于平台关联贡献者 |
+| 写入位置 | 仅当前仓库（`git config`，写入 `.git/config`）或全局（`git config --global`，对所有仓库生效） |
+
+身份同时保存在 `%APPDATA%\MultiGitCommit\settings.json`，换仓库时可直接复用。
 
 ## 推送凭据（https 远端）
 
@@ -159,6 +186,7 @@ Git 来源等全局设置（与仓库无关）保存在 **`%APPDATA%\MultiGitCom
 | `CustomGitPath` | string | 指定模式下的 git.exe 或 Git 根目录路径 |
 | `Credentials` | object[] | https 推送凭据列表：`{ "Host": "cnb.cool", "Username": "...", "Token": "..." }`（按主机匹配，明文保存） |
 | `CredentialSource` | int | 账号来源：`0` 自动检测（自定义优先）/ `1` 仅系统凭据 / `2` 仅自定义 / `3` 不使用 |
+| `CommitIdentity` | object | 提交身份：`{ "Name": "...", "Email": "...", "Scope": 0 }`（`Scope`：`0` 仅当前仓库 / `1` 全局） |
 
 > **注意**
 > - 本工具**不会修改** git 原生的 `.git/config` 文件；远端地址只保存在上述工具独立配置文件中。
@@ -183,6 +211,7 @@ src/
 ├── ProjectConfig.cs            # 项目配置读写帮助类
 ├── GitLocator.cs               # git.exe 定位/校验 + 全局设置持久化
 ├── GitSettingsWindow.xaml(.cs) # Git 环境设置窗口（来源选择/路径浏览/测试 + 推送凭据与自动检测）
+├── IdentityWindow.xaml(.cs)      # 提交身份窗口（user.name / user.email + 仓库级/全局）
 ├── CredentialDetectWindow.xaml(.cs) # 系统凭据检测窗口（选主机 → 检测（可停止）→ 勾选导入）
 ├── SystemCredentialProbe.cs    # 系统凭据探测（凭据管理器 / .git-credentials / credential helper，可取消、5 秒超时）
 └── CloneWindow.xaml(.cs)       # 克隆项目窗口（URL/目录/分支/选项 + 命令预览）
