@@ -8,7 +8,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MultiGitCommit</RootNamespace>
     <AssemblyName>MultiGitCommit</AssemblyName>
-    <Version>26.10.18</Version>
+    <Version>26.11.01</Version>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <!-- 发布目标平台：dotnet publish -r win-x64 / osx-arm64 / osx-x64 -->
     <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
@@ -16,7 +16,7 @@
     <CFBundleName>MultiGitCommit</CFBundleName>
     <CFBundleDisplayName>MultiGitCommit</CFBundleDisplayName>
     <CFBundleIdentifier>com.yylmzxc.multigitcommit</CFBundleIdentifier>
-    <CFBundleShortVersionString>26.10.18</CFBundleShortVersionString>
+    <CFBundleShortVersionString>26.11.01</CFBundleShortVersionString>
     <NSHighResolutionCapable>true</NSHighResolutionCapable>
   </PropertyGroup>
 
