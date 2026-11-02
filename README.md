@@ -78,6 +78,10 @@ Debug 产物：
 - Windows：`src\MultiGitCommit.Avalonia\bin\Debug\net10.0\MultiGitCommit.exe`
 - macOS：`src\MultiGitCommit.Avalonia/bin/Debug/net10.0/MultiGitCommit`（或 `dotnet MultiGitCommit.dll`）
 
+JetBrains Rider 可直接使用 `src/MultiGitCommit.Avalonia/.run/` 下的共享运行配置：
+`MultiGitCommit (Windows Debug)`、`MultiGitCommit (Windows Release win-x64)`、`MultiGitCommit (macOS Debug)`。
+其中 Release 配置需先在 Rider 中把解决方案配置切到 `Release`。
+
 ### 发布（单文件，依赖框架）
 
 Release 默认发布为 **单文件 exe**（Avalonia、Skia 等依赖全部打进主程序），输出目录只有 `MultiGitCommit.exe` + `git\` 目录：
