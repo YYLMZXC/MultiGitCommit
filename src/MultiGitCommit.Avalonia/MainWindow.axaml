@@ -102,7 +102,8 @@
                     <TextBox x:Name="TxtCommitMessage" Grid.Column="1" VerticalContentAlignment="Center"
                              ToolTip.Tip="留空时 commit 消息仅使用本地时间，格式：yyyy-MM-dd HH:mm:ss 用户备注"/>
                 </Grid>
-                <StackPanel Grid.Row="2" Orientation="Horizontal">
+                <!-- WrapPanel：四个复选框总宽超过默认窗口宽度，窄窗口时自动换行，避免【强制推送】被裁掉 -->
+                <WrapPanel Grid.Row="2">
                     <CheckBox x:Name="ChkAddAll" Content="执行 git add . （默认不勾选，避免误提交垃圾文件）" Margin="0,2,20,2"
                               IsCheckedChanged="ChkAddAll_Changed"/>
                     <CheckBox x:Name="ChkPushTags" Content="推送标签 --tags（默认不勾选）" Margin="0,2,20,2"
@@ -113,7 +114,7 @@
                     <CheckBox x:Name="ChkForcePush" Content="强制推送 --force（覆盖远端历史，谨慎使用）" Margin="0,2,0,2" Foreground="#C00000"
                               ToolTip.Tip="勾选后推送命令追加 --force，可解决非快进被拒；会覆盖远端提交历史，请谨慎使用"
                               IsCheckedChanged="ChkForcePush_Changed"/>
-                </StackPanel>
+                </WrapPanel>
             </Grid>
         </Border>
 
