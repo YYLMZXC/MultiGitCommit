@@ -3,7 +3,7 @@ using Avalonia;
 namespace MultiGitCommit;
 
 /// <summary>
-/// macOS 版程序入口（Avalonia 11 跨平台桌面应用）。
+/// 桌面版程序入口（Avalonia 11 跨平台桌面应用，Windows / macOS / Linux 共用）。
 /// </summary>
 internal static class Program
 {

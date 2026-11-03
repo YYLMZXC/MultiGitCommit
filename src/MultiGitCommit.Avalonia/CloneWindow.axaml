@@ -5,7 +5,7 @@
         Width="680" SizeToContent="Height"
         CanResize="False"
         WindowStartupLocation="CenterOwner"
-        FontFamily="Microsoft YaHei UI,PingFang SC" FontSize="13"
+        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
         ShowInTaskbar="False">
 
     <Grid Margin="14">
@@ -60,7 +60,7 @@
                 <TextBlock Text="目标路径：" Foreground="#666"/>
                 <TextBlock x:Name="TxtTargetPath" TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#2B579A"/>
                 <TextBlock Text="将执行命令：" Foreground="#666"/>
-                <TextBlock x:Name="TxtCommandPreview" TextWrapping="Wrap" FontFamily="Consolas,Menlo" FontSize="12" Foreground="#2B579A"/>
+                <TextBlock x:Name="TxtCommandPreview" TextWrapping="Wrap" FontFamily="Consolas,Menlo,DejaVu Sans Mono,Noto Sans Mono" FontSize="12" Foreground="#2B579A"/>
             </StackPanel>
         </Border>
 

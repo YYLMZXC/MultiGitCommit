@@ -7,8 +7,9 @@ namespace MultiGitCommit;
 /// <summary>
 /// 应用级全局设置（与具体仓库无关），跨平台持久化：
 /// Windows → <c>%APPDATA%\MultiGitCommit\settings.json</c>；
-/// macOS   → <c>~/Library/Application Support/MultiGitCommit/settings.json</c>。
-/// 两端字段完全一致，配置文件可通用。
+/// macOS   → <c>~/Library/Application Support/MultiGitCommit/settings.json</c>；
+/// Linux   → <c>$XDG_CONFIG_HOME/MultiGitCommit/settings.json</c>（未设置时为 <c>~/.config/MultiGitCommit/settings.json</c>）。
+/// 各平台字段完全一致，配置文件可通用。
 /// </summary>
 public class AppSettings
 {
@@ -41,14 +42,32 @@ public class AppSettings
     public string SettingsFilePath { get; private set; } = string.Empty;
 
     /// <summary>
-    /// 设置目录：Windows 用 %APPDATA%，macOS 用 ~/Library/Application Support（各自平台惯例）。
+    /// 设置目录，按各平台惯例：
+    /// Windows 用 %APPDATA%；macOS 用 ~/Library/Application Support；
+    /// Linux 遵循 XDG 规范用 $XDG_CONFIG_HOME（未设置时回退 ~/.config）。
     /// </summary>
-    private static string SettingsDir =>
-        OperatingSystem.IsWindows()
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MultiGitCommit")
-            : Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                "Library", "Application Support", "MultiGitCommit");
+    private static string SettingsDir
+    {
+        get
+        {
+            if (OperatingSystem.IsWindows())
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MultiGitCommit");
+
+            if (OperatingSystem.IsMacOS())
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    "Library", "Application Support", "MultiGitCommit");
+
+            // Linux / 其他 Unix：XDG_CONFIG_HOME 必须为绝对路径，否则按规范忽略并回退 ~/.config
+            string? xdg = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+            if (!string.IsNullOrWhiteSpace(xdg) && Path.IsPathRooted(xdg))
+                return Path.Combine(xdg, "MultiGitCommit");
+
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config", "MultiGitCommit");
+        }
+    }
 
     /// <summary>读取设置；文件不存在或损坏时返回默认设置。</summary>
     public static AppSettings Load()
@@ -83,7 +102,7 @@ public class AppSettings
         return settings;
     }
 
-    /// <summary>保存设置到 %APPDATA%\MultiGitCommit\settings.json（macOS 为 ~/Library/Application Support 下同名文件）。</summary>
+    /// <summary>保存设置到平台上对应的设置目录（Windows：%APPDATA%；macOS：~/Library/Application Support；Linux：$XDG_CONFIG_HOME 或 ~/.config）。</summary>
     public void Save()
     {
         Directory.CreateDirectory(SettingsDir);

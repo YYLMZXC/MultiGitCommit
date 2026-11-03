@@ -5,7 +5,7 @@
         Width="640" Height="520"
         MinWidth="560" MinHeight="460"
         WindowStartupLocation="CenterOwner"
-        FontFamily="Microsoft YaHei UI,PingFang SC" FontSize="13"
+        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
         ShowInTaskbar="False">
 
     <Window.Styles>

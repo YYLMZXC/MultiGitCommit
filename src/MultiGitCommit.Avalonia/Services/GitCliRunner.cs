@@ -159,7 +159,7 @@ public sealed class GitCliRunner : IGitCliRunner
             string.Join(Path.PathSeparator, entries) + Path.PathSeparator + oldPath;
     }
 
-    /// <summary>按文件名判定是否为 git（含无扩展名的 macOS 版与自定义完整路径）。</summary>
+    /// <summary>按文件名判定是否为 git（含无扩展名的 macOS / Linux 版与自定义完整路径）。</summary>
     private static bool IsGitExecutable(string fileName)
         => string.Equals(Path.GetFileNameWithoutExtension(fileName), "git", StringComparison.OrdinalIgnoreCase);
 

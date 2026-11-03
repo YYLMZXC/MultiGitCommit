@@ -19,7 +19,8 @@ public interface ISettingsProvider
 
 /// <summary>
 /// 默认实现：首次访问时从 %APPDATA%\MultiGitCommit\settings.json
-/// （macOS 为 ~/Library/Application Support/MultiGitCommit/settings.json）加载。
+/// （macOS 为 ~/Library/Application Support/MultiGitCommit/settings.json，
+/// Linux 为 $XDG_CONFIG_HOME/MultiGitCommit/settings.json 或 ~/.config/MultiGitCommit/settings.json）加载。
 /// </summary>
 public sealed class SettingsProvider : ISettingsProvider
 {

@@ -470,7 +470,7 @@ public partial class GitSettingsWindow : Window
     {
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "选择 git 可执行文件（Homebrew 一般在 /opt/homebrew/bin/git）",
+            Title = "选择 git 可执行文件（macOS 常在 /opt/homebrew/bin/git，Linux 常在 /usr/bin/git）",
             AllowMultiple = false
         });
 

@@ -47,10 +47,11 @@ public class CredentialImportItem
 }
 
 /// <summary>
-/// 系统 git 凭据探测器（Windows / macOS 通用）：自动检测本机已经保存好的远端账号，免手工填写。
+/// 系统 git 凭据探测器（Windows / macOS / Linux 通用）：自动检测本机已经保存好的远端账号，免手工填写。
 ///
 /// 两种来源：
 /// 1. **系统的**：Windows 凭据管理器（Git Credential Manager / wincred）、macOS 钥匙串（osxkeychain）、
+///    Linux Secret Service（libsecret，GNOME Keyring / KWallet）、
 ///    <c>~/.git-credentials</c> 明文文件、<c>git credential fill</c> 可命中的任意 credential helper；
 /// 2. **自定义的**：用户在【Git 环境】→【推送凭据】里手工填写或导入的账号。
 ///
@@ -101,8 +102,8 @@ public static class SystemCredentialProbe
         }
 
         // 系统凭据库：Windows 用 cmdkey 枚举凭据管理器目标；
-        // macOS 不枚举钥匙串（security 命令逐个查询很慢，违背「不全量扫描」原则），
-        // 改由 git credential fill 经 osxkeychain 按需索取。
+        // macOS / Linux 不枚举钥匙串 / Secret Service（逐个查询很慢，违背「不全量扫描」原则），
+        // 改由 git credential fill 经 osxkeychain / libsecret 按需索取。
         foreach (string h in WindowsCredentialManagerHosts()) Add(h, "Windows 凭据管理器", true);
 
         foreach (var c in ReadCredentialsFile()) Add(c.Host, "凭据文件 .git-credentials", true);
@@ -206,7 +207,7 @@ public static class SystemCredentialProbe
     /// <summary>
     /// 探测指定主机的系统凭据：先查凭据文件（快且无需唤起系统凭据库），
     /// 再用 <c>git credential fill</c> 向系统 credential helper
-    /// （Windows：GCM / wincred；macOS：osxkeychain）索取。
+    /// （Windows：GCM / wincred；macOS：osxkeychain；Linux：libsecret）索取。
     /// </summary>
     /// <param name="host">远端主机或完整 URL。</param>
     /// <param name="gitExe">git 可执行文件（用当前生效的，支持便携版 / 内嵌 / 指定路径）。</param>

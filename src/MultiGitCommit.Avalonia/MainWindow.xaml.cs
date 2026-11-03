@@ -100,7 +100,7 @@ public partial class MainWindow : Window
             LoadConfigFromPath();
         };
 
-        Log("MultiGitCommit 已启动（跨平台版：Windows / macOS）。");
+        Log("MultiGitCommit 已启动（跨平台版：Windows / macOS / Linux）。");
         Log("提示：本工具不会修改 git 原生 .git/config；远端地址保存在每个项目目录下的 multigitcommit.config.json。");
         Log("提示：每个 git 仓库拥有独立配置，切换仓库会自动加载对应项目的远端列表。");
 

@@ -1,17 +1,19 @@
 namespace MultiGitCommit;
 
 /// <summary>
-/// git 定位器（Windows / macOS 通用）：使工具【不依赖系统是否安装 / 配置了 git】。
+/// git 定位器（Windows / macOS / Linux 通用）：使工具【不依赖系统是否安装 / 配置了 git】。
 ///
 /// 四种来源：
 /// 1. Auto     自动检测：软件内嵌 Git → 常见安装位置 → 系统 PATH；
 /// 2. System   仅使用系统 PATH 中的 git；
 /// 3. Custom   用户指定的 git 可执行文件或 Git 根目录；
-/// 4. Embedded 仅使用软件内嵌的 Git（Windows：软件目录 git\cmd\git.exe；macOS：软件目录 git/bin/git 或 .app 内 Resources/git）。
+/// 4. Embedded 仅使用软件内嵌的 Git（Windows：软件目录 git\cmd\git.exe；
+///             macOS / Linux：软件目录 git/bin/git，macOS 还支持 .app 内 Resources/git）。
 ///
 /// 说明：macOS 从 Finder / Dock 启动的 GUI 应用 PATH 通常只有 /usr/bin:/bin:/usr/sbin:/sbin，
-/// 因此 Homebrew 等路径必须显式枚举，而不能只依赖 PATH 查找；Windows 同理优先用随软件分发的便携版 Git。
-/// 平台相关的候选路径 / 可执行判定统一收在 <c>OperatingSystem.IsWindows()</c> 分支里。
+/// Linux 从桌面图标（.desktop）启动时同样拿不到用户 shell 的 PATH（如 ~/.local/bin、Linuxbrew），
+/// 因此这些路径必须显式枚举，而不能只依赖 PATH 查找；Windows 同理优先用随软件分发的便携版 Git。
+/// 平台相关的候选路径 / 可执行判定统一收在 <c>OperatingSystem.IsWindows()</c> / <c>IsMacOS()</c> 分支里。
 /// </summary>
 public static class GitLocator
 {
@@ -36,26 +38,22 @@ public static class GitLocator
     /// <summary>
     /// 需要注入子进程 PATH 的目录集合：
     /// 1. git 所在目录（如便携版 MinGit 的 git\cmd\）；
-    /// 2. Git 根目录下的 mingw64\bin、usr\bin（Windows）或 bin、libexec/git-core（macOS）
+    /// 2. Git 根目录下的 mingw64\bin、usr\bin（Windows）或 bin、libexec/git-core（macOS / Linux）
     ///    ——ssh(.exe)、git-lfs 等附带程序所在位置，保证便携版 / 内嵌 git 执行 ssh 远端推送时无需系统安装组件；
-    /// 3. macOS 常见命令目录（GUI 应用 PATH 常缺失 /opt/homebrew/bin、/usr/local/bin 等）。
+    /// 3. macOS / Linux 常见命令目录（从 Finder / 桌面图标启动的 GUI 应用 PATH 常缺失
+    ///    /opt/homebrew/bin、~/.local/bin、/snap/bin 等）。
     /// </summary>
     public static IReadOnlyList<string> GetPathEntries()
     {
         var entries = new List<string>();
 
-        if (!OperatingSystem.IsWindows())
+        if (OperatingSystem.IsMacOS())
         {
-            // GUI 应用默认 PATH 之外的常用目录，保证手动命令区（/bin/bash -lc）也能找到 git
-            foreach (string dir in new[]
-                     {
-                         "/opt/homebrew/bin", "/opt/homebrew/sbin",
-                         "/usr/local/bin", "/usr/local/sbin",
-                         "/usr/bin", "/bin", "/usr/sbin", "/sbin"
-                     })
-            {
-                if (Directory.Exists(dir)) entries.Add(dir);
-            }
+            AddExistingDirectories(entries, MacPathDirectories());
+        }
+        else if (!OperatingSystem.IsWindows())
+        {
+            AddExistingDirectories(entries, LinuxPathDirectories());
         }
 
         if (_gitExe == null) return entries;
@@ -69,8 +67,8 @@ public static class GitLocator
             string? root = TryGetGitRoot(_gitExe);
             if (root != null)
             {
-                // 两个平台的 Git 发行版布局不同：Windows（MinGit）在 mingw64\bin、usr\bin，
-                // macOS / Unix 在 bin、libexec\git-core
+                // 各平台的 Git 发行版布局不同：Windows（MinGit）在 mingw64\bin、usr\bin，
+                // macOS / Linux 在 bin、libexec/git-core
                 foreach (string sub in OperatingSystem.IsWindows()
                              ? new[]
                              {
@@ -94,6 +92,65 @@ public static class GitLocator
         }
 
         return entries;
+    }
+
+    /// <summary>把存在的目录按顺序追加到列表（跳过空项与重复项）。</summary>
+    private static void AddExistingDirectories(List<string> entries, IEnumerable<string> dirs)
+    {
+        foreach (string dir in dirs)
+        {
+            if (!string.IsNullOrWhiteSpace(dir) && Directory.Exists(dir) && !entries.Contains(dir))
+                entries.Add(dir);
+        }
+    }
+
+    /// <summary>
+    /// macOS：从 Finder / Dock 启动时 PATH 常缺失的常用目录（Homebrew、MacPorts、用户级安装）。
+    /// </summary>
+    private static IEnumerable<string> MacPathDirectories()
+    {
+        yield return "/opt/homebrew/bin";
+        yield return "/opt/homebrew/sbin";
+        yield return "/usr/local/bin";
+        yield return "/usr/local/sbin";
+        yield return "/opt/local/bin";
+        yield return "/usr/bin";
+        yield return "/bin";
+        yield return "/usr/sbin";
+        yield return "/sbin";
+
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrEmpty(home))
+        {
+            yield return Path.Combine(home, ".local", "bin");
+            yield return Path.Combine(home, ".nix-profile", "bin");
+        }
+    }
+
+    /// <summary>
+    /// Linux：从 .desktop 图标启动时 PATH 常缺失的常用目录
+    /// （用户级安装、Linuxbrew、snap、Nix、发行版标准目录）。
+    /// </summary>
+    private static IEnumerable<string> LinuxPathDirectories()
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrEmpty(home))
+        {
+            yield return Path.Combine(home, ".local", "bin");
+            yield return Path.Combine(home, ".local", "sbin");
+            yield return Path.Combine(home, ".linuxbrew", "bin");
+            yield return Path.Combine(home, ".nix-profile", "bin");
+        }
+
+        yield return "/home/linuxbrew/.linuxbrew/bin";
+        yield return "/usr/local/bin";
+        yield return "/usr/local/sbin";
+        yield return "/usr/bin";
+        yield return "/bin";
+        yield return "/usr/sbin";
+        yield return "/sbin";
+        yield return "/snap/bin";
+        yield return "/nix/var/nix/profiles/default/bin";
     }
 
     /// <summary>
@@ -156,7 +213,7 @@ public static class GitLocator
                 found = EmbeddedCandidates().FirstOrDefault(IsExecutable);
                 description = found != null
                     ? $"软件内嵌：{found}"
-                    : "软件目录 / .app 内未发现内嵌 Git（Resources/git/bin/git），请改用其他来源";
+                    : "软件目录 / .app 内未发现内嵌 Git（git/bin/git 或 Resources/git/bin/git），请改用其他来源";
                 break;
 
             case GitSourceMode.System:
@@ -177,7 +234,7 @@ public static class GitLocator
                 found = CandidatePaths().FirstOrDefault(IsExecutable) ?? FindOnPath();
                 description = found != null
                     ? $"自动检测：{found}"
-                    : "自动检测：未找到 git（可安装 Xcode 命令行工具或 Homebrew git，也可在设置中指定路径）";
+                    : $"自动检测：未找到 git（macOS 可安装 Xcode 命令行工具或 Homebrew；Linux 可用系统包管理器安装 git 或 Linuxbrew；也可在设置中指定路径）";
                 break;
         }
 
@@ -214,7 +271,7 @@ public static class GitLocator
 
             if (Directory.Exists(path))
             {
-                // Windows（MinGit / Git for Windows）与 Unix（Homebrew / 内嵌）的布局不同，两套候选都试
+                // Windows（MinGit / Git for Windows）与 Unix（macOS / Linux 的 Homebrew、发行版包、内嵌）布局不同，两套候选都试
                 foreach (string sub in new[]
                          {
                              Path.Combine("cmd", "git.exe"),
@@ -299,7 +356,7 @@ public static class GitLocator
     /// <summary>
     /// 软件内嵌的 Git 候选路径：
     /// Windows → 软件目录 git\cmd\git.exe、PortableGit\cmd\git.exe；
-    /// macOS   → 软件目录 git/bin/git，或 .app 包内 Contents/Resources/git。
+    /// macOS / Linux → 软件目录 git/bin/git，macOS 还支持 .app 包内 Contents/Resources/git。
     /// </summary>
     private static IEnumerable<string> EmbeddedCandidates()
     {
@@ -319,7 +376,7 @@ public static class GitLocator
         yield return Path.Combine(appDir, "PortableGit", "cmd", "git.exe");
         yield return Path.Combine(appDir, "git", "bin", "git.exe");
 
-        // Unix / macOS 布局
+        // Unix（macOS / Linux）布局
         yield return Path.Combine(appDir, "git", "bin", "git");
         yield return Path.Combine(appDir, "git", "cmd", "git");
         yield return Path.Combine(appDir, "PortableGit", "bin", "git");
@@ -332,7 +389,8 @@ public static class GitLocator
     /// <summary>
     /// 常见安装位置候选：
     /// Windows → Program Files / 用户级安装 / scoop / winget；
-    /// macOS   → Homebrew → Xcode 命令行工具 → MacPorts → 官方安装包 → Nix。
+    /// macOS   → Homebrew → Xcode 命令行工具 → MacPorts → 官方安装包 → Nix；
+    /// Linux   → 用户级安装 / Linuxbrew → 发行版标准目录 → snap / Nix → 源码安装。
     /// </summary>
     private static IEnumerable<string> InstalledCandidates()
     {
@@ -342,7 +400,11 @@ public static class GitLocator
             yield break;
         }
 
-        foreach (string candidate in UnixInstalledCandidates()) yield return candidate;
+        IEnumerable<string> candidates = OperatingSystem.IsMacOS()
+            ? MacInstalledCandidates()
+            : LinuxInstalledCandidates();
+
+        foreach (string candidate in candidates) yield return candidate;
     }
 
     /// <summary>Windows 常见安装位置：Program Files / 用户级安装 / scoop / winget。</summary>
@@ -372,7 +434,7 @@ public static class GitLocator
     }
 
     /// <summary>macOS 常见安装位置：Homebrew → Xcode 命令行工具 → MacPorts → 官方安装包 → Nix。</summary>
-    private static IEnumerable<string> UnixInstalledCandidates()
+    private static IEnumerable<string> MacInstalledCandidates()
     {
         string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
@@ -400,6 +462,38 @@ public static class GitLocator
         // Xcode 命令行工具 / Xcode 内置（放最后：未安装时会弹出系统安装对话框）
         yield return "/usr/bin/git";
         yield return "/Applications/Xcode.app/Contents/Developer/usr/bin/git";
+    }
+
+    /// <summary>
+    /// Linux 常见安装位置：用户级安装 / Linuxbrew → 发行版标准目录 → snap / Nix → 源码安装。
+    /// 覆盖 Debian/Ubuntu、Fedora/RHEL、Arch、openSUSE 等常见布局（git 基本都在 /usr/bin）。
+    /// </summary>
+    private static IEnumerable<string> LinuxInstalledCandidates()
+    {
+        string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+        // 用户级安装（手动编译 prefix=~/.local、Linuxbrew、Nix）
+        if (!string.IsNullOrEmpty(home))
+        {
+            yield return Path.Combine(home, ".local", "bin", "git");
+            yield return Path.Combine(home, ".linuxbrew", "bin", "git");
+            yield return Path.Combine(home, ".nix-profile", "bin", "git");
+        }
+
+        yield return "/home/linuxbrew/.linuxbrew/bin/git";
+
+        // 发行版包管理器（apt / dnf / pacman / zypper 等）安装位置
+        yield return "/usr/local/bin/git";
+        yield return "/usr/bin/git";
+        yield return "/bin/git";
+
+        // snap / Nix 全局
+        yield return "/snap/bin/git";
+        yield return "/nix/var/nix/profiles/default/bin/git";
+
+        // 源码安装（configure --prefix=/usr/local/git 或 /opt/git）
+        yield return "/usr/local/git/bin/git";
+        yield return "/opt/git/bin/git";
     }
 
     /// <summary>在系统 PATH 环境变量的各目录中查找 git。</summary>

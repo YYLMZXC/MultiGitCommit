@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <!-- 跨平台统一项目：一套代码同时支持 Windows 与 macOS（不依赖 WPF / WinForms） -->
+    <!-- 跨平台统一项目：一套代码同时支持 Windows / macOS / Linux（不依赖 WPF / WinForms） -->
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -16,8 +16,8 @@
     <!-- 文件属性里的产品版本只保留版本号本身，不追加 git 提交哈希 -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
-    <!-- 发布目标平台：dotnet publish -r win-x64 / osx-arm64 / osx-x64 -->
-    <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
+    <!-- 发布目标平台：dotnet publish -r win-x64 / osx-arm64 / osx-x64 / linux-x64 / linux-arm64 -->
+    <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64;linux-x64;linux-arm64</RuntimeIdentifiers>
     <!-- 发布为 macOS 应用包（.app）时使用的元数据（Windows 下这些属性被忽略） -->
     <CFBundleName>MultiGitCommit</CFBundleName>
     <CFBundleDisplayName>MultiGitCommit</CFBundleDisplayName>
@@ -40,24 +40,27 @@
 
   <!-- Release 发布为【单文件 exe（依赖框架）】：Avalonia、Skia 等依赖全部打进 MultiGitCommit.exe，
        输出目录只有 MultiGitCommit.exe + git 目录（不含 .NET 运行时，目标机器需已安装 .NET 10 运行时）。
-       默认 RID 为 win-x64；发布其他平台时用 -r 覆盖：
-         dotnet publish -c Release -r osx-arm64   （Apple 芯片 Mac）
-         dotnet publish -c Release -r osx-x64     （Intel Mac）
+       默认 RID 按构建主机决定；发布其他平台时用 -r 覆盖：
+          dotnet publish -c Release -r osx-arm64   （Apple 芯片 Mac）
+          dotnet publish -c Release -r osx-x64     （Intel Mac）
+          dotnet publish -c Release -r linux-x64   （Linux x64）
+          dotnet publish -c Release -r linux-arm64 （Linux ARM64）
        说明：单文件捆绑包的压缩只在独立模式（SelfContained）下支持，依赖框架模式不启用，故不设置。
        Debug 模式保持普通多文件输出，便于调试。 -->
-  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <SelfContained>false</SelfContained>
-    <PublishSingleFile>true</PublishSingleFile>
-    <!-- 默认 RID 按构建主机决定：Windows 用 win-x64，macOS（Rider / dotnet build -c Release）用 osx-arm64，
-         避免在 Mac 上默认产出 Windows 版 exe；需要其他平台时仍可用 -r 覆盖。 -->
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifier>
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</RuntimeIdentifier>
+       <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+       <SelfContained>false</SelfContained>
+       <PublishSingleFile>true</PublishSingleFile>
+       <!-- 默认 RID 按构建主机决定：Windows 用 win-x64，macOS（Rider / dotnet build -c Release）用 osx-arm64，
+          Linux 用 linux-x64，避免在某一平台上默认产出另一平台的产物；需要其他架构时仍可用 -r 覆盖。 -->
+       <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifier>
+       <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</RuntimeIdentifier>
+       <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</RuntimeIdentifier>
     <PublishTrimmed>false</PublishTrimmed>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <DebugType>none</DebugType>
   </PropertyGroup>
 
-  <!-- Avalonia 11 跨平台 UI（Windows 与 macOS 共用同一套 AXAML） -->
+  <!-- Avalonia 11 跨平台 UI（Windows / macOS / Linux 共用同一套 AXAML） -->
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.11" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.11" />
@@ -73,7 +76,7 @@
 
   <!-- 内嵌便携版 Git（随软件分发，开箱即用）：
        Windows：把 git 发行包放在 src/MultiGitCommit.Avalonia/git/（cmd\git.exe、mingw64\ 等）；
-       macOS   ：放在 git/bin/git。
+       macOS / Linux：放在 git/bin/git（Linux 需使用与目标发行版 glibc 兼容的可重定位构建）。
        构建时原样复制到输出目录 git\ 子目录，GitLocator 的 Embedded / Auto 模式会自动优先使用。
        目录不存在时此通配不匹配任何文件，不影响构建。 -->
   <ItemGroup>

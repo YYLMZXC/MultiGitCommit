@@ -5,7 +5,7 @@
         Width="920" Height="680"
         MinWidth="760" MinHeight="540"
         WindowStartupLocation="CenterOwner"
-        FontFamily="Microsoft YaHei UI,PingFang SC" FontSize="13"
+        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
         ShowInTaskbar="False">
 
     <Window.Styles>
@@ -70,7 +70,7 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0" Text="{Binding StatusLabel}" FontWeight="Bold"
-                                           FontFamily="Consolas,Menlo" Foreground="#2B579A"/>
+                                           FontFamily="Consolas,Menlo,DejaVu Sans Mono,Noto Sans Mono" Foreground="#2B579A"/>
                                 <TextBlock Grid.Column="1" Text="{Binding Display}" TextTrimming="CharacterEllipsis"
                                            ToolTip.Tip="{Binding Path}"/>
                             </Grid>
@@ -118,7 +118,7 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="{Binding Date}" VerticalAlignment="Center"/>
                         <TextBlock Grid.Column="1" Text="{Binding ShortHash}" VerticalAlignment="Center"
-                                   FontFamily="Consolas,Menlo" Foreground="#2B579A"/>
+                                   FontFamily="Consolas,Menlo,DejaVu Sans Mono,Noto Sans Mono" Foreground="#2B579A"/>
                         <TextBlock Grid.Column="2" Text="{Binding Author}" VerticalAlignment="Center"
                                    Foreground="#555" TextTrimming="CharacterEllipsis"/>
                         <TextBlock Grid.Column="3" Text="{Binding Subject}" VerticalAlignment="Center"

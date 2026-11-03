@@ -5,7 +5,7 @@
         Width="1120" Height="800"
         MinWidth="900" MinHeight="640"
         WindowStartupLocation="CenterScreen"
-        FontFamily="Microsoft YaHei UI,PingFang SC" FontSize="13">
+        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
 
     <Window.Styles>
         <Style Selector="Button">
@@ -153,7 +153,7 @@
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="TxtCommand" Grid.Column="0" VerticalContentAlignment="Center"
-                             ToolTip.Tip="例如：git status / git log --oneline -5 / ls -la（Windows 可用 dir）"
+                             ToolTip.Tip="例如：git status / git log --oneline -5 / ls -la（Windows 可用 dir；Linux / macOS 走登录 shell，可用环境变量与管道）"
                              KeyDown="TxtCommand_KeyDown"/>
                     <Button x:Name="BtnRunCommand" Grid.Column="1" Content="执行命令" Click="BtnRunCommand_Click" Margin="6,2,0,2"/>
                 </Grid>
@@ -176,7 +176,7 @@
                              TextWrapping="NoWrap"
                              Background="#1E1E1E" Foreground="#DCDCDC"
                              BorderThickness="0"
-                             FontFamily="Consolas,Menlo" FontSize="12">
+                             FontFamily="Consolas,Menlo,DejaVu Sans Mono,Noto Sans Mono" FontSize="12">
                         <!-- Fluent 主题会按控件状态（悬停 / 聚焦 / 禁用）换掉 TextBox 的背景与边框，
                              这些状态样式写在控件模板内部元素上，直接设 Background 属性挡不住，
                              因此在这里覆盖同名主题资源，让日志区在任何状态下都保持深色。 -->

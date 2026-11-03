@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace MultiGitCommit;
 
 /// <summary>
-/// 项目配置文件模型与读写帮助类（macOS 版，与 Windows 版字段完全兼容）。
+/// 项目配置文件模型与读写帮助类（跨平台版，Windows / macOS / Linux 字段完全兼容）。
 ///
 /// 配置规则：
 /// 1. 配置文件 <c>multigitcommit.config.json</c> 存放在【每个 git 仓库根目录】，与 .git 文件夹同级；

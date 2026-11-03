@@ -5,7 +5,7 @@
         Width="700" Height="720"
         MinWidth="620" MinHeight="560"
         WindowStartupLocation="CenterOwner"
-        FontFamily="Microsoft YaHei UI,PingFang SC" FontSize="13"
+        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
         ShowInTaskbar="False">
 
     <!-- DockPanel：底部按钮栏固定，中间内容区可滚动。
@@ -86,7 +86,7 @@
 
                         <RadioButton x:Name="RbCredAuto" Content="自动检测（推荐）：优先使用已保存的账号，缺失时自动从系统凭据获取"
                                      IsCheckedChanged="CredMode_Changed" Margin="0,3"/>
-                        <RadioButton x:Name="RbCredSystem" Content="仅使用系统凭据：每次推送实时向凭据管理器 / 钥匙串索取（令牌不保存到配置文件）"
+                        <RadioButton x:Name="RbCredSystem" Content="仅使用系统凭据：每次推送实时向系统凭据库（凭据管理器 / 钥匙串 / Secret Service）索取（令牌不保存到配置文件）"
                                      IsCheckedChanged="CredMode_Changed" Margin="0,3"/>
                         <RadioButton x:Name="RbCredCustom" Content="仅使用自定义账号：只用下方保存的凭据，不访问系统"
                                      IsCheckedChanged="CredMode_Changed" Margin="0,3"/>

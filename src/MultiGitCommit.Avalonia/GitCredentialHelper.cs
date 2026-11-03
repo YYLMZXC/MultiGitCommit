@@ -1,7 +1,7 @@
 namespace MultiGitCommit;
 
 /// <summary>
-/// credential helper（凭据助手）可用性检测与自动适配（Windows / macOS 通用）。
+/// credential helper（凭据助手）可用性检测与自动适配（Windows / macOS / Linux 通用）。
 ///
 /// 典型故障：git 配置里写着 <c>credential.helper=manager</c>（Git Credential Manager），
 /// 但当前使用的 git（精简便携版 / 复制不完整的目录）里并不存在 <c>git-credential-manager</c>，
@@ -12,7 +12,8 @@ namespace MultiGitCommit;
 /// 本类负责：扫描当前 git 真正可用的助手 → 判断配置里的是否可用 → 不可用时给出一个
 /// <c>-c credential.helper=xxx</c> 覆盖参数，只作用于本次命令，不改动用户的 git 配置。
 ///
-/// 平台差异：Windows 常用 manager / wincred / store，macOS 常用 manager / osxkeychain / store；
+/// 平台差异：Windows 常用 manager / wincred / store；macOS 常用 manager / osxkeychain / store；
+/// Linux 常用 manager / libsecret（Secret Service，GNOME Keyring / KWallet）/ store。
 /// 助手程序在 Windows 上是 git-credential-*.exe，在 Unix 上是无扩展名的可执行文件。
 /// </summary>
 public static class GitCredentialHelper
@@ -20,12 +21,19 @@ public static class GitCredentialHelper
     /// <summary>Windows 上的候选取用顺序：优先 GCM，其次 Windows 凭据管理器，最后明文文件。</summary>
     private static readonly string[] WindowsPreferredOrder = { "manager", "wincred", "store" };
 
-    /// <summary>macOS / Unix 上的候选取用顺序：优先 GCM，其次系统钥匙串，最后明文文件。</summary>
-    private static readonly string[] UnixPreferredOrder = { "manager", "osxkeychain", "store" };
+    /// <summary>macOS 上的候选取用顺序：优先 GCM，其次系统钥匙串，最后明文文件。</summary>
+    private static readonly string[] MacPreferredOrder = { "manager", "osxkeychain", "store" };
+
+    /// <summary>Linux 上的候选取用顺序：优先 GCM，其次 Secret Service（libsecret），最后明文文件。</summary>
+    private static readonly string[] LinuxPreferredOrder = { "manager", "libsecret", "gnome-keyring", "store" };
 
     /// <summary>当前平台的候选取用顺序。</summary>
     private static string[] PreferredOrder =>
-        OperatingSystem.IsWindows() ? WindowsPreferredOrder : UnixPreferredOrder;
+        OperatingSystem.IsWindows()
+            ? WindowsPreferredOrder
+            : OperatingSystem.IsMacOS()
+                ? MacPreferredOrder
+                : LinuxPreferredOrder;
 
     /// <summary>缓存：当前 git 可用的助手集合（切换 git 来源后需调用 Invalidate）。</summary>
     private static List<string>? _available;
@@ -59,7 +67,9 @@ public static class GitCredentialHelper
     }
 
     /// <summary>
-    /// 首选可用助手：按当前平台顺序（Windows：manager → wincred → store；macOS：manager → osxkeychain → store）
+    /// 首选可用助手：按当前平台顺序
+    /// （Windows：manager → wincred → store；macOS：manager → osxkeychain → store；
+    /// Linux：manager → libsecret → gnome-keyring → store）
     /// 取第一个实际存在的；都不存在返回 null。
     /// </summary>
     public static string? Best()
@@ -185,7 +195,7 @@ public static class GitCredentialHelper
             if (OperatingSystem.IsWindows())
                 return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !Path.HasExtension(name);
 
-            // Unix：助手是无扩展名的可执行脚本 / 二进制，需具备执行位
+            // Unix（macOS / Linux）：助手是无扩展名的可执行脚本 / 二进制，需具备执行位
             if (Path.HasExtension(name)) return false;
 
             var mode = File.GetUnixFileMode(file);
@@ -197,10 +207,20 @@ public static class GitCredentialHelper
         }
     }
 
-    /// <summary>credential 助手可能所在的目录集合（相对 git 位置推导，覆盖两平台的发行版布局）。</summary>
+    /// <summary>credential 助手可能所在的目录集合（相对 git 位置推导，覆盖各平台的发行版布局）。</summary>
     private static IEnumerable<string> CandidateDirectories()
     {
         var dirs = new List<string>();
+
+        // Linux：发行版自带的助手（如 Debian/Ubuntu 的 git-credential-libsecret）装在固定的 git-core 目录，
+        // 不一定能从 git 可执行文件位置推导出来，这里显式补上
+        if (!OperatingSystem.IsWindows() && !OperatingSystem.IsMacOS())
+        {
+            dirs.Add("/usr/lib/git-core");
+            dirs.Add("/usr/libexec/git-core");
+            dirs.Add("/usr/local/libexec/git-core");
+            dirs.Add("/usr/local/lib/git-core");
+        }
 
         foreach (string dir in GitLocator.GetPathEntries())
         {
