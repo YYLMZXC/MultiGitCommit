@@ -19,7 +19,8 @@
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
             <TextBlock Text="MultiGitCommit" FontSize="20" FontWeight="Bold" Foreground="#2B579A"/>
-            <TextBlock Text="  v26.11.03-1119（Windows / macOS）" FontSize="13" Foreground="#888888" VerticalAlignment="Bottom" Margin="4,0,0,3"/>
+            <!-- 版本号运行时从程序集读取（csproj 构建时自动生成），这里不再硬编码 -->
+            <TextBlock x:Name="TxtVersion" Text="  v（Windows / macOS）" FontSize="13" Foreground="#888888" VerticalAlignment="Bottom" Margin="4,0,0,3"/>
         </StackPanel>
 
         <TextBlock Grid.Row="1" Text="个人自用的 Git 一键提交推送工具（Avalonia 跨平台版，支持 Windows 与 macOS）。"

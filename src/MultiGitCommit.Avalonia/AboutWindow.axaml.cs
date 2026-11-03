@@ -13,6 +13,9 @@ public partial class AboutWindow : Window
     {
         InitializeComponent();
         Dialogs.ApplyIcon(this);
+
+        // 版本号来自 csproj 构建时自动生成的 Version，界面无需手改
+        TxtVersion.Text = $"  v{AppVersion.Current}（Windows / macOS）";
     }
 
     /// <summary>点击项目地址时使用系统默认浏览器打开（Windows / macOS 通用）。</summary>
