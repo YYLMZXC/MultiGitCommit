@@ -1,3 +1,5 @@
+<!-- 标题里的版本号在 MainWindow 构造函数中补上（AppVersion.TitleVersion：大版本号 + 月日，如 v26.11.03）；
+     这里的 Title 文案只作为设计时 / 兜底值 -->
 <Window x:Class="MultiGitCommit.MainWindow"
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
