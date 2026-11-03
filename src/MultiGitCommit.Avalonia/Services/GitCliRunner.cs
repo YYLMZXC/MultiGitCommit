@@ -16,10 +16,22 @@ namespace MultiGitCommit;
 public sealed class GitCliRunner : IGitCliRunner
 {
     /// <summary>
-    /// 共享实例：当前项目尚未引入 DI，业务代码统一从这里取。
-    /// 需要测试时直接 new 一个假的 <see cref="IGitCliRunner"/> 传入即可，无需改调用方签名。
+    /// 环境快照来源。执行器只「读取」当前环境（git 路径、PATH 注入目录、ssh），
+    /// 不关心它从哪里来，也不直接依赖定位器静态类——因此可以用固定的假快照做单元测试。
     /// </summary>
+    private readonly Func<GitEnvironment> _environment;
+
+    /// <summary>共享实例：当前项目尚未引入 DI 容器，业务代码统一从这里取。</summary>
     public static IGitCliRunner Default { get; } = new GitCliRunner();
+
+    /// <summary>使用进程级当前环境（<see cref="GitLocator.Current"/>）。</summary>
+    public GitCliRunner() : this(static () => GitLocator.Current)
+    {
+    }
+
+    /// <summary>注入环境来源（测试时传入固定快照，与真实磁盘状态完全隔离）。</summary>
+    public GitCliRunner(Func<GitEnvironment> environment)
+        => _environment = environment ?? throw new ArgumentNullException(nameof(environment));
 
     /// <summary>超时后等待输出流收尾的上限，避免直接访问已释放的流。</summary>
     private static readonly TimeSpan DrainGracePeriod = TimeSpan.FromSeconds(3);
@@ -91,9 +103,12 @@ public sealed class GitCliRunner : IGitCliRunner
     // ==================== 进程配置 ====================
 
     /// <summary>把请求翻译为 ProcessStartInfo，集中处理编码、环境变量与 PATH 注入。</summary>
-    private static ProcessStartInfo BuildStartInfo(GitCommandRequest request)
+    private ProcessStartInfo BuildStartInfo(GitCommandRequest request)
     {
-        string fileName = string.IsNullOrWhiteSpace(request.FileName) ? GitLocator.GitExe : request.FileName!;
+        // 一次取快照：本次执行用的 git 路径、PATH 目录、ssh 必定来自同一时刻，不会互相错位
+        GitEnvironment env = _environment();
+
+        string fileName = string.IsNullOrWhiteSpace(request.FileName) ? env.GitExe : request.FileName!;
         bool isGit = request.TreatAsGit && IsGitExecutable(fileName);
 
         var psi = new ProcessStartInfo
@@ -114,7 +129,7 @@ public sealed class GitCliRunner : IGitCliRunner
         if (!string.IsNullOrWhiteSpace(request.WorkingDirectory))
             psi.WorkingDirectory = request.WorkingDirectory!;
 
-        if (isGit) ApplyNonInteractiveEnvironment(psi);
+        if (isGit) ApplyNonInteractiveEnvironment(psi, env);
 
         // 请求级环境变量优先（例如探测凭据时强制 GCM_INTERACTIVE=never）
         if (request.Environment != null)
@@ -123,19 +138,19 @@ public sealed class GitCliRunner : IGitCliRunner
                 psi.EnvironmentVariables[pair.Key] = pair.Value;
         }
 
-        PrependGitDirectoriesToPath(psi);
+        PrependGitDirectoriesToPath(psi, env);
         return psi;
     }
 
     /// <summary>非交互执行：禁止 git / ssh / 凭据管理器弹窗询问，取不到凭据直接报错。</summary>
-    private static void ApplyNonInteractiveEnvironment(ProcessStartInfo psi)
+    private static void ApplyNonInteractiveEnvironment(ProcessStartInfo psi, GitEnvironment env)
     {
         psi.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
 
         // 仅在确实能找到 ssh 时才设置，避免覆盖 git 自身的 ssh 查找逻辑
         if (psi.EnvironmentVariables.ContainsKey("GIT_SSH_COMMAND")) return;
 
-        string? ssh = GitLocator.FindSshExe();
+        string? ssh = env.SshExe;
         if (ssh != null)
             psi.EnvironmentVariables["GIT_SSH_COMMAND"] =
                 $"\"{ssh}\" -o BatchMode=yes -o StrictHostKeyChecking=accept-new";
@@ -146,9 +161,9 @@ public sealed class GitCliRunner : IGitCliRunner
     /// 便携版 / 内嵌 git 自带 ssh、git-lfs、credential helper，无需系统安装；
     /// 同时补上 GUI 应用常缺失的 /opt/homebrew/bin 等目录，手动命令区才能找到 git。
     /// </summary>
-    private static void PrependGitDirectoriesToPath(ProcessStartInfo psi)
+    private static void PrependGitDirectoriesToPath(ProcessStartInfo psi, GitEnvironment env)
     {
-        IReadOnlyList<string> entries = GitLocator.GetPathEntries();
+        IReadOnlyList<string> entries = env.PathEntries;
         if (entries.Count == 0) return;
 
         string oldPath = psi.EnvironmentVariables.ContainsKey("PATH")

@@ -445,7 +445,7 @@ public partial class MainWindow : Window
         // git 变了，凭据助手的扫描结果也失效，必须重新扫描（否则会沿用旧 git 的助手列表）
         GitCredentialHelper.Invalidate();
 
-        bool ok = GitLocator.Resolve();
+        bool ok = GitLocator.Resolve(_settings.Current.GitSource, _settings.Current.CustomGitPath);
         TxtGitStatus.Text = ok
             ? $"Git：{GitLocator.GitExePath}"
             : "Git：未找到（点击【Git 环境】配置）";

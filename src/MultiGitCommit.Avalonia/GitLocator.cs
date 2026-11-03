@@ -20,32 +20,44 @@ namespace MultiGitCommit;
 public static class GitLocator
 {
     /// <summary>
-    /// 应用级设置（首次访问时加载）。
-    /// 新代码请依赖 <see cref="ISettingsProvider"/>，这里仅为静态定位流程保留便捷入口。
+    /// 当前环境快照。整体替换（引用赋值）而非逐字段修改，
+    /// 保证读取方不会看到「git 已换新、PATH / ssh 结论仍是旧的」这类中间态。
     /// </summary>
-    public static AppSettings Settings => SettingsProvider.Instance.Current;
-
-    private static string? _gitExe;
-    private static string _description = string.Empty;
-
-    /// <summary>当前生效的 git 完整路径；未找到时为 null。</summary>
-    public static string? GitExePath => _gitExe;
-
-    /// <summary>进程调用的 git 文件名：已解析则用完整路径，否则退回 "git"。</summary>
-    public static string GitExe => _gitExe ?? "git";
-
-    /// <summary>git 可执行文件所在目录（注入子进程 PATH 用）；未解析时为 null。</summary>
-    public static string? GitDirectory => _gitExe == null ? null : Path.GetDirectoryName(_gitExe);
+    private static volatile GitEnvironment _current = Build(null, string.Empty);
 
     /// <summary>
-    /// 需要注入子进程 PATH 的目录集合：
+    /// 版本探测专用执行器：固定使用空环境。
+    /// 「验证 git 能不能跑」发生在环境解析**过程中**，此时不能依赖尚未定稿的快照，
+    /// 否则会读到上一次解析的旧 PATH / ssh 结论。探测本身也不需要 PATH 注入。
+    /// </summary>
+    private static readonly IGitCliRunner ProbeRunner =
+        new GitCliRunner(static () => GitEnvironment.Empty);
+
+    /// <summary>当前环境快照（git 路径、来源描述、PATH 注入目录、ssh 路径一次取全）。</summary>
+    public static GitEnvironment Current => _current;
+
+    /// <summary>当前生效的 git 完整路径；未找到时为 null。</summary>
+    public static string? GitExePath => _current.GitExePath;
+
+    /// <summary>进程调用的 git 文件名：已解析则用完整路径，否则退回 "git"。</summary>
+    public static string GitExe => _current.GitExe;
+
+    /// <summary>git 可执行文件所在目录（注入子进程 PATH 用）；未解析时为 null。</summary>
+    public static string? GitDirectory => _current.GitDirectory;
+
+    /// <summary>当前快照里需要注入子进程 PATH 的目录（已排序、已去重、仅含存在的目录）。</summary>
+    public static IReadOnlyList<string> GetPathEntries() => _current.PathEntries;
+
+    /// <summary>
+    /// 为指定 git 计算需要注入子进程 PATH 的目录集合：
     /// 1. git 所在目录（如便携版 MinGit 的 git\cmd\）；
     /// 2. Git 根目录下的 mingw64\bin、usr\bin（Windows）或 bin、libexec/git-core（macOS / Linux）
     ///    ——ssh(.exe)、git-lfs 等附带程序所在位置，保证便携版 / 内嵌 git 执行 ssh 远端推送时无需系统安装组件；
     /// 3. macOS / Linux 常见命令目录（从 Finder / 桌面图标启动的 GUI 应用 PATH 常缺失
     ///    /opt/homebrew/bin、~/.local/bin、/snap/bin 等）。
+    /// 纯算法，无外部状态：结果只取决于入参与当前文件系统。
     /// </summary>
-    public static IReadOnlyList<string> GetPathEntries()
+    private static List<string> BuildPathEntries(string? gitExe)
     {
         var entries = new List<string>();
 
@@ -58,15 +70,15 @@ public static class GitLocator
             AddExistingDirectories(entries, LinuxPathDirectories());
         }
 
-        if (_gitExe == null) return entries;
+        if (gitExe == null) return entries;
 
         try
         {
-            string? gitDir = Path.GetDirectoryName(Path.GetFullPath(_gitExe));
+            string? gitDir = Path.GetDirectoryName(Path.GetFullPath(gitExe));
             if (!string.IsNullOrEmpty(gitDir) && !entries.Contains(gitDir))
                 entries.Insert(0, gitDir);
 
-            string? root = TryGetGitRoot(_gitExe);
+            string? root = TryGetGitRoot(gitExe);
             if (root != null)
             {
                 // 各平台的 Git 发行版布局不同：Windows（MinGit）在 mingw64\bin、usr\bin，
@@ -195,18 +207,38 @@ public static class GitLocator
     }
 
     /// <summary>当前 git 来源的描述（含路径与版本），用于日志与状态栏显示。</summary>
-    public static string Description => _description;
+    public static string Description => _current.Description;
 
-    /// <summary>根据当前设置解析 git，返回是否成功；结果缓存到 GitExePath。</summary>
-    public static bool Resolve()
+    /// <summary>
+    /// 按指定来源解析 git 并替换当前快照，返回是否成功。
+    /// 来源由调用方传入，而不是在内部去读应用设置单例——定位器不再隐式依赖全局状态。
+    /// </summary>
+    public static bool Resolve(GitSourceMode mode, string? customPath)
     {
-        _gitExe = ResolvePreview(Settings.GitSource, Settings.CustomGitPath, out string desc);
-        _description = desc;
-        return _gitExe != null;
+        string? found = ResolvePreview(mode, customPath, out string description);
+        _current = Build(found, description);
+        return found != null;
     }
 
-    /// <summary>按指定模式解析 git（不修改缓存状态），供设置窗口实时预览/测试。</summary>
-    public static string? ResolvePreview(GitSourceMode mode, string customPath, out string description)
+    /// <summary>
+    /// 由「git 路径 + 描述」构造完整快照，一次性算好 PATH 注入目录与 ssh 路径。
+    /// 这是唯一写 <see cref="_current"/> 的地方，保证读取方拿到的快照整体一致。
+    /// </summary>
+    private static GitEnvironment Build(string? gitExe, string description)
+    {
+        List<string> entries = BuildPathEntries(gitExe);
+
+        return new GitEnvironment
+        {
+            GitExePath = gitExe,
+            Description = description,
+            PathEntries = entries,
+            SshExe = FindSshExe(entries)
+        };
+    }
+
+    /// <summary>按指定模式解析 git（不修改当前快照），供设置窗口实时预览/测试。</summary>
+    public static string? ResolvePreview(GitSourceMode mode, string? customPath, out string description)
     {
         string? found;
         switch (mode)
@@ -364,7 +396,7 @@ public static class GitLocator
         version = string.Empty;
 
         // 只执行 --version：不注入 PATH / 交互环境（候选路径探测会频繁调用，保持轻量）
-        GitCommandResult result = GitCliRunner.Default.Run(new GitCommandRequest
+        GitCommandResult result = ProbeRunner.Run(new GitCommandRequest
         {
             FileName = gitPath,
             Arguments = "--version",
@@ -554,11 +586,14 @@ public static class GitLocator
     /// 仅用于非交互 ssh 参数（GIT_SSH_COMMAND）；找不到时不设置该变量，
     /// 避免覆盖 git 自身的 ssh 查找逻辑导致 ssh 远端推送失败。
     /// </summary>
-    public static string? FindSshExe()
+    public static string? FindSshExe() => _current.SshExe;
+
+    /// <summary>在已算好的 PATH 注入目录中查找 ssh，找不到再回退到系统 PATH。纯算法，无外部状态。</summary>
+    private static string? FindSshExe(IReadOnlyList<string> entries)
     {
         string fileName = OperatingSystem.IsWindows() ? "ssh.exe" : "ssh";
 
-        foreach (string dir in GetPathEntries())
+        foreach (string dir in entries)
         {
             try
             {
