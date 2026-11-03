@@ -146,14 +146,14 @@ public sealed class CommitPushService
             cancellationToken: cancellationToken).ConfigureAwait(true);
         bool hasWorkTreeChanges = !string.IsNullOrWhiteSpace(status.Stdout);
 
-        GitCommandResult staged = await _git.RunQuietAsync(repoDir, "diff --cached --quiet",
+        GitCommandResult stagedCheck = await _git.RunQuietAsync(repoDir, "diff --cached --quiet",
             "git diff --cached --quiet（检查暂存区）", GitTimeouts.Quick,
             cancellationToken: cancellationToken).ConfigureAwait(true);
 
         // 退出码 0 = 暂存区无改动，1 = 有改动；其他退出码说明判定失败，退回按工作区状态判断
-        bool hasStagedChanges = staged.ExitCode == 1
+        bool hasStagedChanges = stagedCheck.ExitCode == 1
             ? true
-            : staged.ExitCode == 0
+            : stagedCheck.ExitCode == 0
                 ? false
                 : hasWorkTreeChanges;
 
