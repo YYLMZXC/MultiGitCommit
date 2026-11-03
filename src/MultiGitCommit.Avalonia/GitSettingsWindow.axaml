@@ -2,8 +2,8 @@
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Git 环境设置"
-        Width="700" Height="680"
-        MinWidth="620" MinHeight="520"
+        Width="700" Height="720"
+        MinWidth="620" MinHeight="560"
         WindowStartupLocation="CenterOwner"
         FontFamily="Microsoft YaHei UI,PingFang SC" FontSize="13"
         ShowInTaskbar="False">
@@ -99,6 +99,31 @@
                                    TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
 
                         <ListBox x:Name="ListCred" Height="90" SelectionChanged="ListCred_SelectionChanged"/>
+
+                        <!-- 平台预设：选平台自动填主机名（CNB 还固定用户名 cnb），避免手打域名出错 -->
+                        <Grid Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="平台：" VerticalAlignment="Center"/>
+                            <ComboBox x:Name="CmbPlatform" Grid.Column="1" Margin="6,0,0,0" MinWidth="150"
+                                      SelectedIndex="3"
+                                      SelectionChanged="CmbPlatform_SelectionChanged"
+                                      ToolTip.Tip="选择平台会自动填入主机名与用户名规则；也可选“自定义”手动填写">
+                                <ComboBoxItem Content="Gitee（gitee.com）" Tag="gitee.com"/>
+                                <ComboBoxItem Content="GitHub（github.com）" Tag="github.com"/>
+                                <ComboBoxItem Content="CNB 云原生构建（cnb.cool）" Tag="cnb.cool"/>
+                                <ComboBoxItem Content="自定义（手动填写主机）" Tag=""/>
+                            </ComboBox>
+                            <Button x:Name="BtnPlatformToken" Grid.Column="2" Content="获取访问令牌" Padding="10,2" Margin="6,0,0,0"
+                                    IsEnabled="False" Click="BtnPlatformToken_Click"
+                                    ToolTip.Tip="用浏览器打开当前平台的访问令牌创建页面"/>
+                        </Grid>
+
+                        <TextBlock x:Name="TxtPlatformHint" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Foreground="#888" FontSize="11"/>
 
                         <Grid Margin="0,6,0,0">
                             <Grid.ColumnDefinitions>

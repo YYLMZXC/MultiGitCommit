@@ -92,6 +92,9 @@ public partial class GitSettingsWindow : Window
         RefreshCredList();
         UpdateEnabled();
 
+        // 默认“自定义”：只显示说明，不改变用户已填内容
+        ApplyPlatform(string.Empty);
+
         // 打开窗口后再执行检测：git 调用全部放到线程池，窗口（含【取消】按钮）始终可响应
         Opened += async (_, _) =>
         {
@@ -107,6 +110,108 @@ public partial class GitSettingsWindow : Window
                 ShowResult("× 检测 git 配置失败：" + ex.Message, false);
             }
         };
+    }
+
+    // ==================== 平台预设 ====================
+
+    /// <summary>“自定义”在下拉中的索引（未知主机 / 手动填写时使用）。</summary>
+    private const int CustomPlatformIndex = 3;
+
+    /// <summary>平台预设：主机名、固定用户名、访问令牌页面、填写说明（规则来自各平台官方文档）。</summary>
+    private sealed record PlatformPreset(string Host, string? FixedUser, string TokenUrl, string Hint);
+
+    private static readonly Dictionary<string, PlatformPreset> Platforms = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["gitee.com"] = new("gitee.com", null,
+            "https://gitee.com/profile/personal_access_tokens",
+            "Gitee：用户名填 Gitee 账号名，密码填「私人令牌」（勾选 projects 权限）。令牌页面：gitee.com/profile/personal_access_tokens"),
+        ["github.com"] = new("github.com", null,
+            "https://github.com/settings/tokens",
+            "GitHub：用户名填 GitHub 账号名，密码填 Personal Access Token（勾选 repo 权限）。令牌页面：github.com/settings/tokens"),
+        ["cnb.cool"] = new("cnb.cool", "cnb",
+            "https://cnb.cool/profile/token",
+            "CNB（cnb.cool）：用户名固定填 cnb，密码填访问令牌；CNB 只支持 HTTPS + 令牌，不支持 ssh。令牌页面：cnb.cool/profile/token")
+    };
+
+    /// <summary>选择平台：自动填主机名，CNB 额外固定用户名，并显示该平台的令牌说明。</summary>
+    private void CmbPlatform_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_suppress) return;
+        ApplyPlatform(SelectedPlatformHost);
+    }
+
+    /// <summary>当前下拉对应的主机名（“自定义”为空字符串）。</summary>
+    private string SelectedPlatformHost =>
+        (CmbPlatform.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? string.Empty;
+
+    /// <summary>套用平台预设；hostTag 为空表示自定义，只显示说明、不改动已填内容。</summary>
+    private void ApplyPlatform(string hostTag)
+    {
+        if (hostTag.Length == 0 || !Platforms.TryGetValue(hostTag, out PlatformPreset? preset))
+        {
+            TxtPlatformHint.Text = "自定义：手动填写主机名（可直接粘贴完整 URL，如 https://git.example.com/group/repo）。";
+            BtnPlatformToken.IsEnabled = false;
+            return;
+        }
+
+        TxtCredHost.Text = preset.Host;
+        if (!string.IsNullOrEmpty(preset.FixedUser))
+            TxtCredUser.Text = preset.FixedUser;
+
+        TxtPlatformHint.Text = preset.Hint;
+        BtnPlatformToken.IsEnabled = true;
+    }
+
+    /// <summary>按主机名反查平台，让下拉与选中账号保持一致（未知主机落到“自定义”）。</summary>
+    private void SyncPlatformFromHost(string? host)
+    {
+        string key = GitCredentials.NormalizeHost(host);
+
+        foreach (object? item in CmbPlatform.Items)
+        {
+            if (item is ComboBoxItem cbi &&
+                string.Equals(cbi.Tag?.ToString(), key, StringComparison.OrdinalIgnoreCase))
+            {
+                CmbPlatform.SelectedItem = cbi;
+                return;
+            }
+        }
+
+        CmbPlatform.SelectedIndex = CustomPlatformIndex;
+        ApplyPlatform(string.Empty);
+    }
+
+    /// <summary>打开当前平台的访问令牌创建页面（交给系统默认浏览器）。</summary>
+    private void BtnPlatformToken_Click(object? sender, RoutedEventArgs e)
+    {
+        if (!Platforms.TryGetValue(SelectedPlatformHost, out PlatformPreset? preset))
+        {
+            ShowCredResult("× 当前平台没有固定的令牌页面，请手动在该平台的设置中创建访问令牌。", false);
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(preset.TokenUrl) { UseShellExecute = true });
+            ShowCredResult($"已在浏览器中打开 {preset.Host} 的访问令牌页面。", null);
+        }
+        catch (Exception ex)
+        {
+            ShowCredResult("× 打开浏览器失败：" + ex.Message, false);
+        }
+    }
+
+    /// <summary>CNB 的用户名固定为 cnb（访问令牌才是密码），这里强制纠正并回填输入框。</summary>
+    private string NormalizePlatformUser(string host, string user)
+    {
+        if (string.Equals(host, "cnb.cool", StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(user, "cnb", StringComparison.OrdinalIgnoreCase))
+        {
+            TxtCredUser.Text = "cnb";
+            return "cnb";
+        }
+
+        return user;
     }
 
     // ==================== 推送凭据 ====================
@@ -126,6 +231,9 @@ public partial class GitSettingsWindow : Window
         TxtCredHost.Text = cred.Host;
         TxtCredUser.Text = cred.Username;
         TxtCredToken.Text = cred.Token;
+
+        // 让平台下拉与选中账号保持一致
+        SyncPlatformFromHost(cred.Host);
     }
 
     /// <summary>
@@ -136,7 +244,7 @@ public partial class GitSettingsWindow : Window
     {
         // 允许直接粘贴完整 URL / 带引号的地址，这里统一规范化为纯主机名
         string host = GitCredentials.NormalizeHost(TxtCredHost.Text);
-        string user = TxtCredUser.Text?.Trim() ?? string.Empty;
+        string user = NormalizePlatformUser(host, TxtCredUser.Text?.Trim() ?? string.Empty);
         string token = TxtCredToken.Text?.Trim() ?? string.Empty;
 
         if (host.Length == 0)
@@ -211,7 +319,7 @@ public partial class GitSettingsWindow : Window
         }
 
         string host = GitCredentials.NormalizeHost(TxtCredHost.Text);
-        string user = TxtCredUser.Text?.Trim() ?? string.Empty;
+        string user = NormalizePlatformUser(host, TxtCredUser.Text?.Trim() ?? string.Empty);
         string token = TxtCredToken.Text?.Trim() ?? string.Empty;
 
         if (host.Length == 0)

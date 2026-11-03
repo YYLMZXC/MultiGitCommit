@@ -209,7 +209,7 @@ public static class CredentialTester
                 Message = $"无法与 {host} 建立 TLS 连接（握手失败），账号未能验证。" +
                           "常见原因：代理 / 防火墙拦截了 TLS、服务端只接受特定 TLS 版本或客户端证书、该地址并非 https git 服务；" +
                           "也请确认主机名拼写是否正确（公开 CNB 平台为 cnb.cool）。" +
-                          $"可用浏览器打开 https://{host} 确认，或改用 ssh 远端。",
+                          $"可用浏览器打开 https://{host} 确认，" + SshHint(host),
                 Detail = detail,
                 Target = target
             };
@@ -222,7 +222,7 @@ public static class CredentialTester
                 Status = CredentialTestStatus.NetworkError,
                 Message = $"无法验证 {host} 的服务器证书，账号未能验证" +
                           "（自签名证书 / 缺少根证书 / 证书过期或与主机名不符）。" +
-                          "可让 git 信任该 CA（http.sslCAInfo）或改用 ssh 远端。",
+                          "可让 git 信任该 CA（http.sslCAInfo）" + SshHint(host),
                 Detail = detail,
                 Target = target
             };
@@ -247,6 +247,12 @@ public static class CredentialTester
             Target = target
         };
     }
+
+    /// <summary>连接类建议：CNB 只支持 HTTPS + 令牌，不能改用 ssh；其他平台可换 ssh。</summary>
+    private static string SshHint(string host) =>
+        string.Equals(host, "cnb.cool", StringComparison.OrdinalIgnoreCase)
+            ? "CNB 平台只支持 HTTPS + 访问令牌，不能改用 ssh。"
+            : "或改用 ssh 远端。";
 
     private static bool ContainsAny(string text, string[] keywords)
     {
