@@ -2,8 +2,8 @@
 
 个人自用的 Git 一键提交推送工具。
 
-**当前主项目：`src/MultiGitCommit.Avalonia`** —— 一套代码同时支持 Windows 与 macOS（C# + .NET 10 + Avalonia 11），
-功能与配置文件两平台**完全通用**（每仓库的 `multigitcommit.config.json`、全局 `settings.json` 字段一致，可直接互相拷贝）。
+**当前主项目：`src/MultiGitCommit.Avalonia`** —— 一套代码同时支持 Windows、macOS 与 Linux（C# + .NET 10 + Avalonia 11），
+功能与配置文件三个平台**完全通用**（每仓库的 `multigitcommit.config.json`、全局 `settings.json` 字段一致，可直接互相拷贝）。
 
 选择本地 Git 仓库后，自动加载该仓库专属的远端列表，一键完成 **提交 + 推送到多个远端平台**（Gitee、GitHub、cnb.cool 等），提交信息自动携带本地时间戳。
 
@@ -20,12 +20,12 @@
 - **动态分支**：自动获取当前分支名推送，不硬编码 main/master。
 - **空提交防护**：工作区无变更时自动跳过 `git commit`，不生成空提交；勾选【强制提交】可忽略该防护（`--allow-empty`）。
 - **强制推送**：勾选【强制推送】后推送命令追加 `--force`，用于非快进被拒、变基/回退后覆盖远端历史（谨慎使用）。
-- **手动命令执行**：可在当前仓库目录执行任意 git / 系统命令，stdout/stderr 全量输出日志（Windows 走 `cmd.exe /c chcp 65001`，macOS 走登录 shell `/bin/bash -lc`，可拿到 Homebrew PATH）。
+- **手动命令执行**：可在当前仓库目录执行任意 git / 系统命令，stdout/stderr 全量输出日志（Windows 走 `cmd.exe /c chcp 65001`，macOS / Linux 走登录 shell `/bin/bash -lc`，可拿到 Homebrew / Linuxbrew 等 PATH）。
 - **仓库初始化 / 默认分支**：`git init` + 指定默认分支，空仓库直接设置 HEAD 指向；输入仓库子目录时自动定位到真正的仓库根目录。
 - **远端快速操作**：远端列表支持添加 / 编辑 / 删除，并可【在浏览器中打开】选中的远端 URL。
 - **提交身份（user.name / user.email）**：提交的前置条件，界面实时显示当前生效身份；提交前自动校验，缺失时套用已保存身份或弹窗引导填写并写入 git config（可选仓库级 / 全局），未设置则终止提交而不是静默失败（详见下方【提交身份】）。
 - **推送凭据（账号）**：像【Git 环境】选择 git 来源一样，账号也可**选择来源**——自动检测（自定义优先，缺失时取系统）/ 仅系统凭据 / 仅自定义 / 不使用；系统账号可按需**检测并导入**（先选主机再检测，可随时停止），填写后可用一次 `git ls-remote` 实测账号是否可用（详见下方【推送凭据】）。
-- **凭据助手自动适配**：自动扫描当前 git 真正可用的 `credential.helper`（Windows：manager / wincred / store，macOS：manager / osxkeychain / store）；配置里的助手在当前 git 中不存在时（精简便携版常见），临时用 `-c credential.helper=xxx` 覆盖，不改动用户 git 配置。
+- **凭据助手自动适配**：自动扫描当前 git 真正可用的 `credential.helper`（Windows：manager / wincred / store；macOS：manager / osxkeychain / store；Linux：manager / libsecret / gnome-keyring / store）；配置里的助手在当前 git 中不存在时（精简便携版常见），临时用 `-c credential.helper=xxx` 覆盖，不改动用户 git 配置。
 - **非交互执行 + 超时兜底**：不弹窗等待账号/口令，快速命令 20 秒、普通 git 命令 10 分钟、克隆 30 分钟超时即终止，按钮必定恢复（详见下方【非交互执行与超时保护】）。
 - **中文不乱码**：进程调用统一 UTF-8 编码。
 - **不依赖系统 git**：内置【Git 环境】设置，支持四种来源——自动检测（软件内嵌便携版 Git → 常见安装位置 → 系统 PATH）、仅软件内嵌 Git、仅系统 PATH（环境 git）、指定 git 可执行文件 / Git 目录；配置保存到各自平台的应用设置目录，切换来源无需重装系统 git。
@@ -34,17 +34,30 @@
 
 | 项 | 说明 |
 |---|---|
-| 系统 | Windows 10 / 11，或 macOS（Apple Silicon / Intel 均可） |
+| 系统 | Windows 10 / 11、macOS（Apple Silicon / Intel 均可）或 Linux（x64 / ARM64，需图形桌面环境） |
 | 构建 | [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) |
 | 运行时 | 发布为「依赖框架」单文件，目标机器需已安装 .NET 10 运行时 |
 | Git | 满足任一即可，**最终用户无需额外安装 git**（见下节） |
 
+> Linux 桌面依赖：Avalonia 11 通过 X11 渲染（Wayland 会话由 XWayland 转发），需要 `libx11`、`libice`、`libsm`、
+> `libfontconfig` 等基础库，各发行版一般已随桌面环境安装；无图形桌面 / 纯 SSH 环境无法运行界面。
+> 不同发行版请用对应包管理器安装 git（程序默认从 `/usr/bin/git` 等标准位置自动检测）。
+
 Git 的四种取得方式：
 
 - Windows：仓库根目录运行一次 `download-portable-git.ps1`，内嵌便携版 MinGit（推荐，见下节）；
-- 系统已安装 Git（Windows 官方安装包 / Homebrew / Xcode 命令行工具等，自动检测）；
-- 把便携版 Git 解压到软件目录的 `git\` 子目录（Windows：`git\cmd\git.exe`；macOS：`git/bin/git` 或 `.app` 内 `Resources/git`）；
+- 系统已安装 Git（Windows 官方安装包 / Homebrew / Xcode 命令行工具 / Linux 发行版包管理器等，自动检测）；
+- 把便携版 Git 解压到软件目录的 `git/` 子目录（Windows：`git\cmd\git.exe`；macOS / Linux：`git/bin/git`，macOS 也支持 `.app` 内 `Resources/git`）；
 - 在程序内点击【Git 环境】按钮指定任意 git 可执行文件 / Git 目录。
+
+Linux 上安装 git（任选其一）：
+
+```bash
+sudo apt install git        # Debian / Ubuntu
+sudo dnf install git        # Fedora / RHEL
+sudo pacman -S git          # Arch
+brew install git            # Linuxbrew
+```
 
 ## 内嵌便携版 Git（免安装分发）
 
@@ -58,12 +71,16 @@ Git 的四种取得方式：
 .\download-portable-git.ps1 -Destination "D:\some\other\git"
 ```
 
-之后 `dotnet build` / `dotnet publish` 会自动把该目录复制到输出目录的 `git\` 子目录（与 exe / .app 同级）。
-程序启动时 `GitLocator` 按 **软件内嵌 Git → 常见安装位置（Windows：Program Files / scoop / winget；macOS：Homebrew / Xcode / MacPorts / Nix）→ 系统 PATH** 的优先级自动检测，
+之后 `dotnet build` / `dotnet publish` 会自动把该目录复制到输出目录的 `git/` 子目录（与 exe / .app / Linux 可执行文件同级）。
+程序启动时 `GitLocator` 按 **软件内嵌 Git → 常见安装位置（Windows：Program Files / scoop / winget；macOS：Homebrew / Xcode / MacPorts / Nix；Linux：~/.local / Linuxbrew / snap / Nix / 发行版标准目录）→ 系统 PATH** 的优先级自动检测，
 最终用户机器上无需安装任何 git；ssh 推送所需的附带程序（`ssh` / `ssh.exe` 等）也已随包提供。
 
 > 该目录由脚本生成、体积较大，已在 `.gitignore` 中忽略（早期误入库的文件不影响构建）；
 > 分发时将 publish 输出整个目录打包即可。
+
+> **macOS / Linux 的内嵌 Git**：该脚本只下载 Windows 版 MinGit。macOS / Linux 若要做成免安装分发，
+> 可把对应平台的可重定位 git 目录放到 `git/bin/git`（Linux 需要与目标发行版 glibc 兼容的构建；
+> 多数发行版直接使用系统包管理器安装的 git 更省事，程序会自动检测）。
 
 ## 构建与运行
 
@@ -76,15 +93,15 @@ dotnet run            # 直接运行当前平台
 Debug 产物：
 
 - Windows：`src\MultiGitCommit.Avalonia\bin\Debug\net10.0\MultiGitCommit.exe`
-- macOS：`src\MultiGitCommit.Avalonia/bin/Debug/net10.0/MultiGitCommit`（或 `dotnet MultiGitCommit.dll`）
+- macOS / Linux：`src\MultiGitCommit.Avalonia/bin/Debug/net10.0/MultiGitCommit`（或 `dotnet MultiGitCommit.dll`）
 
 JetBrains Rider 可直接使用 `src/MultiGitCommit.Avalonia/.run/` 下的共享运行配置：
-`MultiGitCommit (Windows Debug)`、`MultiGitCommit (Windows Release win-x64)`、`MultiGitCommit (macOS Debug)`。
+`MultiGitCommit (Windows Debug)`、`MultiGitCommit (Windows Release win-x64)`、`MultiGitCommit (macOS Debug)`、`MultiGitCommit (Linux Debug)`。
 其中 Release 配置需先在 Rider 中把解决方案配置切到 `Release`。
 
 ### 发布（单文件，依赖框架）
 
-Release 默认发布为 **单文件 exe**（Avalonia、Skia 等依赖全部打进主程序），输出目录只有 `MultiGitCommit.exe` + `git\` 目录：
+Release 默认发布为 **单文件可执行程序**（Avalonia、Skia 等依赖全部打进主程序），输出目录只有主程序（Windows：`MultiGitCommit.exe`；macOS / Linux：`MultiGitCommit`）+ `git/` 目录：
 
 ```bash
 cd src/MultiGitCommit.Avalonia
@@ -95,9 +112,16 @@ dotnet publish -c Release -r win-x64
 # macOS Apple 芯片 / Intel
 dotnet publish -c Release -r osx-arm64
 dotnet publish -c Release -r osx-x64
+
+# Linux x64 / ARM64
+dotnet publish -c Release -r linux-x64
+dotnet publish -c Release -r linux-arm64
 ```
 
 > 目标机器需已安装 .NET 10 运行时（非自包含）。需要完全独立分发时，追加 `-p:SelfContained=true` 即可（体积会大很多）。
+>
+> Linux 产物为可执行文件 `MultiGitCommit`（publish 已带执行位，若经压缩包 / U 盘拷贝丢失权限，执行 `chmod +x MultiGitCommit` 即可），
+> 与同目录的 `git/` 子目录一起分发；桌面图标可用任意 `.desktop` 文件指向该可执行文件。
 
 ## 使用说明
 
@@ -164,7 +188,7 @@ fatal: could not read Username for 'https://cnb.cool': terminal prompts disabled
 | 来源 | 说明 |
 |---|---|
 | 自动检测（推荐） | 优先使用已保存的自定义账号，该主机没配时自动从系统凭据获取 |
-| 仅系统凭据 | 每次推送实时向凭据管理器 / 钥匙串 / helper 索取，**令牌不写入配置文件** |
+| 仅系统凭据 | 每次推送实时向系统凭据库（凭据管理器 / 钥匙串 / Secret Service）/ helper 索取，**令牌不写入配置文件** |
 | 仅自定义账号 | 只使用下方保存的账号，完全不访问系统 |
 | 不使用凭据 | ssh 远端，或已自行配置（ssh-agent / URL 内已带账号） |
 
@@ -192,6 +216,7 @@ fatal: could not read Username for 'https://cnb.cool': terminal prompts disabled
 |---|---|
 | Windows 凭据管理器 | Git Credential Manager / wincred 保存的账号（`cmdkey` 枚举目标 + `git credential fill` 取账号与令牌） |
 | macOS 钥匙串 | 不逐个枚举钥匙串（太慢），由 `git credential fill` 经 `osxkeychain` 按需索取 |
+| Linux Secret Service | GNOME Keyring / KWallet 中的账号，由 `git credential fill` 经 `libsecret` 按需索取（未安装 libsecret 时退回 `~/.git-credentials`） |
 | `~/.git-credentials` | `credential.helper=store` 生成的明文凭据文件，直接解析 `https://user:token@host` |
 | 其他 credential helper | 通过 `git credential fill` 统一索取，支持任意自定义 helper |
 
@@ -209,13 +234,14 @@ fatal: could not read Username for 'https://cnb.cool': terminal prompts disabled
 ssh 远端（`git@host:...`）不走凭据，使用 ssh 密钥。
 
 > **凭据不会被提交到仓库**：它只保存在**仓库之外**的应用设置目录的 `settings.json`
-> （Windows：`%APPDATA%\MultiGitCommit\settings.json`；macOS：`~/Library/Application Support/MultiGitCommit/settings.json`，权限 600），
+> （Windows：`%APPDATA%\MultiGitCommit\settings.json`；macOS：`~/Library/Application Support/MultiGitCommit/settings.json`；
+> Linux：`$XDG_CONFIG_HOME/MultiGitCommit/settings.json`，未设置 XDG_CONFIG_HOME 时为 `~/.config/MultiGitCommit/settings.json`，权限 600），
 > 仓库内的 `multigitcommit.config.json` 不含任何凭据字段，日志里的令牌一律显示为 `***`。
 > 因此 `git add .` 与 `git push` 都不会把账号或令牌带到远端；注意不要手工把该文件复制进仓库。
 
 ## 配置文件说明
 
-每个 Git 仓库根目录下会生成独立的配置文件 **`multigitcommit.config.json`**（与 `.git` 文件夹同级），两平台字段完全一致：
+每个 Git 仓库根目录下会生成独立的配置文件 **`multigitcommit.config.json`**（与 `.git` 文件夹同级），各平台字段完全一致：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -225,12 +251,13 @@ ssh 远端（`git@host:...`）不走凭据，使用 ssh 密钥。
 | `CheckForceCommit` | bool | 是否强制提交（commit 追加 `--allow-empty`，无变更也生成空提交） |
 | `CheckForcePush` | bool | 是否强制推送（push 追加 `--force`，覆盖远端历史） |
 
-Git 来源等全局设置（与仓库无关）保存在 **`settings.json`**，两平台字段也完全一致：
+Git 来源等全局设置（与仓库无关）保存在 **`settings.json`**，各平台字段也完全一致：
 
 | 平台 | 路径 |
 |---|---|
 | Windows | `%APPDATA%\MultiGitCommit\settings.json` |
 | macOS | `~/Library/Application Support/MultiGitCommit/settings.json`（权限 600） |
+| Linux | `$XDG_CONFIG_HOME/MultiGitCommit/settings.json`（默认 `~/.config/MultiGitCommit/settings.json`，权限 600） |
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
@@ -248,13 +275,14 @@ Git 来源等全局设置（与仓库无关）保存在 **`settings.json`**，�
 
 ## 技术说明
 
-- **一套代码两个平台**：`net10.0` + Avalonia 11（`Avalonia.Desktop`、`Avalonia.Themes.Fluent`），不依赖 WPF / WinForms；
-  平台差异（git 候选路径、设置目录、命令 shell、凭据库）统一收在 `OperatingSystem.IsWindows()` 分支里。
+- **一套代码三个平台**：`net10.0` + Avalonia 11（`Avalonia.Desktop`、`Avalonia.Themes.Fluent`），不依赖 WPF / WinForms；
+  平台差异（git 候选路径、设置目录、命令 shell、凭据库）统一收在 `OperatingSystem.IsWindows()` / `IsMacOS()` 分支里。
 - 原生控件 + 事件驱动后台代码，无 MVVM 框架、无第三方 Git NuGet 包；JSON 使用内置 `System.Text.Json`。
 - 文件夹 / 文件选择使用 Avalonia 的 `StorageProvider`；弹窗为自建 `Dialogs`（提示 / 确认 / 输入），不用系统 MessageBox。
 - 全部 Git 操作通过调用 git 命令行完成：由 `GitLocator` 解析来源，并把 git 所在目录及其 `mingw64\bin`、`usr\bin`（Windows）
-  或 `bin`、`libexec/git-core`（macOS）注入子进程 PATH，便携版 / 内嵌 git 执行 ssh 远端推送时也无需系统组件；
-  macOS 还会补充 `/opt/homebrew/bin`、`/usr/local/bin` 等目录（GUI 应用从 Finder / Dock 启动时 PATH 通常只有系统默认几项）。
+  或 `bin`、`libexec/git-core`（macOS / Linux）注入子进程 PATH，便携版 / 内嵌 git 执行 ssh 远端推送时也无需系统组件；
+  macOS 还会补充 `/opt/homebrew/bin`、`/usr/local/bin` 等目录（GUI 应用从 Finder / Dock 启动时 PATH 通常只有系统默认几项），
+  Linux 会补充 `~/.local/bin`、`/home/linuxbrew/.linuxbrew/bin`、`/snap/bin`、`/usr/local/bin` 等（从 `.desktop` 图标启动时同样拿不到用户 shell 的 PATH）。
 
 ## 项目结构
 
@@ -264,7 +292,7 @@ MultiGitCommit/
 ├── multigitcommit.config.json       # 本项目自身的工具配置（远端列表）
 ├── res/                             # 图标等素材
 └── src/
-    ├── MultiGitCommit.Avalonia/     # 【当前主项目】一套代码同时支持 Windows / macOS
+    ├── MultiGitCommit.Avalonia/     # 【当前主项目】一套代码同时支持 Windows / macOS / Linux
     │   ├── Program.cs                       # 入口，Avalonia 应用构建
     │   ├── App.axaml / App.axaml.cs         # 应用定义（Fluent 主题）
     │   ├── MainWindow.axaml(.xaml.cs)       # 主界面与全部事件驱动逻辑
@@ -277,9 +305,9 @@ MultiGitCommit/
     │   ├── ProjectConfig.cs                 # 每仓库配置读写（multigitcommit.config.json）
     │   ├── GitLocator.cs                    # git 定位/校验 + 全局设置持久化
     │   ├── GitCredentialHelper.cs           # credential.helper 可用性检测与自动覆盖
-    │   ├── SystemCredentialProbe.cs         # 系统凭据探测（凭据管理器 / 钥匙串 / .git-credentials，可取消、5 秒超时）
+    │   ├── SystemCredentialProbe.cs         # 系统凭据探测（凭据管理器 / 钥匙串 / Secret Service / .git-credentials，可取消、5 秒超时）
     │   ├── CredentialTester.cs              # 账号验证（git ls-remote 实测，20 秒超时、可取消、输出脱敏）
-    │   ├── MultiGitCommit.csproj            # 项目文件（net10.0，RID：win-x64 / osx-arm64 / osx-x64）
+    │   ├── MultiGitCommit.csproj            # 项目文件（net10.0，RID：win-x64 / osx-arm64 / osx-x64 / linux-x64 / linux-arm64）
     │   └── res/                             # 应用图标（icon.png / icon.ico）
     └── old-version/                 # 已归档的旧版实现（不再更新）
         ├── MultiGitCommit.NET/      # 旧 Windows WPF 版（net10.0-windows）

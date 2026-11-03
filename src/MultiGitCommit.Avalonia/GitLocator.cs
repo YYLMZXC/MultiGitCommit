@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace MultiGitCommit;
 
 /// <summary>
@@ -253,7 +255,8 @@ public static class GitLocator
 
     /// <summary>
     /// 解析用户自定义路径：支持 git 可执行文件完整路径或 Git 根目录，
-    /// 目录时自动尝试 bin/git、cmd/git、git、libexec/git-core/git。支持 ~ 与环境变量展开。
+    /// 目录时自动尝试 bin/git、cmd/git、git、libexec/git-core/git。
+    /// 支持 ~ 与环境变量展开（Windows 的 %VAR% 与 Unix 的 $VAR / ${VAR}）。
     /// </summary>
     public static string? ResolveCustomPath(string? input)
     {
@@ -263,7 +266,7 @@ public static class GitLocator
         if (raw.StartsWith('~'))
             raw = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), raw.TrimStart('~').TrimStart('/'));
 
-        string path = Environment.ExpandEnvironmentVariables(raw);
+        string path = ExpandUnixVariables(Environment.ExpandEnvironmentVariables(raw));
         try
         {
             if (File.Exists(path) && IsExecutable(path))
@@ -295,6 +298,32 @@ public static class GitLocator
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// 展开 Unix 风格的 <c>$VAR</c> / <c>${VAR}</c>：
+    /// Linux / macOS 用户习惯这种写法，而 <see cref="Environment.ExpandEnvironmentVariables"/> 只认 %VAR%。
+    /// 变量不存在时保留原样，交给后续的存在性检查报错。Windows 上不处理（$ 是合法路径字符）。
+    /// </summary>
+    private static string ExpandUnixVariables(string input)
+    {
+        if (OperatingSystem.IsWindows() || !input.Contains('$')) return input;
+
+        try
+        {
+            return Regex.Replace(
+                input,
+                @"\$\{(?<braced>[A-Za-z_][A-Za-z0-9_]*)\}|\$(?<plain>[A-Za-z_][A-Za-z0-9_]*)",
+                m =>
+                {
+                    string name = m.Groups["braced"].Success ? m.Groups["braced"].Value : m.Groups["plain"].Value;
+                    return Environment.GetEnvironmentVariable(name) ?? m.Value;
+                });
+        }
+        catch (Exception)
+        {
+            return input;
+        }
     }
 
     /// <summary>判断文件是否存在且具备可执行权限。</summary>

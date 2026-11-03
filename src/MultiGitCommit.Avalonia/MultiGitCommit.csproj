@@ -38,8 +38,8 @@
     <ApplicationIcon>res\icon.ico</ApplicationIcon>
   </PropertyGroup>
 
-  <!-- Release 发布为【单文件 exe（依赖框架）】：Avalonia、Skia 等依赖全部打进 MultiGitCommit.exe，
-       输出目录只有 MultiGitCommit.exe + git 目录（不含 .NET 运行时，目标机器需已安装 .NET 10 运行时）。
+  <!-- Release 发布为【单文件可执行程序（依赖框架）】：Avalonia、Skia 等依赖全部打进主程序，
+       输出目录只有 MultiGitCommit(.exe) + git 目录（不含 .NET 运行时，目标机器需已安装 .NET 10 运行时）。
        默认 RID 按构建主机决定；发布其他平台时用 -r 覆盖：
           dotnet publish -c Release -r osx-arm64   （Apple 芯片 Mac）
           dotnet publish -c Release -r osx-x64     （Intel Mac）
@@ -47,14 +47,14 @@
           dotnet publish -c Release -r linux-arm64 （Linux ARM64）
        说明：单文件捆绑包的压缩只在独立模式（SelfContained）下支持，依赖框架模式不启用，故不设置。
        Debug 模式保持普通多文件输出，便于调试。 -->
-       <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-       <SelfContained>false</SelfContained>
-       <PublishSingleFile>true</PublishSingleFile>
-       <!-- 默认 RID 按构建主机决定：Windows 用 win-x64，macOS（Rider / dotnet build -c Release）用 osx-arm64，
-          Linux 用 linux-x64，避免在某一平台上默认产出另一平台的产物；需要其他架构时仍可用 -r 覆盖。 -->
-       <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifier>
-       <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</RuntimeIdentifier>
-       <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</RuntimeIdentifier>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <!-- 默认 RID 按构建主机决定：Windows 用 win-x64，macOS（Rider / dotnet build -c Release）用 osx-arm64，
+         Linux 用 linux-x64，避免在某一平台上默认产出另一平台的产物；需要其他架构时仍可用 -r 覆盖。 -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</RuntimeIdentifier>
     <PublishTrimmed>false</PublishTrimmed>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <DebugType>none</DebugType>

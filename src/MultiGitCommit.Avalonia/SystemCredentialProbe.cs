@@ -9,7 +9,7 @@ namespace MultiGitCommit;
 /// </summary>
 public class DetectedCredential : GitCredential
 {
-    /// <summary>来源说明（Windows 凭据管理器 / .git-credentials / credential helper）。</summary>
+    /// <summary>来源说明（Windows 凭据管理器 / macOS 钥匙串 / Linux Secret Service / .git-credentials / credential helper）。</summary>
     [JsonPropertyName("Source")]
     public string Source { get; set; } = string.Empty;
 }
