@@ -8,7 +8,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MultiGitCommit</RootNamespace>
     <AssemblyName>MultiGitCommit</AssemblyName>
-    <Version>26.11.03</Version>
+    <!-- 版本号：日期 + 构建时刻（SemVer 预发布标签，如 26.11.03-1119） -->
+    <Version>26.11.03-1119</Version>
+    <!-- 文件属性里的产品版本只保留版本号本身，不追加 git 提交哈希 -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
     <!-- 发布目标平台：dotnet publish -r win-x64 / osx-arm64 / osx-x64 -->
     <RuntimeIdentifiers>win-x64;osx-arm64;osx-x64</RuntimeIdentifiers>
@@ -16,7 +19,9 @@
     <CFBundleName>MultiGitCommit</CFBundleName>
     <CFBundleDisplayName>MultiGitCommit</CFBundleDisplayName>
     <CFBundleIdentifier>com.yylmzxc.multigitcommit</CFBundleIdentifier>
+    <!-- macOS 的 CFBundleShortVersionString 只接受纯数字三段，构建时刻放到 CFBundleVersion -->
     <CFBundleShortVersionString>26.11.03</CFBundleShortVersionString>
+    <CFBundleVersion>1119</CFBundleVersion>
     <NSHighResolutionCapable>true</NSHighResolutionCapable>
     <!-- AVLN3001：Avalonia 提示"窗口没有 public 无参构造函数，XAML 不能被运行时加载器访问"。
          本项目的窗口都通过带参构造函数创建（如 GitSettingsWindow(settings)），设计时加载器用不到，
