@@ -55,6 +55,12 @@ public partial class MainWindow : Window
     /// <summary>提交推送业务流程（不依赖任何 UI 类型）。</summary>
     private readonly CommitPushService _commitPush;
 
+    /// <summary>拉取更新业务流程（与推送共用凭据解析与命令执行实现）。</summary>
+    private readonly GitPullService _pull;
+
+    /// <summary>当前拉取的取消令牌（【取消拉取】按钮 / 关闭主窗口时使用）。</summary>
+    private CancellationTokenSource? _pullCts;
+
     /// <summary>应用设置来源（不再直接摸 GitLocator 的静态单例）。</summary>
     private readonly ISettingsProvider _settings;
 
@@ -76,10 +82,14 @@ public partial class MainWindow : Window
         _repoLocator = new RepoLocator(cli);
         _logged = new GitCommandReporter(cli, Log);
         _commitPush = new CommitPushService(_logged, _identity, settings);
+        _pull = new GitPullService(_logged, settings);
         _loading = true;
         InitializeComponent();
         Dialogs.ApplyIcon(this);
         _loading = false;
+
+        // 关闭主窗口时中止仍在进行的拉取，避免 git 进程残留
+        Closing += (_, _) => _pullCts?.Cancel();
 
         ListRemotes.ItemsSource = _remotes;
 
@@ -801,6 +811,101 @@ public partial class MainWindow : Window
         {
             BtnCommitPush.Content = idleText;
             BtnCommitPush.IsEnabled = true;
+        }
+    }
+
+    // ==================== 拉取更新 ====================
+
+    /// <summary>
+    /// 【拉取更新】：选择远端与策略后执行 git pull。
+    /// 执行中按钮变为【取消拉取】，再点一次即中止 git 进程。
+    /// </summary>
+    private async void BtnPull_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_pullCts != null)
+        {
+            _pullCts.Cancel(); // 正在拉取：再点一次就是取消
+            Log("正在取消拉取…");
+            return;
+        }
+
+        if (_repoRoot == null)
+        {
+            Log("请先选择有效的 git 仓库目录，再拉取更新。");
+            return;
+        }
+
+        if (!EnsureGitAvailable()) return;
+
+        var remotes = _remotes.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
+        if (remotes.Count == 0)
+        {
+            Log("尚未配置推送远端地址，请先在【推送远端地址管理】中添加远端 URL。");
+            return;
+        }
+
+        string? branch = await GetCurrentBranchAsync(_repoRoot);
+        if (branch == null)
+        {
+            Log("无法确定当前分支（可能处于 detached HEAD 状态），已取消拉取。");
+            return;
+        }
+
+        var win = new PullWindow(_repoRoot, remotes, branch);
+        if (await win.ShowDialog<bool?>(this) != true) return;
+
+        // 工作区有未提交改动时给出提示（不阻止：能否拉取最终由 git 判断）
+        GitCommandResult status = await _logged.RunAsync(_repoRoot, "status --porcelain",
+            "git status --porcelain", GitTimeouts.Quick);
+        if (status.Success)
+        {
+            int changed = status.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
+            if (changed > 0)
+            {
+                bool keepGoing = await Dialogs.ConfirmAsync(this, "拉取更新",
+                    $"当前工作区有 {changed} 项未提交的改动。" + Environment.NewLine +
+                    "如果远端改动涉及这些文件，git 会拒绝拉取或产生冲突。" + Environment.NewLine + Environment.NewLine +
+                    "仍要继续拉取吗？（建议先提交或暂存）");
+                if (!keepGoing) return;
+            }
+        }
+
+        _pullCts = new CancellationTokenSource();
+        string idleText = BtnPull.Content?.ToString() ?? "拉取更新";
+        BtnPull.Content = "取消拉取";
+
+        try
+        {
+            PullResult result = await _pull.PullAsync(new PullRequest
+            {
+                RepoRoot = _repoRoot,
+                RemoteUrl = win.SelectedRemoteUrl,
+                Branch = branch,
+                Strategy = win.SelectedStrategy
+            }, Log, _pullCts.Token);
+
+            if (result.Cancelled)
+                Log("拉取已取消。");
+            else if (result.TimedOut)
+                Log("拉取超时，已终止 git 进程。");
+            else if (result.Success)
+                Log("拉取完成。");
+            else
+                Log("拉取失败，请查看上方 git 输出与提示。");
+        }
+        catch (Exception ex)
+        {
+            Log("拉取发生异常：" + ex.Message);
+        }
+        finally
+        {
+            BtnPull.Content = idleText;
+            _pullCts?.Dispose();
+            _pullCts = null;
+
+            // 拉取可能改变 HEAD / 工作区：刷新当前分支显示
+            if (_repoRoot != null)
+                await GetCurrentBranchAsync(_repoRoot);
         }
     }
 

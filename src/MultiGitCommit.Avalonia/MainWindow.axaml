@@ -121,9 +121,14 @@
         <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
             <Button x:Name="BtnCommitPush" Content="执行提交并推送全部远端" Width="250" Height="38"
                     FontSize="15" FontWeight="Bold" Click="BtnCommitPush_Click"/>
-            <TextBlock x:Name="TxtBranchInfo" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#666"/>
+            <Button x:Name="BtnPull" Content="拉取更新" Height="38" Padding="12,4" Margin="8,2,0,2"
+                    Click="BtnPull_Click"
+                    ToolTip.Tip="从配置的远端拉取当前分支的最新提交（支持 ff-only / rebase / merge，执行中可取消）"/>
+            <TextBlock x:Name="TxtBranchInfo" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#666"
+                       MaxWidth="160" TextTrimming="CharacterEllipsis"/>
             <!-- 提交身份：git 生成 commit 的前置条件，未设置时提交前会自动弹窗引导填写 -->
             <TextBlock x:Name="TxtIdentity" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#666"
+                       MaxWidth="240" TextTrimming="CharacterEllipsis"
                        Text="提交身份：未选择仓库"
                        ToolTip.Tip="git commit 需要 user.name 与 user.email，缺失时 git 直接报错（Please tell me who you are）"/>
             <Button x:Name="BtnIdentity" Content="提交身份…" Click="BtnIdentity_Click" Padding="10,2" Margin="8,0,0,0"

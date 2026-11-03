@@ -1,0 +1,56 @@
+<Window x:Class="MultiGitCommit.PullWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="拉取更新"
+        Width="640" Height="520"
+        MinWidth="560" MinHeight="460"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Microsoft YaHei UI,PingFang SC" FontSize="13"
+        ShowInTaskbar="False">
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="4,2"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="14">
+
+        <!-- 底部按钮栏：始终可见 -->
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button x:Name="BtnStart" Content="开始拉取" Width="100" IsDefault="True" Click="BtnOk_Click"/>
+            <Button Content="取消" Width="80" IsCancel="True" Click="BtnCancel_Click"/>
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Text="从远端拉取最新提交到当前分支" FontWeight="Bold" FontSize="14" Foreground="#2B579A"/>
+
+                <TextBlock Text="仓库：" Margin="0,10,0,2" Foreground="#666"/>
+                <TextBox x:Name="TxtRepo" IsReadOnly="True" VerticalContentAlignment="Center"/>
+
+                <TextBlock Text="分支：" Margin="0,8,0,2" Foreground="#666"/>
+                <TextBox x:Name="TxtBranch" IsReadOnly="True" VerticalContentAlignment="Center"/>
+
+                <TextBlock Text="远端：" Margin="0,8,0,2" Foreground="#666"/>
+                <ComboBox x:Name="CmbRemote" HorizontalAlignment="Stretch"
+                          ToolTip.Tip="选择要拉取的远端（与推送列表共用同一份配置）"/>
+
+                <TextBlock Text="拉取方式" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                <RadioButton x:Name="RbFf" Margin="0,3" IsChecked="True"
+                             Content="仅快进 --ff-only（推荐）：本地没有分叉时最安全，分叉会直接失败"/>
+                <RadioButton x:Name="RbRebase" Margin="0,3"
+                             Content="变基 --rebase：把本地提交放到远端最新提交之上，历史保持线性"/>
+                <RadioButton x:Name="RbMerge" Margin="0,3"
+                             Content="合并 --no-rebase：产生一个合并提交"/>
+
+                <TextBlock TextWrapping="Wrap" Foreground="#888" Margin="0,12,0,0"
+                           Text="说明：拉取只更新本地分支，不会推送。工作区有未提交改动时，若与远端改动冲突，git 会拒绝拉取或产生冲突，请先提交或暂存（git stash）。"/>
+
+                <TextBlock x:Name="TxtError" Foreground="#B00020" TextWrapping="Wrap" Margin="0,8,0,0"/>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

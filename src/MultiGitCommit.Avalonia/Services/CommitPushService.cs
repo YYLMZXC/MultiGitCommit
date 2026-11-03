@@ -73,11 +73,15 @@ public sealed class CommitPushService
     private readonly GitIdentityService _identity;
     private readonly ISettingsProvider _settings;
 
+    /// <summary>远端凭据解析（与拉取流程共用同一套账号来源逻辑）。</summary>
+    private readonly GitCredentialResolver _credentials;
+
     public CommitPushService(ILoggedGitRunner gitRunner, GitIdentityService identityService, ISettingsProvider settings)
     {
         _git = gitRunner;
         _identity = identityService;
         _settings = settings;
+        _credentials = new GitCredentialResolver(settings);
     }
 
     /// <summary>执行完整流程。</summary>
@@ -248,7 +252,7 @@ public sealed class CommitPushService
             string pushUrl = url;
             if (GitCredentials.NeedsCredential(url))
             {
-                GitCredential? credential = await ResolveCredentialAsync(url).ConfigureAwait(true);
+                GitCredential? credential = await _credentials.ResolveAsync(url).ConfigureAwait(true);
                 if (credential != null)
                 {
                     pushUrl = GitCredentials.Apply(url, credential);
@@ -292,27 +296,4 @@ public sealed class CommitPushService
         return (allSuccess, failed);
     }
 
-    /// <summary>
-    /// 按【Git 环境】中选择的账号来源取得该远端的推送凭据：
-    /// Auto 自定义优先、缺失时自动取系统凭据；System 只用系统凭据；Custom 只用自定义；None 返回 null。
-    /// 返回 <see cref="DetectedCredential"/> 表示来自系统，普通 <see cref="GitCredential"/> 表示来自自定义列表。
-    /// </summary>
-    private async Task<GitCredential?> ResolveCredentialAsync(string url)
-    {
-        CredentialSourceMode mode = _settings.Current.CredentialSource;
-        if (mode == CredentialSourceMode.None) return null;
-
-        if (mode != CredentialSourceMode.System)
-        {
-            GitCredential? custom = GitCredentials.Find(url, _settings.Current.Credentials);
-            if (custom != null) return custom;
-        }
-
-        if (mode == CredentialSourceMode.Custom) return null;
-
-        // 系统凭据：凭据管理器 / 钥匙串 / ~/.git-credentials / credential helper（短超时，不会卡住）
-        string helperArg = GitCredentialHelper.OverrideArgument() ?? string.Empty;
-        return await SystemCredentialProbe.ProbeAsync(
-            GitCredentials.GetHost(url), GitLocator.GitExe, default, helperArg).ConfigureAwait(true);
-    }
 }
