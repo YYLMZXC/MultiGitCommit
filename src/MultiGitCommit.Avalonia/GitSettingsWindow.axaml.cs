@@ -36,6 +36,9 @@ public partial class GitSettingsWindow : Window
     /// <summary>账号验证的取消令牌（【取消验证】按钮 / 关闭窗口时使用）。</summary>
     private CancellationTokenSource? _credTestCts;
 
+    /// <summary>提交身份读写服务（与主窗口共用同一套实现，不再各自拼 git config 命令）。</summary>
+    private readonly GitIdentityService _identityService = new();
+
     /// <param name="current">全局设置。</param>
     /// <param name="remoteUrls">当前项目的推送远端 URL（可选，验证账号时用同主机远端做真实探测）。</param>
     /// <param name="repoPath">当前仓库根目录（可选，用于读取/写入仓库级提交身份）。</param>
@@ -476,7 +479,7 @@ public partial class GitSettingsWindow : Window
         var saved = _settings.CommitIdentity;
         string savedText = saved != null && saved.IsComplete ? $"已保存：{saved}" : "尚未保存";
 
-        var (name, email) = ReadIdentityFromGit();
+        var (name, email) = _identityService.Read(_repoPath);
         TxtIdentityInfo.Text = (name.Length > 0 && email.Length > 0)
             ? $"当前生效：{name} <{email}>（{savedText}）"
             : $"当前生效：未设置（{savedText}）";
@@ -486,67 +489,10 @@ public partial class GitSettingsWindow : Window
             : Brush.Parse("#B00020");
     }
 
-    /// <summary>用 git 读取当前生效的 user.name / user.email（失败返回空串）。</summary>
-    private (string Name, string Email) ReadIdentityFromGit()
-    {
-        try
-        {
-            string exe = GitLocator.GitExe;
-            if (string.IsNullOrEmpty(exe)) return (string.Empty, string.Empty);
-
-            string dir = _repoPath ?? Environment.CurrentDirectory;
-            string name = RunGitConfig(dir, exe, "user.name");
-            string email = RunGitConfig(dir, exe, "user.email");
-            return (name, email);
-        }
-        catch (Exception)
-        {
-            return (string.Empty, string.Empty);
-        }
-    }
-
-    /// <summary>执行 git config --get &lt;key&gt;，返回取值（缺失/失败返回空串）。</summary>
-    private static string RunGitConfig(string dir, string exe, string key)
-    {
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = exe,
-                Arguments = "config --get " + key,
-                WorkingDirectory = dir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                RedirectStandardInput = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = System.Text.Encoding.UTF8,
-                StandardErrorEncoding = System.Text.Encoding.UTF8
-            };
-
-            using var p = Process.Start(psi);
-            if (p == null) return string.Empty;
-            p.StandardInput.Close();
-
-            string output = p.StandardOutput.ReadToEnd();
-            if (!p.WaitForExit(5000))
-            {
-                try { p.Kill(entireProcessTree: true); } catch { /* 已退出 */ }
-                return string.Empty;
-            }
-
-            return p.ExitCode == 0 ? output.Trim() : string.Empty;
-        }
-        catch (Exception)
-        {
-            return string.Empty;
-        }
-    }
-
     /// <summary>打开【提交身份】窗口并写入 git config（仓库级或全局）。</summary>
     private async void BtnIdentity_Click(object? sender, RoutedEventArgs e)
     {
-        var (name, email) = ReadIdentityFromGit();
+        var (name, email) = _identityService.Read(_repoPath);
         var current = new GitIdentity
         {
             Name = name,
@@ -558,16 +504,10 @@ public partial class GitSettingsWindow : Window
         if (await win.ShowDialog<bool?>(this) != true) return;
 
         var identity = win.Result;
-        string scopeArg = identity.Scope == IdentityScope.Global ? "--global " : string.Empty;
-        string dir = _repoPath ?? Environment.CurrentDirectory;
-
-        string exe = GitLocator.GitExe;
-        bool ok = SetGitConfig(dir, exe, $"{scopeArg}user.name", identity.Name)
-                  && SetGitConfig(dir, exe, $"{scopeArg}user.email", identity.Email);
-
-        if (!ok)
+        if (!_identityService.TryApply(identity, _repoPath, out string error))
         {
-            ShowResult("× 写入提交身份失败，请确认 git 可用且该仓库目录可写。", false);
+            string detail = error.Length > 0 ? $"{Environment.NewLine}{error}" : string.Empty;
+            ShowResult("× 写入提交身份失败，请确认 git 可用且该仓库目录可写。" + detail, false);
             return;
         }
 
@@ -575,46 +515,6 @@ public partial class GitSettingsWindow : Window
         RefreshIdentityInfo();
         ShowResult($"√ 已写入提交身份（{(identity.Scope == IdentityScope.Global ? "全局 --global" : "本仓库 --local")}）：" +
                    $"{identity.Name} <{identity.Email}>", true);
-    }
-
-    /// <summary>执行 git config &lt;key&gt; "&lt;value&gt;" 写入配置。</summary>
-    private static bool SetGitConfig(string dir, string exe, string keyWithScope, string? value)
-    {
-        string escaped = (value ?? string.Empty).Replace("\\", "\\\\").Replace("\"", "\\\"");
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = exe,
-                Arguments = $"config {keyWithScope} \"{escaped}\"",
-                WorkingDirectory = dir,
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                RedirectStandardInput = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = System.Text.Encoding.UTF8,
-                StandardErrorEncoding = System.Text.Encoding.UTF8
-            };
-
-            using var p = Process.Start(psi);
-            if (p == null) return false;
-            p.StandardInput.Close();
-
-            p.StandardOutput.ReadToEnd();
-            p.StandardError.ReadToEnd();
-            if (!p.WaitForExit(5000))
-            {
-                try { p.Kill(entireProcessTree: true); } catch { /* 已退出 */ }
-                return false;
-            }
-
-            return p.ExitCode == 0;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
     }
 
     private async void BtnOk_Click(object? sender, RoutedEventArgs e)

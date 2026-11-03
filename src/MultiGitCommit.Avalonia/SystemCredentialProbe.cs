@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -183,32 +182,17 @@ public static class SystemCredentialProbe
     {
         if (!OperatingSystem.IsWindows()) yield break;
 
-        string output;
-        try
+        GitCommandResult listing = GitCliRunner.Default.Run(new GitCommandRequest
         {
-            var psi = new ProcessStartInfo("cmdkey", "/list")
-            {
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
+            FileName = "cmdkey",
+            Arguments = "/list",
+            Timeout = TimeSpan.FromSeconds(3),
+            TreatAsGit = false
+        });
 
-            using var p = Process.Start(psi);
-            if (p == null) yield break;
+        if (!listing.Success) yield break;
 
-            output = p.StandardOutput.ReadToEnd();
-            if (!p.WaitForExit(3000))
-            {
-                try { p.Kill(); } catch { /* 忽略 */ }
-                yield break;
-            }
-        }
-        catch (Exception)
-        {
-            yield break;
-        }
+        string output = listing.Stdout;
 
         // cmdkey 输出形如： 目标: LegacyGeneric:target=git:https://github.com
         // 中英文系统均包含 "target="，因此按该关键字匹配即可
@@ -259,71 +243,29 @@ public static class SystemCredentialProbe
     private static async Task<DetectedCredential?> FillAsync(string protocol, string host, string gitExe,
         CancellationToken ct, string? helperArg = null)
     {
-        Process? p = null;
         try
         {
-            ct.ThrowIfCancellationRequested();
-
-            var psi = new ProcessStartInfo
+            // git credential 协议：属性行 + 空行结束，行分隔必须用 \n。
+            // 同时给出 protocol / host / url 三种字段，兼容不同版本 git 与各类 credential helper 的解析要求。
+            GitCommandResult result = await GitCliRunner.Default.RunAsync(new GitCommandRequest
             {
                 FileName = gitExe,
                 // helperArg 用于绕过不可用的 credential.helper 配置（如缺少 git-credential-manager）
                 Arguments = (helperArg ?? string.Empty) + "credential fill",
-                UseShellExecute = false,
-                RedirectStandardInput = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
+                StandardInput = $"protocol={protocol}\nhost={host}\nurl={protocol}://{host}/\n\n",
+                Timeout = ProbeTimeout,
+                Environment = new Dictionary<string, string>
+                {
+                    ["GCM_INTERACTIVE"] = "never",
+                    ["GIT_CREDENTIAL_MANAGER_INTERACTIVE"] = "never"
+                }
+            }, ct).ConfigureAwait(false);
 
-            // 非交互：禁止终端提示与凭据管理器弹窗，取不到就直接返回空
-            psi.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
-            psi.EnvironmentVariables["GCM_INTERACTIVE"] = "never";
-            psi.EnvironmentVariables["GIT_CREDENTIAL_MANAGER_INTERACTIVE"] = "never";
-
-            // 便携版 / 内嵌 git 所在目录注入 PATH，保证 helper 可被找到
-            var pathEntries = GitLocator.GetPathEntries();
-            if (pathEntries.Count > 0)
-            {
-                string oldPath = psi.EnvironmentVariables.ContainsKey("PATH")
-                    ? psi.EnvironmentVariables["PATH"] ?? string.Empty
-                    : string.Empty;
-                psi.EnvironmentVariables["PATH"] =
-                    string.Join(Path.PathSeparator, pathEntries) + Path.PathSeparator + oldPath;
-            }
-
-            p = Process.Start(psi);
-            if (p == null) return null;
-
-            // git credential 协议：属性行 + 空行结束，行分隔必须用 \n。
-            // 同时给出 protocol / host / url 三种字段，兼容不同版本 git 与各类 credential helper 的解析要求。
-            await p.StandardInput.WriteAsync(
-                    $"protocol={protocol}\nhost={host}\nurl={protocol}://{host}/\n\n")
-                .ConfigureAwait(false);
-            p.StandardInput.Close();
-
-            var readTask = p.StandardOutput.ReadToEndAsync();
-            var timeoutTask = Task.Delay(ProbeTimeout, ct);
-
-            var finished = await Task.WhenAny(readTask, timeoutTask).ConfigureAwait(false);
-            bool completed = finished == readTask && readTask.IsCompletedSuccessfully;
-            if (!completed)
-            {
-                KillTree(p);
-                // 读任务可能随进程释放而失败，挂一个空 continuation 避免未观察异常
-                _ = readTask.ContinueWith(t => { _ = t.Exception; },
-                    CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
-                return null;
-            }
-
-            string output = await readTask.ConfigureAwait(false);
-            if (!p.WaitForExit(2000)) KillTree(p);
+            if (result.TimedOut || result.Cancelled) return null;
 
             string? username = null;
             string? password = null;
-            foreach (string raw in output.Split('\n'))
+            foreach (string raw in result.Stdout.Split('\n'))
             {
                 string line = raw.Trim();
                 if (line.StartsWith("username=", StringComparison.OrdinalIgnoreCase))
@@ -344,29 +286,11 @@ public static class SystemCredentialProbe
         }
         catch (OperationCanceledException)
         {
-            if (p != null) KillTree(p);
             return null;
         }
         catch (Exception)
         {
             return null;
-        }
-        finally
-        {
-            p?.Dispose();
-        }
-    }
-
-    /// <summary>终止进程及其子进程树（失败时忽略）。</summary>
-    private static void KillTree(Process p)
-    {
-        try
-        {
-            p.Kill(entireProcessTree: true);
-        }
-        catch (Exception)
-        {
-            // 进程可能已退出
         }
     }
 }

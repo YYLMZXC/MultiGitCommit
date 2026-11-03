@@ -1,6 +1,4 @@
-using System.Diagnostics;
 using System.IO;
-using System.Text;
 
 namespace MultiGitCommit;
 
@@ -75,7 +73,8 @@ public static class CredentialTester
         GitCredential cred,
         IEnumerable<string>? remoteUrls = null,
         CancellationToken ct = default,
-        int timeoutSeconds = DefaultTimeoutSeconds)
+        int timeoutSeconds = DefaultTimeoutSeconds,
+        IGitCliRunner? runner = null)
     {
         string host = GitCredentials.GetHost(cred.Host) ?? (cred.Host ?? string.Empty).Trim();
         string user = (cred.Username ?? string.Empty).Trim();
@@ -96,8 +95,23 @@ public static class CredentialTester
 
         try
         {
-            var psi = CreateProbeProcess(gitExe, GitCredentials.Apply(probeUrl, probe));
-            var (completed, exitCode, output) = await RunProbeAsync(psi, timeoutSeconds, ct).ConfigureAwait(false);
+            GitCommandResult run = await (runner ?? GitCliRunner.Default).RunAsync(new GitCommandRequest
+            {
+                FileName = gitExe,
+                // -c credential.helper= ：探测只认 URL 里的账号，不用（也不会改）系统保存的账号
+                Arguments = "-c credential.helper= ls-remote --heads \"" + GitCredentials.Apply(probeUrl, probe) + "\"",
+                WorkingDirectory = Path.GetTempPath(),
+                Timeout = TimeSpan.FromSeconds(timeoutSeconds),
+                Environment = new Dictionary<string, string>
+                {
+                    ["GCM_INTERACTIVE"] = "never",
+                    ["GIT_CREDENTIAL_MANAGER_INTERACTIVE"] = "never"
+                }
+            }, ct).ConfigureAwait(false);
+
+            bool completed = !run.TimedOut && !run.Cancelled;
+            int exitCode = run.ExitCode;
+            string output = (run.Stdout + Environment.NewLine + run.Stderr).Trim();
 
             if (!completed)
             {
@@ -144,96 +158,6 @@ public static class CredentialTester
         }
 
         return "https://" + host + "/";
-    }
-
-    /// <summary>构造非交互的 git ls-remote 探测进程。</summary>
-    private static ProcessStartInfo CreateProbeProcess(string gitExe, string authUrl)
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName = gitExe,
-            // -c credential.helper= ：探测只认 URL 里的账号，不用（也不会改）系统保存的账号
-            Arguments = "-c credential.helper= ls-remote --heads \"" + authUrl + "\"",
-            WorkingDirectory = Path.GetTempPath(),
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            RedirectStandardInput = true,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
-        };
-
-        // 非交互：禁止终端提示与凭据管理器弹窗，取不到就直接报错而不是挂起等待
-        psi.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
-        psi.EnvironmentVariables["GCM_INTERACTIVE"] = "never";
-        psi.EnvironmentVariables["GIT_CREDENTIAL_MANAGER_INTERACTIVE"] = "never";
-
-        // 内嵌 / 指定路径的 git 也能找到自带的 ssh、http 后端等程序
-        var pathEntries = GitLocator.GetPathEntries();
-        if (pathEntries.Count > 0)
-        {
-            string oldPath = psi.EnvironmentVariables.ContainsKey("PATH")
-                ? psi.EnvironmentVariables["PATH"] ?? string.Empty
-                : string.Empty;
-            psi.EnvironmentVariables["PATH"] =
-                string.Join(Path.PathSeparator, pathEntries) + Path.PathSeparator + oldPath;
-        }
-
-        return psi;
-    }
-
-    /// <summary>执行探测进程：超时或取消即杀掉进程树，绝不挂起。</summary>
-    private static async Task<(bool Completed, int ExitCode, string Output)> RunProbeAsync(
-        ProcessStartInfo psi, int timeoutSeconds, CancellationToken ct)
-    {
-        using var p = Process.Start(psi);
-        if (p == null) return (false, -1, string.Empty);
-
-        p.StandardInput.Close(); // 立即给 EOF，杜绝等待交互输入
-
-        var outTask = p.StandardOutput.ReadToEndAsync();
-        var errTask = p.StandardError.ReadToEndAsync();
-        var ioTask = Task.WhenAll(outTask, errTask);
-
-        Task delay = Task.Delay(TimeSpan.FromSeconds(timeoutSeconds));
-        Task cancel = CancellationTask(ct);
-        Task finished = await Task.WhenAny(ioTask, delay, cancel).ConfigureAwait(false);
-
-        if (finished != ioTask)
-        {
-            Kill(p);
-            await Task.WhenAny(ioTask, Task.Delay(3000)).ConfigureAwait(false);
-            try { await p.WaitForExitAsync().ConfigureAwait(false); } catch { /* 已退出 */ }
-            return (false, -1, string.Empty);
-        }
-
-        string output = (outTask.Result + Environment.NewLine + errTask.Result).Trim();
-        try { await p.WaitForExitAsync().ConfigureAwait(false); } catch { /* 已退出 */ }
-
-        int exitCode;
-        try { exitCode = p.ExitCode; } catch { exitCode = -1; }
-
-        return (true, exitCode, output);
-    }
-
-    /// <summary>把取消令牌包装成可等待的任务（不可取消时返回永不完成的任务）。</summary>
-    private static Task CancellationTask(CancellationToken ct)
-    {
-        if (!ct.CanBeCanceled) return new TaskCompletionSource().Task;
-
-        var tcs = new TaskCompletionSource();
-        ct.Register(() => tcs.TrySetResult());
-        return tcs.Task;
-    }
-
-    private static void Kill(Process p)
-    {
-        try { p.Kill(entireProcessTree: true); }
-        catch
-        {
-            try { p.Kill(); } catch { /* 已退出 */ }
-        }
     }
 
     /// <summary>按退出码与输出判定账号是否可用（认证失败优先于仓库不存在，避免误判为通过）。</summary>

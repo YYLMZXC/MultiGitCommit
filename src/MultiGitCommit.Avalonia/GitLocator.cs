@@ -1,4 +1,3 @@
-    using System.Diagnostics;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Text.Json;
@@ -476,35 +475,20 @@ public static class GitLocator
     public static bool Validate(string gitPath, out string version)
     {
         version = string.Empty;
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName = gitPath,
-                Arguments = "--version",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8
-            };
-            using var p = Process.Start(psi);
-            if (p == null) return false;
 
-            string output = p.StandardOutput.ReadToEnd();
-            if (!p.WaitForExit(5000))
-            {
-                try { p.Kill(); } catch { /* 忽略 */ }
-                return false;
-            }
-
-            version = output.Trim();
-            return p.ExitCode == 0 && version.StartsWith("git version", StringComparison.OrdinalIgnoreCase);
-        }
-        catch (Exception)
+        // 只执行 --version：不注入 PATH / 交互环境（候选路径探测会频繁调用，保持轻量）
+        GitCommandResult result = GitCliRunner.Default.Run(new GitCommandRequest
         {
-            return false;
-        }
+            FileName = gitPath,
+            Arguments = "--version",
+            Timeout = TimeSpan.FromSeconds(5),
+            TreatAsGit = false
+        });
+
+        if (!result.Success) return false;
+
+        version = result.Output;
+        return version.StartsWith("git version", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>自动检测的候选路径（按优先级）：软件内嵌 → 常见安装位置。</summary>

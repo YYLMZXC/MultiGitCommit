@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Text;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -38,17 +37,36 @@ public partial class MainWindow : Window
     /// <summary>远端 URL 列表（绑定到 ListBox）。</summary>
     private readonly ObservableCollection<string> _remotes = new();
 
-    /// <summary>单条命令执行结果。</summary>
-    private sealed class CommandResult
+    /// <summary>
+    /// 外部命令执行器：进程创建、UTF-8 编码、非交互环境、超时杀进程树、PATH 注入
+    /// 等细节全部由它负责，本窗口只关心「跑什么命令、结果怎么用」。
+    /// </summary>
+    private readonly IGitCliRunner _cli;
+
+    /// <summary>提交身份读写服务（与 Git 环境设置窗口共用同一套实现）。</summary>
+    private readonly GitIdentityService _identity;
+
+    /// <summary>仓库定位服务（「路径 → 仓库根目录」的唯一判定入口）。</summary>
+    private readonly RepoLocator _repoLocator;
+
+    /// <summary>带日志呈现的命令执行（日志格式只有一份实现）。</summary>
+    private readonly ILoggedGitRunner _logged;
+
+    /// <summary>提交推送业务流程（不依赖任何 UI 类型）。</summary>
+    private readonly CommitPushService _commitPush;
+
+    public MainWindow() : this(GitCliRunner.Default)
     {
-        public int ExitCode;
-        public string Stdout = string.Empty;
-        public string Stderr = string.Empty;
-        public bool Success => ExitCode == 0;
     }
 
-    public MainWindow()
+    /// <summary>可注入命令执行器（单元测试时传入假实现，无需真实 git 与 UI 运行时）。</summary>
+    public MainWindow(IGitCliRunner cli)
     {
+        _cli = cli;
+        _identity = new GitIdentityService(cli);
+        _repoLocator = new RepoLocator(cli);
+        _logged = new GitCommandReporter(cli, Log);
+        _commitPush = new CommitPushService(_logged, _identity, GitLocator.Settings);
         _loading = true;
         InitializeComponent();
         Dialogs.ApplyIcon(this);
@@ -95,156 +113,24 @@ public partial class MainWindow : Window
         }
     }
 
-    // ==================== 进程调用（统一 UTF-8 编码） ====================
+    // ==================== 外部命令执行 ====================
+    // 进程细节（编码 / 非交互 / 超时杀进程树 / PATH 注入）全部在 IGitCliRunner 内，
+    // 这里只做「调用 + 日志呈现」，业务代码不再直接接触 Process。
 
-    /// <summary>创建 git/shell 进程配置，指定 UTF-8 编码，保证中文输出不乱码。</summary>
-    private static Process CreateProcess(string workingDir, string fileName, string arguments)
-    {
-        var psi = new ProcessStartInfo
+    /// <summary>同步执行快速校验类命令（输出量小），超时即终止。</summary>
+    private GitCommandResult RunCommand(string workingDir, string fileName, string arguments)
+        => _cli.Run(new GitCommandRequest
         {
             FileName = fileName,
             Arguments = arguments,
             WorkingDirectory = workingDir,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            // 重定向并立即关闭 stdin：git / ssh 需要交互输入时直接读到 EOF 失败，
-            // 而不是继承终端 stdin 一直等待（GUI 环境下会永久阻塞，按钮永远不恢复）
-            RedirectStandardInput = true,
-            CreateNoWindow = true,
-            StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8
-        };
+            Timeout = GitTimeouts.Quick
+        });
 
-        // 非交互执行：禁止 git / ssh 弹出终端凭据提示，无凭据时直接报错而不是挂起等待
-        // 注意：EnvironmentVariables 的索引器在 key 不存在时会抛 KeyNotFoundException，必须用 ContainsKey / TryGetValue
-        psi.EnvironmentVariables["GIT_TERMINAL_PROMPT"] = "0";
-        if (!psi.EnvironmentVariables.ContainsKey("GIT_SSH_COMMAND"))
-        {
-            // 仅在确实能找到 ssh / ssh.exe 时才设置，避免覆盖 git 自身的 ssh 查找逻辑
-            string? ssh = GitLocator.FindSshExe();
-            if (ssh != null)
-                psi.EnvironmentVariables["GIT_SSH_COMMAND"] =
-                    $"\"{ssh}\" -o BatchMode=yes -o StrictHostKeyChecking=accept-new";
-        }
-
-        // 将解析到的 git 相关目录注入子进程 PATH：
-        // 1. 内嵌 / 指定路径的 git 也能找到自带的 ssh、git-lfs 等程序；
-        // 2. GUI 应用 PATH 通常缺少 /opt/homebrew/bin 等目录，手动命令区执行 "git xxx" 时同样可用。
-        var pathEntries = GitLocator.GetPathEntries();
-        if (pathEntries.Count > 0)
-        {
-            string oldPath = psi.EnvironmentVariables.ContainsKey("PATH")
-                ? psi.EnvironmentVariables["PATH"] ?? string.Empty
-                : string.Empty;
-            psi.EnvironmentVariables["PATH"] =
-                string.Join(Path.PathSeparator, pathEntries) + Path.PathSeparator + oldPath;
-        }
-
-        return new Process { StartInfo = psi };
-    }
-
-    /// <summary>
-    /// 给 git 命令统一加上默认选项：core.quotepath=false，
-    /// 让中文/非 ASCII 文件名在日志里正常显示，而不是被转义成 "\346\226\260..." 这类八进制序列。
-    /// </summary>
-    private static string WithGitDefaults(string fileName, string arguments)
-    {
-        if (!string.Equals(fileName, GitLocator.GitExe, StringComparison.OrdinalIgnoreCase)) return arguments;
-        return "-c core.quotepath=false " + arguments;
-    }
-
-    /// <summary>快速校验类命令的超时（同步执行，避免卡死 UI 线程）。</summary>
-    private static readonly TimeSpan QuickCommandTimeout = TimeSpan.FromSeconds(20);
-
-    /// <summary>普通 git 命令（add / commit / push …）的默认超时，超时即终止，保证按钮一定恢复可用。</summary>
-    private static readonly TimeSpan DefaultCommandTimeout = TimeSpan.FromMinutes(10);
-
-    /// <summary>克隆仓库的超时（大仓库耗时较长）。</summary>
-    private static readonly TimeSpan CloneCommandTimeout = TimeSpan.FromMinutes(30);
-
-    /// <summary>同步执行命令（用于快速校验，输出量小），带超时保护，返回结果对象。</summary>
-    private static CommandResult RunCommand(string workingDir, string fileName, string arguments)
-    {
-        try
-        {
-            using var p = CreateProcess(workingDir, fileName, WithGitDefaults(fileName, arguments));
-            p.Start();
-            p.StandardInput.Close(); // 立即给 EOF，杜绝等待交互输入
-            var outTask = p.StandardOutput.ReadToEndAsync();
-            var errTask = p.StandardError.ReadToEndAsync();
-            if (!Task.WaitAll(new Task[] { outTask, errTask }, QuickCommandTimeout))
-            {
-                KillProcess(p);
-                return new CommandResult { ExitCode = -1, Stderr = $"命令执行超时（{QuickCommandTimeout.TotalSeconds:0} 秒），已终止：{fileName} {arguments}" };
-            }
-
-            p.WaitForExit();
-            return new CommandResult { ExitCode = p.ExitCode, Stdout = outTask.Result, Stderr = errTask.Result };
-        }
-        catch (Exception ex)
-        {
-            return new CommandResult { ExitCode = -1, Stderr = ex.ToString() };
-        }
-    }
-
-    /// <summary>异步执行命令，stdout/stderr 逐行实时输出到日志区；支持超时，超时后终止进程并返回失败。</summary>
-    private async Task<CommandResult> RunCommandAsync(string workingDir, string fileName, string arguments,
+    /// <summary>异步执行命令，stdout/stderr 逐行实时输出到日志区；超时后终止进程并返回失败。</summary>
+    private Task<GitCommandResult> RunCommandAsync(string workingDir, string fileName, string arguments,
         string? logLabel = null, TimeSpan? timeout = null)
-    {
-        TimeSpan limit = timeout ?? DefaultCommandTimeout;
-        using var p = CreateProcess(workingDir, fileName, WithGitDefaults(fileName, arguments));
-        if (logLabel != null) Log("> " + logLabel);
-        p.Start();
-        p.StandardInput.Close(); // 立即给 EOF，杜绝等待交互输入
-
-        var outTask = DrainStreamAsync(p.StandardOutput);
-        var errTask = DrainStreamAsync(p.StandardError);
-        var ioTask = Task.WhenAll(outTask, errTask);
-
-        var finished = await Task.WhenAny(ioTask, Task.Delay(limit));
-        if (finished != ioTask)
-        {
-            Log($"[超时] 命令执行超过 {limit.TotalMinutes:0.##} 分钟仍未结束，已强制终止：{logLabel ?? (fileName + " " + arguments)}");
-            Log("       常见原因：远端要求输入用户名/密码或 ssh 口令（本工具为非交互执行，不会弹框输入）、网络不通、仓库过大。");
-            KillProcess(p);
-            await Task.WhenAny(ioTask, Task.Delay(3000)); // 等输出流收尾，避免访问已释放资源
-            await Task.WhenAny(p.WaitForExitAsync(), Task.Delay(3000));
-            return new CommandResult { ExitCode = -1, Stderr = "执行超时，已终止" };
-        }
-
-        await ioTask;
-        await p.WaitForExitAsync();
-
-        return new CommandResult { ExitCode = p.ExitCode, Stdout = outTask.Result, Stderr = errTask.Result };
-    }
-
-    /// <summary>强制终止进程及其子进程树（失败时忽略）。</summary>
-    private static void KillProcess(Process p)
-    {
-        try
-        {
-            p.Kill(entireProcessTree: true);
-        }
-        catch (Exception)
-        {
-            // 进程可能已退出
-        }
-    }
-
-    /// <summary>逐行读取输出流并实时写入日志，同时累积完整文本用于返回。</summary>
-    private async Task<string> DrainStreamAsync(StreamReader reader)
-    {
-        var sb = new StringBuilder();
-        string? line;
-        while ((line = await reader.ReadLineAsync()) != null)
-        {
-            if (line.Length > 0) Log("      " + line);
-            sb.AppendLine(line);
-        }
-
-        return sb.ToString();
-    }
+        => _logged.RunAsync(workingDir, arguments, logLabel, timeout, fileName);
 
     // ==================== 配置加载与保存 ====================
 
@@ -280,26 +166,19 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(path))
                 return;
 
-            if (!Directory.Exists(path))
-            {
-                Log($"目录不存在：{path}");
-                return;
-            }
-
             if (!EnsureGitAvailable()) return;
 
-            // 校验是否为合法 git 仓库，并取真正的仓库根目录：
-            // 输入目录可能是仓库的任意子目录（甚至是被 .gitignore 忽略的 bin/ 输出目录），
-            // 若直接用子目录作为仓库根，配置文件会散落在子目录里，且 git add . 会因目录被忽略而失败。
-            var top = RunCommand(path, GitLocator.GitExe, "rev-parse --show-toplevel");
-            string repoRoot = top.Stdout.Trim();
-            if (!top.Success || repoRoot.Length == 0 || !Directory.Exists(repoRoot))
+            // 校验是否为合法 git 仓库，并取真正的仓库根目录（判定细节统一在 RepoLocator 内）
+            string? repoRoot = _repoLocator.TryResolve(path, out string resolveError);
+            if (repoRoot == null)
             {
-                Log($"不是合法的 git 仓库目录：{path}（未发现有效的 .git 仓库）");
+                Log(resolveError.StartsWith("目录不存在", StringComparison.Ordinal)
+                    ? resolveError
+                    : $"不是合法的 git 仓库目录：{path}（未发现有效的 .git 仓库）");
+
                 // 输出 git 的真实报错（权限不足 / 目录不可访问 / 进程启动失败等），便于定位
-                string detail = top.Stderr?.Trim() ?? string.Empty;
-                if (detail.Length > 0)
-                    Log("       git 返回：" + detail);
+                if (resolveError.Length > 0 && !resolveError.StartsWith("目录不存在", StringComparison.Ordinal))
+                    Log("       git 返回：" + resolveError);
                 return;
             }
 
@@ -457,7 +336,7 @@ public partial class MainWindow : Window
 
             Log($"========== 开始克隆仓库：{url} ==========");
             Log($"目标目录：{targetDir}");
-            var clone = await RunCommandAsync(parentDir, GitLocator.GitExe, fullArgs, $"git {fullArgs}", CloneCommandTimeout);
+            var clone = await RunCommandAsync(parentDir, GitLocator.GitExe, fullArgs, $"git {fullArgs}", GitTimeouts.Clone);
             if (!clone.Success)
             {
                 Log("克隆失败：请查看上方日志（常见原因：URL 无效或无权限、目标目录已存在且非空、网络/ssh 配置问题）。");
@@ -604,7 +483,7 @@ public partial class MainWindow : Window
                 }
             }
 
-            if (IsGitRepository(path))
+            if (_repoLocator.IsWorkTree(path))
             {
                 Log($"该目录已经是 git 仓库，无需重复初始化：{path}");
                 return;
@@ -654,7 +533,7 @@ public partial class MainWindow : Window
                 return;
             }
 
-            if (!IsGitRepository(path))
+            if (!_repoLocator.IsWorkTree(path))
             {
                 Log("该目录不是 git 仓库，请先点击【初始化仓库】。");
                 return;
@@ -680,13 +559,6 @@ public partial class MainWindow : Window
         {
             BtnCreateBranch.IsEnabled = true;
         }
-    }
-
-    /// <summary>判断目录是否已经是合法 git 仓库。</summary>
-    private static bool IsGitRepository(string dir)
-    {
-        var r = RunCommand(dir, GitLocator.GitExe, "rev-parse --is-inside-work-tree");
-        return r.Success && r.Stdout.Trim().Equals("true", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -898,133 +770,19 @@ public partial class MainWindow : Window
             string repoDir = _repoRoot;
             if (!EnsureGitAvailable()) return;
 
-            Log("========== 开始提交并推送流程 ==========");
-
-            // 1) 自动获取当前 git 分支名称（禁止硬编码 main/master）
-            string? branch = await GetCurrentBranchAsync(repoDir);
-            if (branch == null)
+            // 流程细节全部在 CommitPushService 内；这里只负责收集界面选择并呈现日志
+            await _commitPush.RunAsync(new CommitPushRequest
             {
-                Log("流程终止：无法获取当前分支。");
-                return;
-            }
-
-            // 2) 读取本项目配置的远端 url 列表
-            var urls = _config.RemoteUrls
-                .Where(u => !string.IsNullOrWhiteSpace(u))
-                .Distinct()
-                .ToList();
-            if (urls.Count == 0)
-            {
-                Log("尚未配置推送远端地址，请添加远端URL");
-                Log("流程终止。");
-                return;
-            }
-
-            // 3) 勾选【git add .】才执行；未勾选则跳过，由用户提前手动 add
-            if (_config.CheckAddAll)
-            {
-                var add = await RunCommandAsync(repoDir, GitLocator.GitExe, "add .", "git add .");
-                if (!add.Success)
-                    Log("git add . 执行失败，继续后续流程。");
-            }
-
-            // 4) 使用 git status 判断工作区状态：无变更则跳过 commit，不生成空提交
-            bool forceCommit = _config.CheckForceCommit;
-            var status = await RunCommandAsync(repoDir, GitLocator.GitExe, "status --porcelain", "git status --porcelain");
-            bool hasChanges = !string.IsNullOrWhiteSpace(status.Stdout);
-            if (!hasChanges && !forceCommit)
-            {
-                Log("工作区无任何变更（nothing to commit），跳过 git commit，不生成空提交。");
-            }
-            else
-            {
-                if (!hasChanges)
-                    Log("工作区无变更，但已勾选【强制提交】，仍执行一次空提交（--allow-empty）。");
-
-                // 4.5) 提交前置条件：必须存在 user.name / user.email，否则 git 生成不了 commit。
-                //      未配置时自动套用已保存的身份；仍没有则弹窗引导填写，取消则终止流程。
-                if (!await EnsureCommitIdentityAsync(repoDir))
-                {
-                    Log("流程终止：未设置提交身份（user.name / user.email），无法生成 commit。");
-                    return;
-                }
-
-                // 5) 组装 commit 消息：固定格式 yyyy-MM-dd HH:mm:ss 用户备注
-                string time = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-                string remark = TxtCommitMessage.Text?.Trim() ?? string.Empty;
-                string commitMessage = string.IsNullOrEmpty(remark) ? time : $"{time} {remark}";
-
-                // 对消息内双引号做转义，防止命令行语法报错
-                string escapedMessage = commitMessage.Replace("\"", "\\\"");
-                Log($"提交消息：{commitMessage}");
-
-                string commitArgs = "commit -m \"" + escapedMessage + "\"" + (forceCommit ? " --allow-empty" : string.Empty);
-                string commitLabel = "git commit -m \"...\"" + (forceCommit ? " --allow-empty" : string.Empty);
-                var commit = await RunCommandAsync(repoDir, GitLocator.GitExe, commitArgs, commitLabel);
-                if (!commit.Success)
-                    Log("git commit 执行失败，继续尝试推送已提交的内容。");
-            }
-
-            // 6) 循环遍历每一个远端 URL 逐个推送；一个远端失败不阻断后续
-            //    存在 https 远端时，先说明凭据助手状态（助手不可用时会导致"取不到账号"的典型故障）
-            if (urls.Any(u => GitCredentials.NeedsCredential(u)))
-                Log("凭据助手：" + GitCredentialHelper.Describe());
-
-            bool allSuccess = true;
-            bool forcePush = _config.CheckForcePush;
-            if (forcePush)
-                Log("警告：已勾选【强制推送 --force】，将覆盖远端同名分支的提交历史。");
-
-            foreach (var url in urls)
-            {
-                bool withTags = _config.CheckPushTags;
-                string forceFlag = forcePush ? " --force" : string.Empty;
-
-                // https 远端：按【Git 环境】里选择的账号来源取得凭据并注入 URL。
-                // 工具为非交互执行（GIT_TERMINAL_PROMPT=0），无凭据时 git 不能弹窗问账号，推送必然失败。
-                string pushUrl = url;
-                if (GitCredentials.NeedsCredential(url))
-                {
-                    var cred = await ResolveCredentialAsync(url);
-                    if (cred != null)
-                    {
-                        pushUrl = GitCredentials.Apply(url, cred);
-                        // 系统凭据带来源说明，自定义凭据没有
-                        if (cred is DetectedCredential detected)
-                            Log($"已自动使用系统 git 凭据（{detected.Source}）：{GitCredentials.Mask(pushUrl)}");
-                        else
-                            Log($"已为 {GitCredentials.Mask(pushUrl)} 注入已保存的推送凭据。");
-                    }
-                    else if (GitLocator.Settings.CredentialSource != CredentialSourceMode.None)
-                    {
-                        Log($"提示：{GitCredentials.Mask(url)} 未找到可用的推送凭据，https 远端的非交互推送很可能失败" +
-                            "（可在【Git 环境】中选择账号来源，并用【检测系统凭据…】导入或手动填写）。");
-                    }
-                }
-
-                // 日志一律脱敏，令牌不落日志
-                string displayUrl = GitCredentials.Mask(pushUrl);
-                // 配置的 credential.helper 在当前 git 里不可用时（如缺少 git-credential-manager），
-                // 临时改用实际存在的助手，保证能从系统凭据库取到已保存的账号（不改动用户 git 配置）
-                string helperArg = GitCredentialHelper.OverrideArgument() ?? string.Empty;
-                string pushArgs = $"{helperArg}push{forceFlag} {pushUrl} {branch}" + (withTags ? " --tags" : string.Empty);
-                string pushLabel = $"git push{forceFlag} {displayUrl} {branch}" + (withTags ? " --tags" : string.Empty);
-                Log($"--- 推送到：{displayUrl}（分支：{branch}{(forcePush ? "，强制推送" : string.Empty)}）---");
-                var push = await RunCommandAsync(repoDir, GitLocator.GitExe, pushArgs, pushLabel);
-                if (push.Success)
-                {
-                    Log($"[成功] 推送到：{url}");
-                }
-                else
-                {
-                    allSuccess = false;
-                    Log($"[失败] 推送到：{url}（继续推送其余远端）");
-                }
-            }
-
-            Log(allSuccess
-                ? "========== 全部远端推送成功 =========="
-                : "========== 推送流程结束（存在失败项，请查看上方日志） ==========");
+                RepoRoot = repoDir,
+                RemoteUrls = _config.RemoteUrls,
+                AddAll = _config.CheckAddAll,
+                ForceCommit = _config.CheckForceCommit,
+                ForcePush = _config.CheckForcePush,
+                PushTags = _config.CheckPushTags,
+                Remark = TxtCommitMessage.Text?.Trim() ?? string.Empty,
+                EnsureIdentity = EnsureIdentityInteractiveAsync,
+                OnBranchDetected = branch => TxtBranchInfo.Text = $"当前分支：{branch}"
+            }, Log);
         }
         catch (Exception ex)
         {
@@ -1037,26 +795,11 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>获取当前 git 分支名称（git branch --show-current），不硬编码 main/master。</summary>
+    /// <summary>获取当前 git 分支名称并刷新界面显示（判定逻辑在 CommitPushService 内）。</summary>
     private async Task<string?> GetCurrentBranchAsync(string repoDir)
     {
-        var r = await RunCommandAsync(repoDir, GitLocator.GitExe, "branch --show-current", "git branch --show-current");
-        string branch = r.Stdout.Trim();
-        if (!r.Success || string.IsNullOrEmpty(branch))
-        {
-            var r2 = await RunCommandAsync(repoDir, GitLocator.GitExe, "symbolic-ref --short HEAD", "git symbolic-ref --short HEAD");
-            string branch2 = r2.Stdout.Trim();
-            if (r2.Success && !string.IsNullOrEmpty(branch2))
-            {
-                TxtBranchInfo.Text = $"当前分支：{branch2}";
-                return branch2;
-            }
-
-            Log("获取当前分支失败（可能处于 detached HEAD 状态）。");
-            return null;
-        }
-
-        TxtBranchInfo.Text = $"当前分支：{branch}";
+        string? branch = await _commitPush.GetCurrentBranchAsync(repoDir, Log);
+        if (branch != null) TxtBranchInfo.Text = $"当前分支：{branch}";
         return branch;
     }
 
@@ -1094,7 +837,7 @@ public partial class MainWindow : Window
                 workDir = Environment.CurrentDirectory;
 
             Log($"执行命令：{command}（目录：{workDir}）");
-            CommandResult r;
+            GitCommandResult r;
             if (command.StartsWith("git ", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(command, "git", StringComparison.OrdinalIgnoreCase))
             {
@@ -1174,7 +917,7 @@ public partial class MainWindow : Window
         }
 
         // 程序自身目录不能当仓库（通常是被 .gitignore 忽略的 bin\ 输出目录），改为向上找真正的仓库
-        string? found = FindRepoAncestor(cwdFull.Length > 0 ? cwdFull : baseDir);
+        string? found = RepoLocator.FindRepoAncestor(cwdFull.Length > 0 ? cwdFull : baseDir);
         if (found != null)
         {
             message = $"已从程序目录向上定位到 Git 仓库：{found}";
@@ -1182,30 +925,6 @@ public partial class MainWindow : Window
         }
 
         message = "未自动填充仓库目录：当前目录及上级目录中未找到 Git 仓库，请点击【浏览…】选择 Git 仓库根目录。";
-        return null;
-    }
-
-    /// <summary>
-    /// 从指定目录起逐级向上查找 Git 仓库根目录（最多 12 层）：含 .git 目录/文件或 multigitcommit.config.json 即命中。
-    /// </summary>
-    private static string? FindRepoAncestor(string startDir)
-    {
-        try
-        {
-            var dir = new DirectoryInfo(startDir);
-            for (int i = 0; i < 12 && dir != null; i++, dir = dir.Parent)
-            {
-                if (Directory.Exists(Path.Combine(dir.FullName, ".git")) ||
-                    File.Exists(Path.Combine(dir.FullName, ".git")) ||
-                    File.Exists(Path.Combine(dir.FullName, ProjectConfig.ConfigFileName)))
-                    return dir.FullName;
-            }
-        }
-        catch (Exception)
-        {
-            // 路径不可访问时忽略
-        }
-
         return null;
     }
 
@@ -1226,60 +945,8 @@ public partial class MainWindow : Window
         }
     }
 
-    // ==================== 推送凭据（账号）来源解析 ====================
-
-    /// <summary>
-    /// 按【Git 环境】中选择的账号来源取得该远端的推送凭据：
-    /// - Auto   自定义优先，缺失时自动从系统凭据获取；
-    /// - System 只用系统凭据（实时索取，令牌不落盘）；
-    /// - Custom 只用自定义凭据；
-    /// - None   返回 null（ssh 远端或已自行配置）。
-    /// 返回的 <see cref="DetectedCredential"/> 表示来自系统，普通 <see cref="GitCredential"/> 表示来自自定义列表。
-    /// </summary>
-    private static async Task<GitCredential?> ResolveCredentialAsync(string url)
-    {
-        var mode = GitLocator.Settings.CredentialSource;
-        if (mode == CredentialSourceMode.None) return null;
-
-        if (mode != CredentialSourceMode.System)
-        {
-            var custom = GitCredentials.Find(url, GitLocator.Settings.Credentials);
-            if (custom != null) return custom;
-        }
-
-        if (mode == CredentialSourceMode.Custom) return null;
-
-        // 系统凭据：Windows 凭据管理器 / macOS 钥匙串 / ~/.git-credentials / credential helper（5 秒超时，不会卡住）。
-        // 配置的助手在当前 git 中不存在时（如缺少 git-credential-manager）自动改用实际可用的助手。
-        string helperArg = GitCredentialHelper.OverrideArgument() ?? string.Empty;
-        return await SystemCredentialProbe.ProbeAsync(
-            GitCredentials.GetHost(url), GitLocator.GitExe, default, helperArg);
-    }
-
     // ==================== 提交身份（user.name / user.email） ====================
-
-    /// <summary>git config 值的命令行转义：包在双引号里，内部的反斜杠与双引号先转义。</summary>
-    private static string EscapeConfigValue(string? value)
-    {
-        string v = value ?? string.Empty;
-        return v.Replace("\\", "\\\\").Replace("\"", "\\\"");
-    }
-
-    /// <summary>
-    /// 读取当前生效的提交身份（user.name / user.email）。
-    /// <c>git config --get</c> 取的是生效值（仓库级 → 全局 → 系统级），任一缺失返回空串。
-    /// </summary>
-    private (string Name, string Email) ReadCommitIdentity()
-    {
-        string dir = _repoRoot ?? Environment.CurrentDirectory;
-
-        var nameResult = RunCommand(dir, GitLocator.GitExe, "config --get user.name");
-        var emailResult = RunCommand(dir, GitLocator.GitExe, "config --get user.email");
-
-        string name = nameResult.Success ? nameResult.Stdout.Trim() : string.Empty;
-        string email = emailResult.Success ? emailResult.Stdout.Trim() : string.Empty;
-        return (name, email);
-    }
+    // 读写细节在 GitIdentityService（与 Git 环境设置窗口共用），这里只负责界面呈现。
 
     /// <summary>刷新界面上的提交身份状态文本。</summary>
     private void RefreshIdentityStatus()
@@ -1291,7 +958,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var (name, email) = ReadCommitIdentity();
+        var (name, email) = _identity.Read(_repoRoot);
         bool ok = name.Length > 0 && email.Length > 0;
         TxtIdentity.Text = ok ? $"提交身份：{name} <{email}>" : "提交身份：未设置（提交前必须设置）";
         TxtIdentity.Foreground = ok
@@ -1300,18 +967,11 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 提交前置条件校验：确保 user.name / user.email 已配置。
-    /// 缺失时优先套用设置里已保存的身份；没有则弹窗引导填写；用户取消返回 false，调用方应终止提交。
+    /// 提交身份缺失时的界面补全（由 <see cref="CommitPushService"/> 在确认缺失后回调）：
+    /// 优先套用设置里已保存的身份，没有则弹窗引导填写；用户取消返回 false，流程应终止。
     /// </summary>
-    private async Task<bool> EnsureCommitIdentityAsync(string repoDir)
+    private async Task<bool> EnsureIdentityInteractiveAsync(string repoDir)
     {
-        var (name, email) = ReadCommitIdentity();
-        if (name.Length > 0 && email.Length > 0)
-        {
-            Log($"提交身份：{name} <{email}>");
-            return true;
-        }
-
         Log("未检测到 git 提交身份（user.name / user.email）：这是生成 commit 的前置条件，缺失时 git 会直接报错。");
 
         var saved = GitLocator.Settings.CommitIdentity;
@@ -1350,16 +1010,9 @@ public partial class MainWindow : Window
     /// <summary>把身份写入 git config（仓库级或全局），并刷新界面状态。</summary>
     private bool ApplyCommitIdentity(GitIdentity identity, string repoDir)
     {
-        string scopeArg = identity.Scope == IdentityScope.Global ? "--global " : string.Empty;
-
-        var r1 = RunCommand(repoDir, GitLocator.GitExe,
-            $"config {scopeArg}user.name \"{EscapeConfigValue(identity.Name)}\"");
-        var r2 = RunCommand(repoDir, GitLocator.GitExe,
-            $"config {scopeArg}user.email \"{EscapeConfigValue(identity.Email)}\"");
-
-        if (!r1.Success || !r2.Success)
+        if (!_identity.TryApply(identity, repoDir, out string error))
         {
-            Log($"写入提交身份失败：{(r1.Success ? r2.Stderr : r1.Stderr)}");
+            Log($"写入提交身份失败：{error}");
             return false;
         }
 
@@ -1374,7 +1027,7 @@ public partial class MainWindow : Window
     {
         if (!EnsureGitAvailable()) return;
 
-        var (name, email) = ReadCommitIdentity();
+        var (name, email) = _identity.Read(_repoRoot);
         var current = new GitIdentity
         {
             Name = name,

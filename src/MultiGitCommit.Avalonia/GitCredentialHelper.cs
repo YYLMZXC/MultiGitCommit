@@ -1,6 +1,3 @@
-using System.Diagnostics;
-using System.Text;
-
 namespace MultiGitCommit;
 
 /// <summary>
@@ -244,49 +241,22 @@ public static class GitCredentialHelper
     /// <summary>读取 git config --get-all credential.helper（失败视为未配置）。</summary>
     private static List<string> ReadConfigured()
     {
-        var result = new List<string>();
-        try
+        var helpers = new List<string>();
+
+        GitCommandResult result = GitCliRunner.Default.Run(new GitCommandRequest
         {
-            string exe = GitLocator.GitExe;
-            if (string.IsNullOrEmpty(exe)) return result;
+            Arguments = "config --get-all credential.helper",
+            Timeout = TimeSpan.FromSeconds(5)
+        });
 
-            var psi = new ProcessStartInfo
-            {
-                FileName = exe,
-                Arguments = "config --get-all credential.helper",
-                UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                RedirectStandardInput = true,
-                CreateNoWindow = true,
-                StandardOutputEncoding = Encoding.UTF8,
-                StandardErrorEncoding = Encoding.UTF8
-            };
+        if (!result.Success) return helpers; // 未配置时 git 返回 1
 
-            using var p = Process.Start(psi);
-            if (p == null) return result;
-            p.StandardInput.Close();
-
-            string output = p.StandardOutput.ReadToEnd();
-            if (!p.WaitForExit(5000))
-            {
-                try { p.Kill(entireProcessTree: true); } catch { /* 已退出 */ }
-                return result;
-            }
-
-            if (p.ExitCode != 0) return result; // 未配置时 git 返回 1
-
-            foreach (string line in output.Split('\n'))
-            {
-                string v = line.Trim();
-                if (v.Length > 0) result.Add(v);
-            }
-        }
-        catch (Exception)
+        foreach (string line in result.Stdout.Split('\n'))
         {
-            // 读取失败按「未配置」处理
+            string value = line.Trim();
+            if (value.Length > 0) helpers.Add(value);
         }
 
-        return result;
+        return helpers;
     }
 }
