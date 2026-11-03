@@ -1,0 +1,86 @@
+<Window x:Class="MultiGitCommit.StageFilesWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="选择要添加的文件"
+        Width="780" Height="580"
+        MinWidth="640" MinHeight="440"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
+        ShowInTaskbar="False">
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="4,2"/>
+        </Style>
+        <!-- 文件列表行更紧凑：几十个文件时也不至于滚太久 -->
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="4,1"/>
+            <Setter Property="MinHeight" Value="0"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="12">
+
+        <!-- 底部按钮栏：始终可见 -->
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,10,0,0">
+            <TextBlock x:Name="TxtCount" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#666"/>
+            <Button x:Name="BtnOk" Content="添加勾选的文件" Width="130" IsDefault="True" Click="BtnOk_Click"/>
+            <Button Content="取消" Width="80" IsCancel="True" Click="BtnCancel_Click"/>
+        </StackPanel>
+
+        <!-- 顶部说明与批量操作（不随列表滚动） -->
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="选择要执行 git add 的文件" FontWeight="Bold" FontSize="14" Foreground="#2B579A"/>
+
+            <TextBlock Text="仓库：" Margin="0,8,0,2" Foreground="#666"/>
+            <TextBox x:Name="TxtRepo" IsReadOnly="True" VerticalContentAlignment="Center"/>
+
+            <TextBlock TextWrapping="Wrap" Margin="0,8,0,6" Foreground="#666"
+                       Text="默认全部勾选（等同于 git add .）；取消勾选的文件不会被添加。已在暂存区的文件即使取消勾选也不会撤销暂存，仍会进入本次提交。"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <Button Content="全选" Width="70" Click="BtnSelectAll_Click"/>
+                <Button Content="全不选" Width="70" Click="BtnSelectNone_Click"/>
+                <Button Content="只选未暂存" Width="100" Click="BtnSelectUnstaged_Click"
+                        ToolTip.Tip="已暂存的文件不重复 add，适合只想补齐工作区改动的场景"/>
+                <TextBlock x:Name="TxtStatus" VerticalAlignment="Center" Margin="12,0,0,0"
+                           Foreground="#B00020" TextWrapping="Wrap"/>
+            </StackPanel>
+
+            <Grid Margin="6,0,18,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="34"/>
+                    <ColumnDefinition Width="64"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="添加" Foreground="#666"/>
+                <TextBlock Grid.Column="1" Text="状态" Foreground="#666"/>
+                <TextBlock Grid.Column="2" Text="文件（相对仓库根目录）" Foreground="#666"/>
+                <TextBlock Grid.Column="3" Text="暂存区" Foreground="#666"/>
+            </Grid>
+        </StackPanel>
+
+        <Border BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">
+            <ListBox x:Name="ListFiles" Padding="0" BorderThickness="0">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ColumnDefinitions="34,64,*,Auto" Margin="0,1">
+                            <CheckBox Grid.Column="0" IsChecked="{Binding Selected, Mode=TwoWay}"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                      IsCheckedChanged="Item_Checked"/>
+                            <TextBlock Grid.Column="1" Text="{Binding StatusLabel}" VerticalAlignment="Center"
+                                       FontWeight="Bold" Foreground="#2B579A"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Display}" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Path}"/>
+                            <TextBlock Grid.Column="3" Text="{Binding StageLabel}" VerticalAlignment="Center"
+                                       Foreground="#888" FontSize="11" Margin="10,0,6,0"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+    </DockPanel>
+</Window>

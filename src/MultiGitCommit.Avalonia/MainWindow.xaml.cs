@@ -815,6 +815,7 @@ public partial class MainWindow : Window
                 ForcePush = _config.CheckForcePush,
                 PushTags = _config.CheckPushTags,
                 Remark = TxtCommitMessage.Text?.Trim() ?? string.Empty,
+                SelectFilesToStage = SelectFilesToStageAsync,
                 EnsureIdentity = EnsureIdentityInteractiveAsync,
                 OnBranchDetected = branch => TxtBranchInfo.Text = $"当前分支：{branch}"
             }, Log);
@@ -828,6 +829,24 @@ public partial class MainWindow : Window
             BtnCommitPush.Content = idleText;
             BtnCommitPush.IsEnabled = true;
         }
+    }
+
+    /// <summary>
+    /// 选择性 git add 的界面部分（由 <see cref="CommitPushService"/> 在勾选了 add 后回调）：
+    /// 弹出文件勾选窗口，返回用户要添加的相对路径；用户取消返回 null 让流程终止。
+    /// </summary>
+    private async Task<IReadOnlyList<string>?> SelectFilesToStageAsync(IReadOnlyList<WorkingTreeFile> files)
+    {
+        var win = new StageFilesWindow(_repoRoot ?? string.Empty, files);
+        if (await win.ShowDialog<bool?>(this) != true)
+        {
+            Log("已取消选择要添加的文件。");
+            return null;
+        }
+
+        IReadOnlyList<string> selected = win.SelectedPaths;
+        Log($"已勾选 {selected.Count} / {files.Count} 个文件执行 git add。");
+        return selected;
     }
 
     // ==================== 拉取更新 ====================

@@ -104,7 +104,8 @@
                 </Grid>
                 <!-- WrapPanel：四个复选框总宽超过默认窗口宽度，窄窗口时自动换行，避免【强制推送】被裁掉 -->
                 <WrapPanel Grid.Row="2">
-                    <CheckBox x:Name="ChkAddAll" Content="执行 git add . （默认不勾选，避免误提交垃圾文件）" Margin="0,2,20,2"
+                    <CheckBox x:Name="ChkAddAll" Content="执行 git add（勾选后先选择要添加的文件）" Margin="0,2,20,2"
+                              ToolTip.Tip="勾选后点击【执行提交并推送全部远端】会先列出工作区变更文件，由你勾选要添加的部分（默认不勾选，避免误提交垃圾文件）"
                               IsCheckedChanged="ChkAddAll_Changed"/>
                     <CheckBox x:Name="ChkPushTags" Content="推送标签 --tags（默认不勾选）" Margin="0,2,20,2"
                               IsCheckedChanged="ChkPushTags_Changed"/>

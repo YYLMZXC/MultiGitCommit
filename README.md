@@ -17,6 +17,7 @@
 - **每个仓库独立配置**：远端列表、复选框状态保存在各自仓库根目录的 `multigitcommit.config.json`，切换仓库自动加载对应项目的配置。
 - **启动即自动加载**：打开程序自动定位仓库并载入其 `multigitcommit.config.json`——默认**当前目录优先**：从当前目录（含程序自身目录，IDE 调试 / 双击 exe 常见）向上逐级（最多 12 层）查找 `.git` 或 `multigitcommit.config.json` 定位真正的仓库根目录；当前目录不在仓库内时回退到上次使用过的仓库；都找不到才提示手动选择。可在【Git 环境】→「启动时加载的仓库」中改为「上次使用的仓库优先」。
 - **固定提交格式**：commit 消息固定为 `yyyy-MM-dd HH:mm:ss 用户备注`；备注为空时仅使用本地时间戳。
+- **选择性 git add**：勾选【执行 git add】后点击提交，会先列出工作区的全部变更（状态 / 路径 / 暂存区状态），由你勾选要添加的文件（默认全选，支持全选 / 全不选 / 只选未暂存），只对勾选项执行 `git add --`，不再 `git add .` 一把梭把垃圾文件带进提交。
 - **动态分支**：自动获取当前分支名推送，不硬编码 main/master。
 - **空提交防护**：工作区无变更时自动跳过 `git commit`，不生成空提交；勾选【强制提交】可忽略该防护（`--allow-empty`）。
 - **强制推送**：勾选【强制推送】后推送命令追加 `--force`，用于非快进被拒、变基/回退后覆盖远端历史（谨慎使用）。
@@ -129,7 +130,7 @@ dotnet publish -c Release -r linux-arm64
 1. 本地还没有仓库？点击【克隆项目】，填写远端 URL、本地父目录与目录名（目录名默认按 URL 自动推导），可选指定分支 / 递归子模块 / 浅克隆，确认后自动克隆并切换到该仓库。
 2. 点击【选择文件夹】，选择任意 Git 仓库根目录（与 `.git` 同级）；输入子目录时会自动回填真正的仓库根目录。
 3. 在【推送远端地址管理】中添加远端 URL（支持 ssh/https 格式，如 `git@gitee.com:user/repo.git`、`https://github.com/user/repo.git`），可添加多个，也可【在浏览器中打开】查看。
-4. 填写提交备注（可选），按需勾选 `git add .`、`--tags` 推送标签、【强制提交 `--allow-empty`】与【强制推送 `--force`】。
+4. 填写提交备注（可选），按需勾选 `git add`（勾选后提交前会弹窗列出工作区变更，自己勾选要添加的文件）、`--tags` 推送标签、【强制提交 `--allow-empty`】与【强制推送 `--force`】。
 5. 点击【执行提交并推送全部远端】，日志区实时查看每一步命令与结果（执行期间按钮显示「执行中…」）。
 
 ## 非交互执行与超时保护
@@ -247,7 +248,7 @@ ssh 远端（`git@host:...`）不走凭据，使用 ssh 密钥。
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `RemoteUrls` | string[] | 推送远端 URL 列表 |
-| `CheckAddAll` | bool | 是否执行 `git add .` |
+| `CheckAddAll` | bool | 是否执行 `git add`（勾选后提交前弹窗勾选要添加的文件） |
 | `CheckPushTags` | bool | 是否推送标签 `--tags` |
 | `CheckForceCommit` | bool | 是否强制提交（commit 追加 `--allow-empty`，无变更也生成空提交） |
 | `CheckForcePush` | bool | 是否强制推送（push 追加 `--force`，覆盖远端历史） |
@@ -303,6 +304,7 @@ MultiGitCommit/
     │   ├── IdentityWindow.axaml(.cs)        # 提交身份窗口（user.name / user.email + 仓库级/全局）
     │   ├── CredentialDetectWindow.axaml(.cs)# 系统凭据检测窗口（选主机 → 检测（可停止）→ 勾选导入）
     │   ├── HistoryWindow.axaml(.cs)         # 提交历史窗口（浏览 / 重置提交 + 打开该提交修改的文件）
+    │   ├── StageFilesWindow.axaml(.cs)      # 选择性 git add 窗口（工作区变更文件勾选）
     │   ├── AboutWindow.axaml(.cs)           # 关于窗口（版本 + 项目地址）
     │   ├── Dialogs.cs                       # 自建提示 / 确认 / 输入对话框
     │   ├── ProjectConfig.cs                 # 每仓库配置读写（multigitcommit.config.json）

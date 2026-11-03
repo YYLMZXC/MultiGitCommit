@@ -19,6 +19,13 @@ public interface ILoggedGitRunner
     /// <param name="fileName">可执行文件；null 表示当前解析到的 git。</param>
     Task<GitCommandResult> RunAsync(string workingDirectory, string arguments, string? logLabel = null,
         TimeSpan? timeout = null, string? fileName = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// 执行命令但【不逐行输出到日志】，只把命令摘要与失败原因写进日志。
+    /// 用于输出不适合直接展示的命令（如 <c>git status --porcelain -z</c> 用 NUL 分隔）。
+    /// </summary>
+    Task<GitCommandResult> RunQuietAsync(string workingDirectory, string arguments, string? logLabel = null,
+        TimeSpan? timeout = null, string? fileName = null, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -56,6 +63,31 @@ public sealed class GitCommandReporter : ILoggedGitRunner
         {
             _log($"[超时] 命令执行超过 {limit.TotalMinutes:0.##} 分钟仍未结束，已强制终止：{logLabel ?? arguments}");
             _log("       常见原因：远端要求输入用户名/密码或 ssh 口令（本工具为非交互执行，不会弹框输入）、网络不通、仓库过大。");
+        }
+
+        return result;
+    }
+
+    public async Task<GitCommandResult> RunQuietAsync(string workingDirectory, string arguments, string? logLabel = null,
+        TimeSpan? timeout = null, string? fileName = null, CancellationToken cancellationToken = default)
+    {
+        TimeSpan limit = timeout ?? GitTimeouts.Default;
+        if (logLabel != null) _log("> " + logLabel);
+
+        GitCommandResult result = await _cli.RunAsync(new GitCommandRequest
+        {
+            FileName = fileName,
+            Arguments = arguments,
+            WorkingDirectory = workingDirectory,
+            Timeout = limit
+        }, cancellationToken).ConfigureAwait(true);
+
+        if (!result.Success)
+        {
+            if (result.TimedOut)
+                _log($"[超时] 命令执行超过 {limit.TotalMinutes:0.##} 分钟仍未结束，已强制终止：{logLabel ?? arguments}");
+            else if (!result.Cancelled && result.ErrorText.Length > 0)
+                _log("      " + result.ErrorText);
         }
 
         return result;

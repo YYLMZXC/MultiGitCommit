@@ -9,8 +9,14 @@ public sealed class CommitPushRequest
     /// <summary>本项目配置的远端 URL 列表（逐个推送，一个失败不阻断后续）。</summary>
     public IReadOnlyList<string> RemoteUrls { get; init; } = Array.Empty<string>();
 
-    /// <summary>是否先执行 <c>git add .</c>。</summary>
+    /// <summary>是否先执行 <c>git add</c>（勾选后由 <see cref="SelectFilesToStage"/> 决定添加哪些文件）。</summary>
     public bool AddAll { get; init; }
+
+    /// <summary>
+    /// 选择性 add 的委托：把工作区变更列表交给宿主（界面弹窗勾选），返回要 add 的相对路径；
+    /// 返回 null 表示用户取消，流程应中止。<see cref="AddAll"/> 为 true 且此委托为 null 时退回 <c>git add .</c>。
+    /// </summary>
+    public Func<IReadOnlyList<WorkingTreeFile>, Task<IReadOnlyList<string>?>>? SelectFilesToStage { get; init; }
 
     /// <summary>工作区无变更时是否仍生成空提交（--allow-empty）。</summary>
     public bool ForceCommit { get; init; }
@@ -119,29 +125,48 @@ public sealed class CommitPushService
             return CommitPushResult.Aborted("尚未配置推送远端地址", 0, branch);
         }
 
-        // 3) 勾选【git add .】才执行；未勾选则跳过，由用户提前手动 add
+        // 3) 勾选【执行 git add】才添加文件；未勾选则跳过，由用户提前手动 add。
+        //    界面提供了勾选回调时只添加用户勾选的文件（避免 git add . 把临时文件带进提交）。
         if (request.AddAll)
         {
-            GitCommandResult add = await _git.RunAsync(repoDir, "add .", "git add .", cancellationToken: cancellationToken)
-                .ConfigureAwait(true);
-            if (!add.Success) log("git add . 执行失败，继续后续流程。");
+            bool staged = await StageAsync(repoDir, request, log, cancellationToken).ConfigureAwait(true);
+            if (!staged)
+            {
+                log("流程终止：已取消选择要添加的文件。");
+                return CommitPushResult.Aborted("已取消选择要添加的文件", urls.Count, branch);
+            }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
 
-        // 4) 用 git status 判断工作区状态：无变更则跳过 commit，不生成空提交
+        // 4) 判断是否真的有东西可提交：以【暂存区】为准。
+        //    选择性 add 之后，未勾选的文件仍留在工作区，但本次不该被提交，
+        //    因此不能只看 git status 是否为空（否则会生成一个空改动、直接失败的 commit）。
         GitCommandResult status = await _git.RunAsync(repoDir, "status --porcelain", "git status --porcelain",
             cancellationToken: cancellationToken).ConfigureAwait(true);
-        bool hasChanges = !string.IsNullOrWhiteSpace(status.Stdout);
+        bool hasWorkTreeChanges = !string.IsNullOrWhiteSpace(status.Stdout);
 
-        if (!hasChanges && !request.ForceCommit)
+        GitCommandResult staged = await _git.RunQuietAsync(repoDir, "diff --cached --quiet",
+            "git diff --cached --quiet（检查暂存区）", GitTimeouts.Quick,
+            cancellationToken: cancellationToken).ConfigureAwait(true);
+
+        // 退出码 0 = 暂存区无改动，1 = 有改动；其他退出码说明判定失败，退回按工作区状态判断
+        bool hasStagedChanges = staged.ExitCode == 1
+            ? true
+            : staged.ExitCode == 0
+                ? false
+                : hasWorkTreeChanges;
+
+        if (!hasStagedChanges && !request.ForceCommit)
         {
-            log("工作区无任何变更（nothing to commit），跳过 git commit，不生成空提交。");
+            log(hasWorkTreeChanges
+                ? "暂存区没有待提交的改动（nothing to commit）：未勾选 / 未 add 的文件不会被提交，跳过 git commit。"
+                : "工作区无任何变更（nothing to commit），跳过 git commit，不生成空提交。");
         }
         else
         {
-            if (!hasChanges)
-                log("工作区无变更，但已勾选【强制提交】，仍执行一次空提交（--allow-empty）。");
+            if (!hasStagedChanges)
+                log("暂存区无改动，但已勾选【强制提交】，仍执行一次空提交（--allow-empty）。");
 
             // 4.5) 提交前置条件：必须存在 user.name / user.email，否则 git 生成不了 commit
             if (!await EnsureIdentityAsync(repoDir, request, log).ConfigureAwait(true))
@@ -191,6 +216,114 @@ public sealed class CommitPushService
     }
 
     // ==================== 步骤实现 ====================
+
+    /// <summary>
+    /// 执行 <c>git add</c>：
+    /// 1. 读取工作区变更（<c>git status --porcelain -z --untracked-files=all</c>）；
+    /// 2. 交给宿主的勾选回调（界面弹窗）拿到要添加的文件；
+    /// 3. 只对这些路径执行 <c>git add --</c>（路径过多时分批，避免命令行过长）。
+    ///
+    /// 返回 false 表示用户取消（流程应中止）；工作区无变更时返回 true 但什么也不做。
+    /// </summary>
+    private async Task<bool> StageAsync(string repoDir, CommitPushRequest request, Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<WorkingTreeFile>? files = await ReadWorkingTreeChangesAsync(repoDir, log, cancellationToken)
+            .ConfigureAwait(true);
+
+        if (files == null)
+        {
+            log("无法读取工作区文件列表，已跳过 git add（可稍后重试或手动执行 git add）。");
+            return true;
+        }
+
+        if (files.Count == 0)
+        {
+            log("工作区没有可添加的文件（无任何变更）。");
+            return true;
+        }
+
+        log($"工作区共 {files.Count} 个变更文件。");
+
+        IReadOnlyList<string> paths;
+        if (request.SelectFilesToStage == null)
+        {
+            GitCommandResult add = await _git.RunAsync(repoDir, "add .", "git add .",
+                cancellationToken: cancellationToken).ConfigureAwait(true);
+            if (!add.Success) log("git add . 执行失败，继续后续流程。");
+            return true;
+        }
+
+        IReadOnlyList<string>? selected = await request.SelectFilesToStage(files).ConfigureAwait(true);
+        if (selected == null) return false;
+
+        paths = selected.Where(p => p.Length > 0).Distinct(StringComparer.Ordinal).ToList();
+        if (paths.Count == 0)
+        {
+            log("未勾选任何文件，跳过 git add（已暂存的内容保持不变）。");
+            return true;
+        }
+
+        if (paths.Count < files.Count)
+            log($"已勾选 {paths.Count} 个文件，其余 {files.Count - paths.Count} 个不添加。");
+
+        return await AddFilesAsync(repoDir, paths, log, cancellationToken).ConfigureAwait(true);
+    }
+
+    /// <summary>读取工作区变更列表（未跟踪的目录会展开到具体文件）；读取失败返回 null。</summary>
+    public async Task<IReadOnlyList<WorkingTreeFile>?> ReadWorkingTreeChangesAsync(string repoDir, Action<string> log,
+        CancellationToken cancellationToken = default)
+    {
+        GitCommandResult status = await _git.RunQuietAsync(repoDir,
+            "status --porcelain -z --untracked-files=all",
+            "git status --porcelain -z --untracked-files=all",
+            GitTimeouts.Quick, cancellationToken: cancellationToken).ConfigureAwait(true);
+
+        if (!status.Success)
+        {
+            log("读取工作区文件列表失败：请查看上方 git 输出。");
+            return null;
+        }
+
+        return WorkingTreeFile.Parse(status.Stdout);
+    }
+
+    /// <summary>对指定路径执行 <c>git add --</c>；路径过多时分批，避免命令行超长。</summary>
+    private async Task<bool> AddFilesAsync(string repoDir, IReadOnlyList<string> paths, Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        const int batchSize = 40;
+        bool allSuccess = true;
+        int done = 0;
+
+        for (int start = 0; start < paths.Count; start += batchSize)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            List<string> batch = paths.Skip(start).Take(batchSize).ToList();
+            string args = "add -- " + string.Join(" ", batch.Select(GitArgument.Quote));
+            string label = batch.Count == paths.Count
+                ? $"git add -- {batch.Count} 个文件"
+                : $"git add -- {batch.Count} 个文件（{done + 1}-{done + batch.Count}/{paths.Count}）";
+
+            GitCommandResult add = await _git.RunAsync(repoDir, args, label, GitTimeouts.Default,
+                cancellationToken: cancellationToken).ConfigureAwait(true);
+
+            if (add.Success)
+            {
+                foreach (string path in batch) log("      已添加：" + path);
+            }
+            else
+            {
+                allSuccess = false;
+                log("      本批 git add 执行失败，继续后续流程。");
+            }
+
+            done += batch.Count;
+        }
+
+        return allSuccess;
+    }
 
     /// <summary>身份校验：已配置直接通过；否则交给宿主补全（弹窗 / 套用已保存身份）。</summary>
     private async Task<bool> EnsureIdentityAsync(string repoDir, CommitPushRequest request, Action<string> log)
