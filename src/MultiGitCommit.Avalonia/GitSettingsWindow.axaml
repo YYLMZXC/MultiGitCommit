@@ -58,11 +58,6 @@
 
                         <TextBlock x:Name="TxtResult" TextWrapping="Wrap" Margin="0,8,0,0"
                                    MinHeight="18" Foreground="#666"/>
-
-                        <TextBlock Text="凭据助手（credential.helper）"
-                                   Margin="0,14,0,4" FontWeight="SemiBold"/>
-                        <TextBlock x:Name="TxtHelperInfo" TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"
-                                   ToolTip.Tip="git 取用系统保存的账号所依赖的助手；若配置的助手在当前 git 中不存在（常见于精简便携版），推送时会报 'credential-manager' is not a git command"/>
                     </StackPanel>
                 </Border>
 
@@ -76,6 +71,8 @@
                             <TextBlock x:Name="TxtIdentityInfo" VerticalAlignment="Center" Foreground="#666"/>
                             <Button x:Name="BtnIdentity" Content="设置提交身份…" Padding="10,2" Margin="10,0,0,0" Click="BtnIdentity_Click"/>
                         </StackPanel>
+                        <TextBlock x:Name="TxtIdentityResult" TextWrapping="Wrap" Margin="0,6,0,0"
+                                   MinHeight="18" Foreground="#666"/>
                     </StackPanel>
                 </Border>
 
@@ -127,6 +124,17 @@
                             <Button x:Name="BtnCredDetect" Content="检测系统凭据…" Padding="10,2" Margin="6,0,0,0" Click="BtnCredDetect_Click"
                                     ToolTip.Tip="打开检测窗口：自行选择要检测的主机，再按需导入（可随时停止，不会全量扫描）"/>
                         </StackPanel>
+
+                        <!-- 账号操作的结果独立显示：不与上方 Git 配置测试结果共用一行 -->
+                        <TextBlock x:Name="TxtCredResult" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   MinHeight="18" Foreground="#666"/>
+
+                        <TextBlock Text="凭据助手（credential.helper）"
+                                   Margin="0,12,0,4" FontWeight="SemiBold"/>
+                        <TextBlock Text="按当前已生效的 git 检测；点【确定】保存新的 git 来源后会重新检测。"
+                                   TextWrapping="Wrap" Margin="0,0,0,4" Foreground="#888" FontSize="11"/>
+                        <TextBlock x:Name="TxtHelperInfo" TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"
+                                   ToolTip.Tip="git 取用系统保存的账号所依赖的助手；若配置的助手在当前 git 中不存在（常见于精简便携版），推送时会报 'credential-manager' is not a git command"/>
 
                         <TextBlock Text="凭据明文保存在应用设置目录的 settings.json"
                                    Margin="0,6,0,0" Foreground="#888" FontSize="11"/>

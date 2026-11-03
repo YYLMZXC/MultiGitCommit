@@ -140,13 +140,13 @@ public partial class GitSettingsWindow : Window
 
         if (host.Length == 0)
         {
-            ShowResult("× 请先填写远端主机（如 cnb.cool）。", false);
+            ShowCredResult("× 请先填写远端主机（如 cnb.cool）。", false);
             return;
         }
 
         if (user.Length == 0 || token.Length == 0)
         {
-            ShowResult("× 请同时填写用户名与访问令牌。", false);
+            ShowCredResult("× 请同时填写用户名与访问令牌。", false);
             return;
         }
 
@@ -163,14 +163,14 @@ public partial class GitSettingsWindow : Window
                 reason + "\n\n该账号未验证通过，仍要保存吗？（未验证的账号推送时很可能失败）");
             if (!keep)
             {
-                ShowResult("已放弃保存，该账号未写入列表。", null);
+                ShowCredResult("已放弃保存，该账号未写入列表。", null);
                 return;
             }
         }
 
         SaveCredential(host, user, token);
-        ShowResult((result.Success ? "√ 验证通过：" : "! 未验证通过但已保存：") +
-                   $" {host} 的推送凭据（点【确定】后生效）。", result.Success);
+        ShowCredResult((result.Success ? "√ 验证通过：" : "! 未验证通过但已保存：") +
+                       $" {host} 的推送凭据（点【确定】后生效）。", result.Success);
     }
 
     /// <summary>写入（或更新同主机的）一条凭据并刷新列表。</summary>
@@ -213,13 +213,13 @@ public partial class GitSettingsWindow : Window
 
         if (host.Length == 0)
         {
-            ShowResult("× 请先填写远端主机（如 cnb.cool）。", false);
+            ShowCredResult("× 请先填写远端主机（如 cnb.cool）。", false);
             return;
         }
 
         if (user.Length == 0 || token.Length == 0)
         {
-            ShowResult("× 请同时填写用户名与访问令牌。", false);
+            ShowCredResult("× 请同时填写用户名与访问令牌。", false);
             return;
         }
 
@@ -236,7 +236,7 @@ public partial class GitSettingsWindow : Window
         string? exe = GitLocator.ResolvePreview(CurrentMode, TxtCustomPath.Text?.Trim() ?? string.Empty, out _);
         if (exe == null)
         {
-            ShowResult("× 当前 git 来源下未找到可用的 git，请先配置 git 来源再验证账号。", false);
+            ShowCredResult("× 当前 git 来源下未找到可用的 git，请先配置 git 来源再验证账号。", false);
             return null;
         }
 
@@ -246,7 +246,7 @@ public partial class GitSettingsWindow : Window
 
         BtnCredTest.Content = "取消验证";
         BtnCredAdd.IsEnabled = false;
-        ShowResult($"正在验证 {user}@{host}（git ls-remote 实测，最多 {CredentialTester.DefaultTimeoutSeconds} 秒，可点【取消验证】中止）…", null);
+        ShowCredResult($"正在验证 {user}@{host}（git ls-remote 实测，最多 {CredentialTester.DefaultTimeoutSeconds} 秒，可点【取消验证】中止）…", null);
 
         try
         {
@@ -256,12 +256,12 @@ public partial class GitSettingsWindow : Window
                 _remoteUrls,
                 ct);
 
-            ShowResult((result.Success ? "√ " : "× ") + result.Message, result.Success);
+            ShowCredResult((result.Success ? "√ " : "× ") + result.Message, result.Success);
             return result;
         }
         catch (Exception ex)
         {
-            ShowResult("× 验证账号失败：" + ex.Message, false);
+            ShowCredResult("× 验证账号失败：" + ex.Message, false);
             return null;
         }
         finally
@@ -273,11 +273,36 @@ public partial class GitSettingsWindow : Window
         }
     }
 
-    /// <summary>把操作结果写入 TxtResult（true 成功 / false 失败 / null 中性提示）。</summary>
+    /// <summary>
+    /// 把 Git 配置测试结果写入 TxtResult（true 成功 / false 失败 / null 中性提示）。
+    /// 只服务于「Git 来源」这一组，账号 / 身份的结果各有独立文本，互不覆盖。
+    /// </summary>
     private void ShowResult(string message, bool? ok)
     {
         TxtResult.Text = message;
         TxtResult.Foreground = ok == true
+            ? Brush.Parse("#1E8E3E")
+            : ok == false
+                ? Brush.Parse("#B00020")
+                : Brush.Parse("#666666");
+    }
+
+    /// <summary>把账号相关提示写入账号区的 TxtCredResult（与 git 配置测试结果分开）。</summary>
+    private void ShowCredResult(string message, bool? ok)
+    {
+        TxtCredResult.Text = message;
+        TxtCredResult.Foreground = ok == true
+            ? Brush.Parse("#1E8E3E")
+            : ok == false
+                ? Brush.Parse("#B00020")
+                : Brush.Parse("#666666");
+    }
+
+    /// <summary>把提交身份相关提示写入身份区的 TxtIdentityResult（与 git 配置测试结果分开）。</summary>
+    private void ShowIdentityResult(string message, bool? ok)
+    {
+        TxtIdentityResult.Text = message;
+        TxtIdentityResult.Foreground = ok == true
             ? Brush.Parse("#1E8E3E")
             : ok == false
                 ? Brush.Parse("#B00020")
@@ -289,8 +314,7 @@ public partial class GitSettingsWindow : Window
     {
         if (ListCred.SelectedItem is not GitCredential cred)
         {
-            TxtResult.Text = "× 请先在上方列表中选中要删除的凭据。";
-            TxtResult.Foreground = Brush.Parse("#B00020");
+            ShowCredResult("× 请先在上方列表中选中要删除的凭据。", false);
             return;
         }
 
@@ -299,8 +323,7 @@ public partial class GitSettingsWindow : Window
         TxtCredHost.Text = string.Empty;
         TxtCredUser.Text = string.Empty;
         TxtCredToken.Text = string.Empty;
-        TxtResult.Text = $"已删除 {cred.Host} 的凭据（点【确定】后生效）。";
-        TxtResult.Foreground = Brush.Parse("#666");
+        ShowCredResult($"已删除 {cred.Host} 的凭据（点【确定】后生效）。", null);
     }
 
     /// <summary>InitializeComponent / 初始化过程中抑制事件。</summary>
@@ -408,16 +431,16 @@ public partial class GitSettingsWindow : Window
         switch (CurrentCredentialSource)
         {
             case CredentialSourceMode.System:
-                ShowResult("将只使用系统凭据：每次推送时实时索取，令牌不写入配置文件。", null);
+                ShowCredResult("将只使用系统凭据：每次推送时实时索取，令牌不写入配置文件。", null);
                 break;
             case CredentialSourceMode.Custom:
-                ShowResult("将只使用下方自定义账号：不会访问系统凭据库。", null);
+                ShowCredResult("将只使用下方自定义账号：不会访问系统凭据库。", null);
                 break;
             case CredentialSourceMode.None:
-                ShowResult("将不使用任何账号：适用于 ssh 远端或 URL 中自带凭据的情况。", null);
+                ShowCredResult("将不使用任何账号：适用于 ssh 远端或 URL 中自带凭据的情况。", null);
                 break;
             default:
-                ShowResult("自动检测：优先使用已保存的账号，找不到时自动从系统凭据获取。", null);
+                ShowCredResult("自动检测：优先使用已保存的账号，找不到时自动从系统凭据获取。", null);
                 break;
         }
     }
@@ -432,21 +455,21 @@ public partial class GitSettingsWindow : Window
         {
             if (GitLocator.ResolvePreview(CurrentMode, TxtCustomPath.Text?.Trim() ?? string.Empty, out _) == null)
             {
-                ShowResult("× 当前 git 来源未找到可用的 git，请先配置 git 来源再检测系统凭据。", false);
+                ShowCredResult("× 当前 git 来源未找到可用的 git，请先配置 git 来源再检测系统凭据。", false);
                 return;
             }
 
             var win = new CredentialDetectWindow(_remoteUrls);
             if (await win.ShowDialog<bool?>(this) != true)
             {
-                ShowResult("已取消，未导入任何系统账号。", null);
+                ShowCredResult("已取消，未导入任何系统账号。", null);
                 return;
             }
 
             var found = win.SelectedCredentials;
             if (found.Count == 0)
             {
-                ShowResult("未勾选任何账号，未导入。", null);
+                ShowCredResult("未勾选任何账号，未导入。", null);
                 return;
             }
 
@@ -479,11 +502,11 @@ public partial class GitSettingsWindow : Window
             }
 
             RefreshCredList();
-            ShowResult($"√ 已从系统导入 {imported} 个账号（点【确定】后生效）。", true);
+            ShowCredResult($"√ 已从系统导入 {imported} 个账号（点【确定】后生效）。", true);
         }
         catch (Exception ex)
         {
-            ShowResult("× 检测系统凭据失败：" + ex.Message, false);
+            ShowCredResult("× 检测系统凭据失败：" + ex.Message, false);
         }
     }
 
@@ -549,14 +572,14 @@ public partial class GitSettingsWindow : Window
         if (!_identityService.TryApply(identity, _repoPath, out string error))
         {
             string detail = error.Length > 0 ? $"{Environment.NewLine}{error}" : string.Empty;
-            ShowResult("× 写入提交身份失败，请确认 git 可用且该仓库目录可写。" + detail, false);
+            ShowIdentityResult("× 写入提交身份失败，请确认 git 可用且该仓库目录可写。" + detail, false);
             return;
         }
 
         _settings.CommitIdentity = identity;
         await RefreshIdentityInfoAsync();
-        ShowResult($"√ 已写入提交身份（{(identity.Scope == IdentityScope.Global ? "全局 --global" : "本仓库 --local")}）：" +
-                   $"{identity.Name} <{identity.Email}>", true);
+        ShowIdentityResult($"√ 已写入提交身份（{(identity.Scope == IdentityScope.Global ? "全局 --global" : "本仓库 --local")}）：" +
+                           $"{identity.Name} <{identity.Email}>", true);
     }
 
     /// <summary>
