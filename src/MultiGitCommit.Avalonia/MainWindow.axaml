@@ -128,6 +128,8 @@
                        ToolTip.Tip="git commit 需要 user.name 与 user.email，缺失时 git 直接报错（Please tell me who you are）"/>
             <Button x:Name="BtnIdentity" Content="提交身份…" Click="BtnIdentity_Click" Padding="10,2" Margin="8,0,0,0"
                     ToolTip.Tip="设置并提交 git 的 user.name / user.email（可写入本仓库或全局）"/>
+            <Button x:Name="BtnHistory" Content="历史记录…" Click="BtnHistory_Click" Padding="10,2" Margin="8,0,0,0"
+                    ToolTip.Tip="浏览当前分支的历史提交记录，并可重置（soft / mixed / hard）到指定提交"/>
         </StackPanel>
 
         <!-- ============ 五、手动命令执行区 ============ -->

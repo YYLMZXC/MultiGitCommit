@@ -1,0 +1,102 @@
+<Window x:Class="MultiGitCommit.HistoryWindow"
+        xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="提交历史"
+        Width="920" Height="660"
+        MinWidth="760" MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="Microsoft YaHei UI,PingFang SC" FontSize="13"
+        ShowInTaskbar="False">
+
+    <Window.Styles>
+        <Style Selector="Button">
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="4,2"/>
+        </Style>
+        <!-- 历史列表行更紧凑：默认行高会把 200 条记录撑得很散 -->
+        <Style Selector="ListBoxItem">
+            <Setter Property="Padding" Value="4,1"/>
+            <Setter Property="MinHeight" Value="0"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel Margin="12">
+
+        <!-- 顶部：仓库路径 / 刷新 / 状态 / 表头（不随列表滚动） -->
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="提交历史（当前分支，最新在前）" FontWeight="Bold" FontSize="14" Foreground="#2B579A"/>
+
+            <Grid Margin="0,6,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="TxtRepoPath" Grid.Column="0" IsReadOnly="True" VerticalContentAlignment="Center"/>
+                <Button x:Name="BtnRefresh" Grid.Column="1" Content="刷新" Click="BtnRefresh_Click" Margin="6,2,0,2"/>
+            </Grid>
+
+            <TextBlock x:Name="TxtStatus" TextWrapping="Wrap" Margin="0,6,0,6" Foreground="#666"/>
+
+            <Grid Margin="6,0,18,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="130"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="120"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="时间" Foreground="#666"/>
+                <TextBlock Grid.Column="1" Text="提交" Foreground="#666"/>
+                <TextBlock Grid.Column="2" Text="作者" Foreground="#666"/>
+                <TextBlock Grid.Column="3" Text="说明" Foreground="#666"/>
+            </Grid>
+        </StackPanel>
+
+        <!-- 底部：重置模式与操作按钮（始终可见） -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Margin="0,8,0,0">
+            <StackPanel Margin="10">
+                <TextBlock Text="重置到选中提交（只影响本地分支，不会推送远端）" FontWeight="SemiBold"/>
+
+                <RadioButton x:Name="RbSoft" Margin="0,3"
+                             Content="soft：只移动 HEAD，改动保留在暂存区（最安全，推荐）" IsChecked="True"/>
+                <RadioButton x:Name="RbMixed" Margin="0,3"
+                             Content="mixed：重置暂存区，工作区文件内容不变（git reset 默认行为）"/>
+                <RadioButton x:Name="RbHard" Margin="0,3" Foreground="#C00000"
+                             Content="hard：丢弃工作区所有未提交改动（不可恢复，请谨慎）"/>
+
+                <TextBlock x:Name="TxtHint" TextWrapping="Wrap" Margin="0,6,0,0" Foreground="#666"
+                           Text="请先在列表中选择要重置到的提交。"/>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,6,0,0">
+                    <TextBlock x:Name="TxtProgress" VerticalAlignment="Center" Margin="0,0,10,0" Foreground="#2B579A"/>
+                    <Button x:Name="BtnReset" Content="重置到选中提交" Click="BtnReset_Click" IsEnabled="False"
+                            ToolTip.Tip="执行 git reset，把当前分支回退到选中提交（执行前会二次确认）"/>
+                    <Button Content="关闭" Width="80" IsCancel="True" Click="BtnClose_Click"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- 提交列表（占满剩余空间） -->
+        <ListBox x:Name="ListCommits" SelectionChanged="ListCommits_SelectionChanged"
+                 BorderBrush="#CCCCCC" BorderThickness="1" Padding="0">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="0,1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="130"/>
+                            <ColumnDefinition Width="80"/>
+                            <ColumnDefinition Width="120"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Date}" VerticalAlignment="Center"/>
+                        <TextBlock Grid.Column="1" Text="{Binding ShortHash}" VerticalAlignment="Center"
+                                   FontFamily="Consolas,Menlo" Foreground="#2B579A"/>
+                        <TextBlock Grid.Column="2" Text="{Binding Author}" VerticalAlignment="Center"
+                                   Foreground="#555" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="3" Text="{Binding Subject}" VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

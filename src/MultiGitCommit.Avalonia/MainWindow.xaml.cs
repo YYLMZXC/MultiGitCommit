@@ -812,6 +812,27 @@ public partial class MainWindow : Window
         return branch;
     }
 
+    // ==================== 提交历史 ====================
+
+    /// <summary>打开提交历史窗口：浏览当前分支的历史提交，并可重置到指定提交。</summary>
+    private async void BtnHistory_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_repoRoot == null)
+        {
+            Log("请先选择有效的 git 仓库目录，再查看提交历史。");
+            return;
+        }
+
+        if (!EnsureGitAvailable()) return;
+
+        var win = new HistoryWindow(_repoRoot, _cli);
+        await win.ShowDialog(this);
+
+        // 窗口内可能执行过 reset：关闭后重新读取分支信息，保持界面与仓库一致
+        if (_repoRoot != null)
+            await GetCurrentBranchAsync(_repoRoot);
+    }
+
     // ==================== 手动命令执行区 ====================
 
     private async void BtnRunCommand_Click(object? sender, RoutedEventArgs e)
