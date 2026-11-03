@@ -71,9 +71,9 @@ public sealed class CommitPushService
 {
     private readonly ILoggedGitRunner _git;
     private readonly GitIdentityService _identity;
-    private readonly AppSettings _settings;
+    private readonly ISettingsProvider _settings;
 
-    public CommitPushService(ILoggedGitRunner gitRunner, GitIdentityService identityService, AppSettings settings)
+    public CommitPushService(ILoggedGitRunner gitRunner, GitIdentityService identityService, ISettingsProvider settings)
     {
         _git = gitRunner;
         _identity = identityService;
@@ -256,7 +256,7 @@ public sealed class CommitPushService
                         ? $"已自动使用系统 git 凭据（{detected.Source}）：{GitCredentials.Mask(pushUrl)}"
                         : $"已为 {GitCredentials.Mask(pushUrl)} 注入已保存的推送凭据。");
                 }
-                else if (_settings.CredentialSource != CredentialSourceMode.None)
+                else if (_settings.Current.CredentialSource != CredentialSourceMode.None)
                 {
                     log($"提示：{GitCredentials.Mask(url)} 未找到可用的推送凭据，https 远端的非交互推送很可能失败" +
                         "（可在【Git 环境】中选择账号来源，并用【检测系统凭据…】导入或手动填写）。");
@@ -299,12 +299,12 @@ public sealed class CommitPushService
     /// </summary>
     private async Task<GitCredential?> ResolveCredentialAsync(string url)
     {
-        CredentialSourceMode mode = _settings.CredentialSource;
+        CredentialSourceMode mode = _settings.Current.CredentialSource;
         if (mode == CredentialSourceMode.None) return null;
 
         if (mode != CredentialSourceMode.System)
         {
-            GitCredential? custom = GitCredentials.Find(url, _settings.Credentials);
+            GitCredential? custom = GitCredentials.Find(url, _settings.Current.Credentials);
             if (custom != null) return custom;
         }
 

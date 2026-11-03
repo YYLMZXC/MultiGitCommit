@@ -55,18 +55,27 @@ public partial class MainWindow : Window
     /// <summary>提交推送业务流程（不依赖任何 UI 类型）。</summary>
     private readonly CommitPushService _commitPush;
 
-    public MainWindow() : this(GitCliRunner.Default)
+    /// <summary>应用设置来源（不再直接摸 GitLocator 的静态单例）。</summary>
+    private readonly ISettingsProvider _settings;
+
+    public MainWindow() : this(GitCliRunner.Default, SettingsProvider.Instance)
     {
     }
 
     /// <summary>可注入命令执行器（单元测试时传入假实现，无需真实 git 与 UI 运行时）。</summary>
-    public MainWindow(IGitCliRunner cli)
+    public MainWindow(IGitCliRunner cli) : this(cli, SettingsProvider.Instance)
+    {
+    }
+
+    /// <summary>可注入命令执行器与设置来源（完全脱离真实磁盘设置，便于测试）。</summary>
+    public MainWindow(IGitCliRunner cli, ISettingsProvider settings)
     {
         _cli = cli;
+        _settings = settings;
         _identity = new GitIdentityService(cli);
         _repoLocator = new RepoLocator(cli);
         _logged = new GitCommandReporter(cli, Log);
-        _commitPush = new CommitPushService(_logged, _identity, GitLocator.Settings);
+        _commitPush = new CommitPushService(_logged, _identity, settings);
         _loading = true;
         InitializeComponent();
         Dialogs.ApplyIcon(this);
@@ -390,16 +399,16 @@ public partial class MainWindow : Window
     {
         // 传入当前项目的远端 URL：验证账号时优先用同主机的真实远端做探测；
         // 传入仓库根目录：在设置窗口里可直接写入 / 读取仓库级提交身份
-        var win = new GitSettingsWindow(GitLocator.Settings, _config?.RemoteUrls, _repoRoot);
+        var win = new GitSettingsWindow(_settings.Current, _config?.RemoteUrls, _repoRoot);
         if (await win.ShowDialog<bool?>(this) != true) return;
 
-        GitLocator.Settings.GitSource = win.SelectedSource;
-        GitLocator.Settings.CustomGitPath = win.SelectedCustomPath;
-        GitLocator.Settings.CredentialSource = win.SelectedCredentialSource;
+        _settings.Current.GitSource = win.SelectedSource;
+        _settings.Current.CustomGitPath = win.SelectedCustomPath;
+        _settings.Current.CredentialSource = win.SelectedCredentialSource;
         try
         {
-            GitLocator.Settings.Save();
-            Log($"已保存 Git 环境设置：{GitLocator.Settings.SettingsFilePath}");
+            _settings.Save();
+            Log($"已保存 Git 环境设置：{_settings.Current.SettingsFilePath}");
         }
         catch (Exception ex)
         {
@@ -891,9 +900,9 @@ public partial class MainWindow : Window
     ///    使 IDE 调试或程序放在仓库内的场景也能自动加载配置；
     /// 4) 都没有则返回 null（由用户点【浏览】选择）。
     /// </summary>
-    private static string? ResolveStartupRepoPath(out string message)
+    private string? ResolveStartupRepoPath(out string message)
     {
-        string last = GitLocator.Settings.LastRepoPath ?? string.Empty;
+        string last = _settings.Current.LastRepoPath ?? string.Empty;
         if (last.Length > 0 && Directory.Exists(last))
         {
             message = $"已载入上次使用的仓库目录：{last}";
@@ -931,13 +940,13 @@ public partial class MainWindow : Window
     /// <summary>记住本次成功加载的仓库目录，下次启动自动载入其项目配置。</summary>
     private void RememberRepoPath(string repoRoot)
     {
-        if (string.Equals(GitLocator.Settings.LastRepoPath, repoRoot, StringComparison.Ordinal))
+        if (string.Equals(_settings.Current.LastRepoPath, repoRoot, StringComparison.Ordinal))
             return;
 
-        GitLocator.Settings.LastRepoPath = repoRoot;
+        _settings.Current.LastRepoPath = repoRoot;
         try
         {
-            GitLocator.Settings.Save();
+            _settings.Save();
         }
         catch (Exception)
         {
@@ -974,7 +983,7 @@ public partial class MainWindow : Window
     {
         Log("未检测到 git 提交身份（user.name / user.email）：这是生成 commit 的前置条件，缺失时 git 会直接报错。");
 
-        var saved = GitLocator.Settings.CommitIdentity;
+        var saved = _settings.Current.CommitIdentity;
         GitIdentity identity;
 
         if (saved != null && saved.IsComplete)
@@ -992,11 +1001,11 @@ public partial class MainWindow : Window
             }
 
             identity = win.Result;
-            GitLocator.Settings.CommitIdentity = identity;
+            _settings.Current.CommitIdentity = identity;
             try
             {
-                GitLocator.Settings.Save();
-                Log($"已保存提交身份到：{GitLocator.Settings.SettingsFilePath}");
+                _settings.Save();
+                Log($"已保存提交身份到：{_settings.Current.SettingsFilePath}");
             }
             catch (Exception ex)
             {
@@ -1032,16 +1041,16 @@ public partial class MainWindow : Window
         {
             Name = name,
             Email = email,
-            Scope = GitLocator.Settings.CommitIdentity?.Scope ?? IdentityScope.Local
+            Scope = _settings.Current.CommitIdentity?.Scope ?? IdentityScope.Local
         };
 
         var win = new IdentityWindow(current);
         if (await win.ShowDialog<bool?>(this) != true) return;
 
-        GitLocator.Settings.CommitIdentity = win.Result;
+        _settings.Current.CommitIdentity = win.Result;
         try
         {
-            GitLocator.Settings.Save();
+            _settings.Save();
         }
         catch (Exception ex)
         {
