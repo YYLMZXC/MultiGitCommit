@@ -23,6 +23,7 @@
 - **手动命令执行**：可在当前仓库目录执行任意 git / 系统命令，stdout/stderr 全量输出日志（Windows 走 `cmd.exe /c chcp 65001`，macOS / Linux 走登录 shell `/bin/bash -lc`，可拿到 Homebrew / Linuxbrew 等 PATH）。
 - **仓库初始化 / 默认分支**：`git init` + 指定默认分支，空仓库直接设置 HEAD 指向；输入仓库子目录时自动定位到真正的仓库根目录。
 - **远端快速操作**：远端列表支持添加 / 编辑 / 删除，并可【在浏览器中打开】选中的远端 URL。
+- **提交历史与打开文件**：查看当前分支最近 200 条提交，可把本地分支重置到任意提交（soft / mixed / hard，执行前二次确认）；选中提交后列出该提交改动的文件，双击列表项（或按回车 / 点【打开选中文件】）即用系统默认关联程序打开对应文件，【打开所在文件夹】在资源管理器 / Finder / 文件管理器中定位——已删除的文件也能打开其所在目录（Windows 走 ShellExecute + `explorer /select`，macOS 走 `open` / `open -R`，Linux 走 `xdg-open` / `gio open`）。
 - **提交身份（user.name / user.email）**：提交的前置条件，界面实时显示当前生效身份；提交前自动校验，缺失时套用已保存身份或弹窗引导填写并写入 git config（可选仓库级 / 全局），未设置则终止提交而不是静默失败（详见下方【提交身份】）。
 - **推送凭据（账号）**：像【Git 环境】选择 git 来源一样，账号也可**选择来源**——自动检测（自定义优先，缺失时取系统）/ 仅系统凭据 / 仅自定义 / 不使用；系统账号可按需**检测并导入**（先选主机再检测，可随时停止），填写后可用一次 `git ls-remote` 实测账号是否可用（详见下方【推送凭据】）。
 - **凭据助手自动适配**：自动扫描当前 git 真正可用的 `credential.helper`（Windows：manager / wincred / store；macOS：manager / osxkeychain / store；Linux：manager / libsecret / gnome-keyring / store）；配置里的助手在当前 git 中不存在时（精简便携版常见），临时用 `-c credential.helper=xxx` 覆盖，不改动用户 git 配置。
@@ -300,6 +301,7 @@ MultiGitCommit/
     │   ├── GitSettingsWindow.axaml(.cs)     # Git 环境设置窗口（来源选择/浏览/测试 + 提交身份 + 推送凭据）
     │   ├── IdentityWindow.axaml(.cs)        # 提交身份窗口（user.name / user.email + 仓库级/全局）
     │   ├── CredentialDetectWindow.axaml(.cs)# 系统凭据检测窗口（选主机 → 检测（可停止）→ 勾选导入）
+    │   ├── HistoryWindow.axaml(.cs)         # 提交历史窗口（浏览 / 重置提交 + 打开该提交修改的文件）
     │   ├── AboutWindow.axaml(.cs)           # 关于窗口（版本 + 项目地址）
     │   ├── Dialogs.cs                       # 自建提示 / 确认 / 输入对话框
     │   ├── ProjectConfig.cs                 # 每仓库配置读写（multigitcommit.config.json）
@@ -307,6 +309,7 @@ MultiGitCommit/
     │   ├── GitCredentialHelper.cs           # credential.helper 可用性检测与自动覆盖
     │   ├── SystemCredentialProbe.cs         # 系统凭据探测（凭据管理器 / 钥匙串 / Secret Service / .git-credentials，可取消、5 秒超时）
     │   ├── CredentialTester.cs              # 账号验证（git ls-remote 实测，20 秒超时、可取消、输出脱敏）
+    │   ├── Services/FileOpener.cs           # 用系统默认程序打开文件 / 在文件管理器中定位（Windows / macOS / Linux）
     │   ├── MultiGitCommit.csproj            # 项目文件（net10.0，RID：win-x64 / osx-arm64 / osx-x64 / linux-x64 / linux-arm64）
     │   └── res/                             # 应用图标（icon.png / icon.ico）
     └── old-version/                 # 已归档的旧版实现（不再更新）

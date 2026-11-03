@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 
@@ -221,6 +222,87 @@ public partial class HistoryWindow : Window
     {
         ListFiles.ItemsSource = null;
         ListFiles.ItemsSource = _files;
+        UpdateFileButtons();
+    }
+
+    // ==================== 打开修改的文件 / 定位所在文件夹 ====================
+
+    /// <summary>文件列表选中项变化时同步按钮可用状态。</summary>
+    private void ListFiles_SelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateFileButtons();
+
+    /// <summary>按回车打开选中文件（键盘操作，和双击等价）。</summary>
+    private void ListFiles_KeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || ListFiles.SelectedItem is not GitCommitFile) return;
+        e.Handled = true;
+        OpenSelectedFile();
+    }
+
+    /// <summary>双击列表项：用系统默认关联程序打开该文件。</summary>
+    private void ListFiles_DoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (ListFiles.SelectedItem is GitCommitFile) OpenSelectedFile();
+    }
+
+    private void BtnOpenFile_Click(object? sender, RoutedEventArgs e) => OpenSelectedFile();
+
+    private void BtnRevealFile_Click(object? sender, RoutedEventArgs e) => RevealSelectedFile();
+
+    /// <summary>
+    /// 按钮状态：删除（D）或工作区里已不存在的文件不允许「打开」，但始终可以定位所在文件夹。
+    /// </summary>
+    private void UpdateFileButtons()
+    {
+        if (ListFiles.SelectedItem is not GitCommitFile file)
+        {
+            BtnOpenFile.IsEnabled = false;
+            BtnRevealFile.IsEnabled = false;
+            return;
+        }
+
+        BtnRevealFile.IsEnabled = true;
+        BtnOpenFile.IsEnabled =
+            FileOpener.TryResolveUnder(_repoRoot, file.Path, out string fullPath, out _) && File.Exists(fullPath);
+    }
+
+    /// <summary>用系统默认程序打开选中文件（按文件类型关联：.cs → IDE、.md → 编辑器、.png → 看图工具…）。</summary>
+    private void OpenSelectedFile()
+    {
+        if (ListFiles.SelectedItem is not GitCommitFile file) return;
+
+        if (!FileOpener.TryResolveUnder(_repoRoot, file.Path, out string fullPath, out string pathError))
+        {
+            SetStatus("× " + pathError, false);
+            return;
+        }
+
+        if (!File.Exists(fullPath))
+        {
+            SetStatus($"× 文件已不在工作区（{file.StatusLabel} {file.Display}），可点【打开所在文件夹】查看目录。", false);
+            return;
+        }
+
+        if (FileOpener.TryOpen(fullPath, out string openError))
+            SetStatus($"已用系统默认程序打开：{fullPath}", true);
+        else
+            SetStatus("× 打开文件失败：" + openError, false);
+    }
+
+    /// <summary>在文件管理器中定位选中文件；文件已删除时打开其所在目录。</summary>
+    private void RevealSelectedFile()
+    {
+        if (ListFiles.SelectedItem is not GitCommitFile file) return;
+
+        if (!FileOpener.TryResolveUnder(_repoRoot, file.Path, out string fullPath, out string pathError))
+        {
+            SetStatus("× " + pathError, false);
+            return;
+        }
+
+        if (FileOpener.TryReveal(fullPath, out string revealError))
+            SetStatus($"已在文件管理器中定位：{fullPath}", true);
+        else
+            SetStatus("× 打开所在文件夹失败：" + revealError, false);
     }
 
     /// <summary>根据是否选中提交、是否正在重置，同步按钮可用状态与提示。</summary>
