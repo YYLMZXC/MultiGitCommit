@@ -41,6 +41,13 @@ public class AppSettings
     [JsonPropertyName("StartupRepo")]
     public StartupRepoMode StartupRepo { get; set; } = StartupRepoMode.CurrentDirectory;
 
+    /// <summary>
+    /// 执行 git add 时的文件添加方式：默认「全提交」（<c>git add .</c>），
+    /// 可改为「可选提交」（提交前勾选要添加的文件）。
+    /// </summary>
+    [JsonPropertyName("StageMode")]
+    public StageMode StageMode { get; set; } = StageMode.AddAll;
+
     /// <summary>设置文件完整路径（加载时填充）。</summary>
     [JsonIgnore]
     public string SettingsFilePath { get; private set; } = string.Empty;
@@ -95,9 +102,12 @@ public class AppSettings
                     loaded.CommitIdentity ??= new GitIdentity();
                     loaded.LastRepoPath ??= string.Empty;
 
-                    // 历史配置或手改文件可能带来非法值，统一回落到默认（当前目录优先）
+                    // 历史配置或手改文件可能带来非法值，统一回落到默认（当前目录优先 / 全提交）
                     if (!Enum.IsDefined(loaded.StartupRepo))
                         loaded.StartupRepo = StartupRepoMode.CurrentDirectory;
+
+                    if (!Enum.IsDefined(loaded.StageMode))
+                        loaded.StageMode = StageMode.AddAll;
 
                     return loaded;
                 }

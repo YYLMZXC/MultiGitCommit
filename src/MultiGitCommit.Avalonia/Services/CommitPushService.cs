@@ -218,16 +218,28 @@ public sealed class CommitPushService
     // ==================== 步骤实现 ====================
 
     /// <summary>
-    /// 执行 <c>git add</c>：
-    /// 1. 读取工作区变更（<c>git status --porcelain -z --untracked-files=all</c>）；
-    /// 2. 交给宿主的勾选回调（界面弹窗）拿到要添加的文件；
-    /// 3. 只对这些路径执行 <c>git add --</c>（路径过多时分批，避免命令行过长）。
+    /// 执行 <c>git add</c>，方式由宿主是否提供勾选回调决定：
+    /// 1. 未提供回调（设置＝全提交）：直接 <c>git add .</c>；
+    /// 2. 提供回调（设置＝可选提交）：读取工作区变更（<c>git status --porcelain -z --untracked-files=all</c>），
+    ///    交给界面弹窗勾选，再只对勾选的路径执行 <c>git add --</c>（路径过多时分批，避免命令行过长）。
     ///
     /// 返回 false 表示用户取消（流程应中止）；工作区无变更时返回 true 但什么也不做。
     /// </summary>
     private async Task<bool> StageAsync(string repoDir, CommitPushRequest request, Action<string> log,
         CancellationToken cancellationToken)
     {
+        // 设置里选了「全提交」：直接 git add .，不额外读取文件列表（少一次命令，也不弹窗）
+        if (request.SelectFilesToStage == null)
+        {
+            log("文件添加方式：全提交（git add .，添加全部变更）。");
+            GitCommandResult add = await _git.RunAsync(repoDir, "add .", "git add .",
+                cancellationToken: cancellationToken).ConfigureAwait(true);
+            if (!add.Success) log("git add . 执行失败，继续后续流程。");
+            return true;
+        }
+
+        // 设置里选了「可选提交」：先读取工作区文件列表，再弹窗勾选
+        log("文件添加方式：可选提交（弹窗勾选要添加的文件）。");
         IReadOnlyList<WorkingTreeFile>? files = await ReadWorkingTreeChangesAsync(repoDir, log, cancellationToken)
             .ConfigureAwait(true);
 
@@ -245,19 +257,10 @@ public sealed class CommitPushService
 
         log($"工作区共 {files.Count} 个变更文件。");
 
-        IReadOnlyList<string> paths;
-        if (request.SelectFilesToStage == null)
-        {
-            GitCommandResult add = await _git.RunAsync(repoDir, "add .", "git add .",
-                cancellationToken: cancellationToken).ConfigureAwait(true);
-            if (!add.Success) log("git add . 执行失败，继续后续流程。");
-            return true;
-        }
-
         IReadOnlyList<string>? selected = await request.SelectFilesToStage(files).ConfigureAwait(true);
         if (selected == null) return false;
 
-        paths = selected.Where(p => p.Length > 0).Distinct(StringComparer.Ordinal).ToList();
+        List<string> paths = selected.Where(p => p.Length > 0).Distinct(StringComparer.Ordinal).ToList();
         if (paths.Count == 0)
         {
             log("未勾选任何文件，跳过 git add（已暂存的内容保持不变）。");

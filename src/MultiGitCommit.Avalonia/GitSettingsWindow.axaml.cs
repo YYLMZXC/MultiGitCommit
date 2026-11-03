@@ -24,6 +24,9 @@ public partial class GitSettingsWindow : Window
     /// <summary>用户点击确定后选定的「启动时加载的仓库」模式。</summary>
     public StartupRepoMode SelectedStartupRepo { get; private set; } = StartupRepoMode.CurrentDirectory;
 
+    /// <summary>用户点击确定后选定的「执行 git add 的文件添加方式」。</summary>
+    public StageMode SelectedStageMode { get; private set; } = StageMode.AddAll;
+
     /// <summary>传入的全局设置对象；点确定时把凭据写回它。</summary>
     private readonly AppSettings _settings;
 
@@ -88,6 +91,11 @@ public partial class GitSettingsWindow : Window
         RbStartupLast.IsChecked = current.StartupRepo == StartupRepoMode.LastUsed;
         RefreshStartupHint();
 
+        // 执行 git add 的文件添加方式：默认「全提交」（git add .），也可改为「可选提交」（提交前勾选文件）
+        RbStageAll.IsChecked = current.StageMode != StageMode.Select;
+        RbStageSelect.IsChecked = current.StageMode == StageMode.Select;
+        RefreshStageHint();
+
         // 兜底：配置值异常（或历史脏数据）时保证两组都各有一项被选中
         if (RbAuto.IsChecked != true && RbEmbedded.IsChecked != true &&
             RbSystem.IsChecked != true && RbCustom.IsChecked != true)
@@ -96,6 +104,9 @@ public partial class GitSettingsWindow : Window
         if (RbCredAuto.IsChecked != true && RbCredSystem.IsChecked != true &&
             RbCredCustom.IsChecked != true && RbCredNone.IsChecked != true)
             RbCredAuto.IsChecked = true;
+
+        if (RbStageAll.IsChecked != true && RbStageSelect.IsChecked != true)
+            RbStageAll.IsChecked = true;
 
         RefreshCredList();
         UpdateEnabled();
@@ -551,6 +562,27 @@ public partial class GitSettingsWindow : Window
               $"找不到仓库再回退到上次使用的仓库。当前目录：{cwd}";
     }
 
+    // ==================== 执行 git add 的文件添加方式 ====================
+
+    /// <summary>当前选中的添加方式（两项单选，未选中时按默认的全提交）。</summary>
+    private StageMode CurrentStageMode =>
+        RbStageSelect.IsChecked == true ? StageMode.Select : StageMode.AddAll;
+
+    /// <summary>切换添加方式时刷新说明文字（不做任何 git 调用，不会卡顿）。</summary>
+    private void StageMode_Changed(object? sender, RoutedEventArgs e)
+    {
+        if (_suppress) return;
+        RefreshStageHint();
+    }
+
+    /// <summary>说明当前方式在主流程里的实际行为。</summary>
+    private void RefreshStageHint()
+    {
+        TxtStageHint.Text = CurrentStageMode == StageMode.Select
+            ? "可选提交：主界面勾选【执行 git add】后，点提交会先弹出文件列表，勾选的文件才会被添加（默认全部勾选，可取消）。"
+            : "全提交：主界面勾选【执行 git add】后，提交前直接执行 git add .，添加工作区全部变更（与旧版行为一致）。";
+    }
+
     // ==================== 凭据（账号）来源 ====================
 
     /// <summary>当前选中的凭据（账号）来源模式。</summary>
@@ -759,6 +791,10 @@ public partial class GitSettingsWindow : Window
 
         // 启动时加载的仓库：同样在点确定后由调用方统一保存
         SelectedStartupRepo = CurrentStartupRepo;
+
+        // git add 的文件添加方式：全提交 / 可选提交
+        SelectedStageMode = CurrentStageMode;
+        _settings.StageMode = SelectedStageMode;
 
         Close(true);
     }

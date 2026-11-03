@@ -2,7 +2,7 @@
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Git 环境设置"
-        Width="700" Height="720"
+        Width="700" Height="780"
         MinWidth="620" MinHeight="560"
         WindowStartupLocation="CenterOwner"
         FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
@@ -73,6 +73,23 @@
                         </StackPanel>
                         <TextBlock x:Name="TxtIdentityResult" TextWrapping="Wrap" Margin="0,6,0,0"
                                    MinHeight="18" Foreground="#666"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ 文件添加方式（git add） ============ -->
+                <Border BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="4" Margin="0,0,0,10">
+                    <StackPanel Margin="12">
+                        <TextBlock Text="执行 git add 时的文件添加方式" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,8"/>
+                        <TextBlock Text="主界面勾选了【执行 git add】后，提交前按这里的选择添加文件（默认全提交，不需要每次确认）："
+                                   TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
+
+                        <RadioButton x:Name="RbStageAll" Margin="0,3" IsCheckedChanged="StageMode_Changed"
+                                     Content="全提交（默认，推荐）：直接执行 git add .，添加工作区全部变更，不弹窗"/>
+                        <RadioButton x:Name="RbStageSelect" Margin="0,3" IsCheckedChanged="StageMode_Changed"
+                                     Content="可选提交：先列出工作区变更，由你勾选要添加的文件，只对勾选项执行 git add"/>
+
+                        <TextBlock x:Name="TxtStageHint" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   MinHeight="18" Foreground="#888" FontSize="11"/>
                     </StackPanel>
                 </Border>
 

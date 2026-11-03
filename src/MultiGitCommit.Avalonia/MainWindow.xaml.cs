@@ -423,6 +423,7 @@ public partial class MainWindow : Window
         _settings.Current.CustomGitPath = win.SelectedCustomPath;
         _settings.Current.CredentialSource = win.SelectedCredentialSource;
         _settings.Current.StartupRepo = win.SelectedStartupRepo;
+        _settings.Current.StageMode = win.SelectedStageMode;
         try
         {
             _settings.Save();
@@ -437,6 +438,9 @@ public partial class MainWindow : Window
         Log(_settings.Current.StartupRepo == StartupRepoMode.LastUsed
             ? "启动时加载的仓库：上次使用的仓库优先（下次启动生效）。"
             : "启动时加载的仓库：当前目录优先（下次启动生效）。");
+        Log(_settings.Current.StageMode == StageMode.Select
+            ? "执行 git add 时的文件添加方式：可选提交（提交前勾选要添加的文件）。"
+            : "执行 git add 时的文件添加方式：全提交（git add .）。");
     }
 
     /// <summary>按当前设置重新解析 git，更新状态栏显示并输出日志。</summary>
@@ -815,7 +819,10 @@ public partial class MainWindow : Window
                 ForcePush = _config.CheckForcePush,
                 PushTags = _config.CheckPushTags,
                 Remark = TxtCommitMessage.Text?.Trim() ?? string.Empty,
-                SelectFilesToStage = SelectFilesToStageAsync,
+                // 添加方式由【Git 环境】设置决定：全提交 → 不传回调（走 git add .）；可选提交 → 弹窗勾选文件
+                SelectFilesToStage = _settings.Current.StageMode == StageMode.Select
+                    ? SelectFilesToStageAsync
+                    : null,
                 EnsureIdentity = EnsureIdentityInteractiveAsync,
                 OnBranchDetected = branch => TxtBranchInfo.Text = $"当前分支：{branch}"
             }, Log);
