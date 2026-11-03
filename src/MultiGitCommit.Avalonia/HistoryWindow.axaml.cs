@@ -22,6 +22,12 @@ public partial class HistoryWindow : Window
     private readonly CancellationTokenSource _lifetime = new();
     private readonly List<GitCommit> _commits = new();
 
+    /// <summary>选中提交改动的文件（绑定到文件列表）。</summary>
+    private readonly List<GitCommitFile> _files = new();
+
+    /// <summary>文件清单读取的取消令牌：切换选中提交时取消上一次请求。</summary>
+    private CancellationTokenSource? _fileCts;
+
     /// <summary>重置进行中：防止重复点击与并发 git 调用。</summary>
     private bool _busy;
 
@@ -134,7 +140,88 @@ public partial class HistoryWindow : Window
         UpdateResetState();
     }
 
-    private void ListCommits_SelectionChanged(object? sender, SelectionChangedEventArgs e) => UpdateResetState();
+    private async void ListCommits_SelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        UpdateResetState();
+        await LoadFilesAsync(ListCommits.SelectedItem as GitCommit);
+    }
+
+    // ==================== 选中提交的修改文件 ====================
+
+    /// <summary>
+    /// 读取选中提交改动的文件清单。
+    /// 切换选中会取消上一次请求，避免旧结果覆盖新结果；全程异步 + 超时，不阻塞界面。
+    /// </summary>
+    private async Task LoadFilesAsync(GitCommit? commit)
+    {
+        _fileCts?.Cancel();
+        _fileCts = null;
+
+        _files.Clear();
+        RefreshFileList();
+
+        if (commit == null)
+        {
+            TxtFilesTitle.Text = "修改的文件（选中提交后显示）";
+            return;
+        }
+
+        // 链接窗口生命周期：关闭窗口时一并取消
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _fileCts = cts;
+        TxtFilesTitle.Text = $"修改的文件 — {commit.ShortHash}（读取中…）";
+
+        try
+        {
+            // --format= 只输出文件清单；--first-parent 让合并提交与第一父提交比较（否则不显示文件）
+            GitCommandResult result = await _cli.RunAsync(new GitCommandRequest
+            {
+                Arguments = $"show --name-status --format= --first-parent {commit.Hash}",
+                WorkingDirectory = _repoRoot,
+                Timeout = GitTimeouts.Quick
+            }, cts.Token).ConfigureAwait(true);
+
+            if (cts.IsCancellationRequested || _lifetime.IsCancellationRequested) return;
+
+            if (!result.Success)
+            {
+                TxtFilesTitle.Text = result.TimedOut
+                    ? $"修改的文件 — {commit.ShortHash}（读取超时）"
+                    : $"修改的文件 — {commit.ShortHash}（读取失败：{result.ErrorText}）";
+                return;
+            }
+
+            _files.AddRange(GitCommitFile.Parse(result.Stdout));
+            RefreshFileList();
+
+            TxtFilesTitle.Text = _files.Count == 0
+                ? $"修改的文件 — {commit.ShortHash}（无文件变更，可能是合并提交）"
+                : $"修改的文件 — {commit.ShortHash}（{_files.Count} 个）";
+        }
+        catch (OperationCanceledException)
+        {
+            // 已切换到其他提交 / 窗口已关闭：忽略
+        }
+        catch (Exception ex)
+        {
+            if (!cts.IsCancellationRequested && !_lifetime.IsCancellationRequested)
+                TxtFilesTitle.Text = $"修改的文件 — {commit.ShortHash}（读取失败：{ex.Message}）";
+        }
+        finally
+        {
+            if (ReferenceEquals(_fileCts, cts))
+            {
+                _fileCts = null;
+                cts.Dispose();
+            }
+        }
+    }
+
+    private void RefreshFileList()
+    {
+        ListFiles.ItemsSource = null;
+        ListFiles.ItemsSource = _files;
+    }
 
     /// <summary>根据是否选中提交、是否正在重置，同步按钮可用状态与提示。</summary>
     private void UpdateResetState()

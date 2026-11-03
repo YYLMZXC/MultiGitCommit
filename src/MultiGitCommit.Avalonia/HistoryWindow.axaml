@@ -2,8 +2,8 @@
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="提交历史"
-        Width="920" Height="660"
-        MinWidth="760" MinHeight="520"
+        Width="920" Height="680"
+        MinWidth="760" MinHeight="540"
         WindowStartupLocation="CenterOwner"
         FontFamily="Microsoft YaHei UI,PingFang SC" FontSize="13"
         ShowInTaskbar="False">
@@ -50,6 +50,35 @@
                 <TextBlock Grid.Column="3" Text="说明" Foreground="#666"/>
             </Grid>
         </StackPanel>
+
+        <!-- 修改文件区：选中提交后显示该提交改动的文件清单 -->
+        <Border DockPanel.Dock="Bottom" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Margin="0,8,0,0">
+            <Grid Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="TxtFilesTitle" Grid.Row="0" Text="修改的文件（选中提交后显示）"
+                           FontWeight="SemiBold" Margin="0,0,0,4"/>
+                <ListBox x:Name="ListFiles" Grid.Row="1" Height="130" Padding="0"
+                         BorderBrush="#DDDDDD" BorderThickness="1">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="0,1">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="26"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding StatusLabel}" FontWeight="Bold"
+                                           FontFamily="Consolas,Menlo" Foreground="#2B579A"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Display}" TextTrimming="CharacterEllipsis"
+                                           ToolTip.Tip="{Binding Path}"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Border>
 
         <!-- 底部：重置模式与操作按钮（始终可见） -->
         <Border DockPanel.Dock="Bottom" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Margin="0,8,0,0">
