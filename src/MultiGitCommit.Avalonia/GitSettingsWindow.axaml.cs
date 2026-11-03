@@ -36,6 +36,9 @@ public partial class GitSettingsWindow : Window
     /// <summary>账号验证的取消令牌（【取消验证】按钮 / 关闭窗口时使用）。</summary>
     private CancellationTokenSource? _credTestCts;
 
+    /// <summary>git 配置检测序号：快速切换选项时丢弃过期的检测结果。</summary>
+    private int _testSeq;
+
     /// <summary>提交身份读写服务（与主窗口共用同一套实现，不再各自拼 git config 命令）。</summary>
     private readonly GitIdentityService _identityService = new();
 
@@ -87,10 +90,23 @@ public partial class GitSettingsWindow : Window
             RbCredAuto.IsChecked = true;
 
         RefreshCredList();
-        RefreshIdentityInfo();
-        RefreshHelperInfo();
         UpdateEnabled();
-        Test(); // 打开窗口即显示当前配置的检测结果
+
+        // 打开窗口后再执行检测：git 调用全部放到线程池，窗口（含【取消】按钮）始终可响应
+        Opened += async (_, _) =>
+        {
+            try
+            {
+                await RefreshIdentityInfoAsync();
+                await RefreshHelperInfoAsync();
+                await TestAsync();
+            }
+            catch (Exception ex)
+            {
+                // async void 事件处理器异常会终止进程，这里兜底显示为普通提示
+                ShowResult("× 检测 git 配置失败：" + ex.Message, false);
+            }
+        };
     }
 
     // ==================== 推送凭据 ====================
@@ -299,11 +315,11 @@ public partial class GitSettingsWindow : Window
                 : GitSourceMode.Custom;
 
     /// <summary>切换模式时同步自定义路径输入区可用状态。</summary>
-    private void Mode_Changed(object? sender, RoutedEventArgs e)
+    private async void Mode_Changed(object? sender, RoutedEventArgs e)
     {
         if (_suppress) return;
         UpdateEnabled();
-        Test();
+        await TestAsync();
     }
 
     private void UpdateEnabled()
@@ -329,17 +345,20 @@ public partial class GitSettingsWindow : Window
         if (string.IsNullOrWhiteSpace(path)) return;
 
         TxtCustomPath.Text = path;
-        Test();
+        await TestAsync();
     }
 
     /// <summary>测试当前所选配置能否找到并执行 git。</summary>
-    private void BtnTest_Click(object? sender, RoutedEventArgs e)
+    private async void BtnTest_Click(object? sender, RoutedEventArgs e)
     {
-        Test();
+        await TestAsync();
     }
 
-    /// <summary>按当前窗口选择实时解析并显示结果。</summary>
-    private void Test()
+    /// <summary>
+    /// 按当前窗口选择实时解析并显示结果。
+    /// git --version 是外部进程调用，放到线程池执行，避免界面卡住（点【取消】无响应）。
+    /// </summary>
+    private async Task TestAsync()
     {
         var mode = CurrentMode;
         string custom = TxtCustomPath.Text?.Trim() ?? string.Empty;
@@ -351,7 +370,19 @@ public partial class GitSettingsWindow : Window
             return;
         }
 
-        string? exe = GitLocator.ResolvePreview(mode, custom, out string description);
+        int seq = ++_testSeq;
+        TxtResult.Text = "正在检测当前所选 git 配置…";
+        TxtResult.Foreground = Brush.Parse("#666666");
+
+        var (exe, description) = await Task.Run(() =>
+        {
+            string? found = GitLocator.ResolvePreview(mode, custom, out string desc);
+            return (found, desc);
+        });
+
+        // 快速切换选项时只显示最后一次的结果，避免旧结果覆盖新结果
+        if (seq != _testSeq) return;
+
         TxtResult.Text = (exe != null ? "√ " : "× ") + description;
         TxtResult.Foreground = exe != null
             ? Brush.Parse("#1E8E3E")
@@ -461,25 +492,36 @@ public partial class GitSettingsWindow : Window
     /// <summary>
     /// 显示当前 git 的凭据助手状态：配置值是否可用，不可用时会自动改用哪个助手。
     /// 这是"推送时取不到系统账号"最常见的根因（精简便携版 git 缺少 git-credential-manager）。
+    /// 扫描目录与读取 git config 都放到线程池，避免打开窗口时界面卡住。
     /// </summary>
-    private void RefreshHelperInfo()
+    private async Task RefreshHelperInfoAsync()
     {
         GitCredentialHelper.Invalidate();
-        TxtHelperInfo.Text = GitCredentialHelper.Describe();
-        TxtHelperInfo.Foreground = GitCredentialHelper.ConfiguredUsable()
+
+        var (text, usable) = await Task.Run(() =>
+        {
+            string desc = GitCredentialHelper.Describe();
+            return (desc, GitCredentialHelper.ConfiguredUsable());
+        });
+
+        TxtHelperInfo.Text = text;
+        TxtHelperInfo.Foreground = usable
             ? Brush.Parse("#1E8E3E")
             : Brush.Parse("#B00020");
     }
 
     // ==================== 提交身份（user.name / user.email） ====================
 
-    /// <summary>显示当前生效的提交身份（读取 git config --get，取仓库级 → 全局的生效值）。</summary>
-    private void RefreshIdentityInfo()
+    /// <summary>
+    /// 显示当前生效的提交身份（读取 git config --get，取仓库级 → 全局的生效值）。
+    /// 读取 git config 会启动外部进程，放到线程池执行，避免界面卡住。
+    /// </summary>
+    private async Task RefreshIdentityInfoAsync()
     {
         var saved = _settings.CommitIdentity;
         string savedText = saved != null && saved.IsComplete ? $"已保存：{saved}" : "尚未保存";
 
-        var (name, email) = _identityService.Read(_repoPath);
+        var (name, email) = await Task.Run(() => _identityService.Read(_repoPath));
         TxtIdentityInfo.Text = (name.Length > 0 && email.Length > 0)
             ? $"当前生效：{name} <{email}>（{savedText}）"
             : $"当前生效：未设置（{savedText}）";
@@ -512,9 +554,19 @@ public partial class GitSettingsWindow : Window
         }
 
         _settings.CommitIdentity = identity;
-        RefreshIdentityInfo();
+        await RefreshIdentityInfoAsync();
         ShowResult($"√ 已写入提交身份（{(identity.Scope == IdentityScope.Global ? "全局 --global" : "本仓库 --local")}）：" +
                    $"{identity.Name} <{identity.Email}>", true);
+    }
+
+    /// <summary>
+    /// 【取消】：中止可能仍在进行的验证，然后关闭窗口（返回 false，调用方不会保存设置）。
+    /// Avalonia 的 IsCancel 只是把 Esc 键映射成"点击该按钮"，按钮本身不关窗，必须显式处理 Click。
+    /// </summary>
+    private void BtnCancel_Click(object? sender, RoutedEventArgs e)
+    {
+        _credTestCts?.Cancel();
+        Close(false);
     }
 
     private async void BtnOk_Click(object? sender, RoutedEventArgs e)

@@ -57,4 +57,10 @@ public partial class IdentityWindow : Window
 
         Close(true);
     }
+
+    /// <summary>
+    /// 【取消】：关闭窗口，返回 false（调用方不会写入身份）。
+    /// Avalonia 的 IsCancel 只是把 Esc 键映射成"点击该按钮"，按钮本身不关窗，必须显式处理 Click。
+    /// </summary>
+    private void BtnCancel_Click(object? sender, RoutedEventArgs e) => Close(false);
 }

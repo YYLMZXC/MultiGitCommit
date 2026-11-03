@@ -16,7 +16,7 @@
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="14,8,14,14">
             <Button Content="确定" Width="80" IsDefault="True" Padding="8,2" Click="BtnOk_Click"/>
-            <Button Content="取消" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2"/>
+            <Button Content="取消" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2" Click="BtnCancel_Click"/>
         </StackPanel>
 
         <!-- 中间内容区：ScrollViewer 包裹，高度超出时可滚动 -->

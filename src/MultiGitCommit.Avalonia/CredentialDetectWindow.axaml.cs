@@ -220,6 +220,16 @@ public partial class CredentialDetectWindow : Window
         Close(true);
     }
 
+    /// <summary>
+    /// 【关闭】：先中止可能仍在进行的检测，再关闭窗口（返回 false，不导入账号）。
+    /// Avalonia 的 IsCancel 只是把 Esc 键映射成"点击该按钮"，按钮本身不关窗，必须显式处理 Click。
+    /// </summary>
+    private void BtnCancel_Click(object? sender, RoutedEventArgs e)
+    {
+        _cts?.Cancel();
+        Close(false);
+    }
+
     /// <summary>写入状态文本（true 成功 / false 警告 / null 中性）。</summary>
     private void ShowStatus(string message, bool? ok)
     {
