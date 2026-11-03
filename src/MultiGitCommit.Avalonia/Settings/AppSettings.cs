@@ -37,6 +37,10 @@ public class AppSettings
     [JsonPropertyName("LastRepoPath")]
     public string LastRepoPath { get; set; } = string.Empty;
 
+    /// <summary>启动时优先加载哪个仓库：默认当前目录优先，也可改为上次使用的仓库优先。</summary>
+    [JsonPropertyName("StartupRepo")]
+    public StartupRepoMode StartupRepo { get; set; } = StartupRepoMode.CurrentDirectory;
+
     /// <summary>设置文件完整路径（加载时填充）。</summary>
     [JsonIgnore]
     public string SettingsFilePath { get; private set; } = string.Empty;
@@ -90,6 +94,11 @@ public class AppSettings
                     loaded.Credentials ??= new List<GitCredential>();
                     loaded.CommitIdentity ??= new GitIdentity();
                     loaded.LastRepoPath ??= string.Empty;
+
+                    // 历史配置或手改文件可能带来非法值，统一回落到默认（当前目录优先）
+                    if (!Enum.IsDefined(loaded.StartupRepo))
+                        loaded.StartupRepo = StartupRepoMode.CurrentDirectory;
+
                     return loaded;
                 }
             }

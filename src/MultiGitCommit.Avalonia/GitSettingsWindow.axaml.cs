@@ -21,6 +21,9 @@ public partial class GitSettingsWindow : Window
     /// <summary>用户点击确定后选定的凭据（账号）来源模式。</summary>
     public CredentialSourceMode SelectedCredentialSource { get; private set; } = CredentialSourceMode.Auto;
 
+    /// <summary>用户点击确定后选定的「启动时加载的仓库」模式。</summary>
+    public StartupRepoMode SelectedStartupRepo { get; private set; } = StartupRepoMode.CurrentDirectory;
+
     /// <summary>传入的全局设置对象；点确定时把凭据写回它。</summary>
     private readonly AppSettings _settings;
 
@@ -79,6 +82,11 @@ public partial class GitSettingsWindow : Window
         RbCredSystem.IsChecked = current.CredentialSource == CredentialSourceMode.System;
         RbCredCustom.IsChecked = current.CredentialSource == CredentialSourceMode.Custom;
         RbCredNone.IsChecked = current.CredentialSource == CredentialSourceMode.None;
+
+        // 启动时加载的仓库：默认「当前目录优先」，用户可在设置里改为「上次使用的仓库优先」
+        RbStartupCurrent.IsChecked = current.StartupRepo != StartupRepoMode.LastUsed;
+        RbStartupLast.IsChecked = current.StartupRepo == StartupRepoMode.LastUsed;
+        RefreshStartupHint();
 
         // 兜底：配置值异常（或历史脏数据）时保证两组都各有一项被选中
         if (RbAuto.IsChecked != true && RbEmbedded.IsChecked != true &&
@@ -524,6 +532,25 @@ public partial class GitSettingsWindow : Window
             : Brush.Parse("#B00020");
     }
 
+    // ==================== 启动时加载的仓库 ====================
+
+    /// <summary>当前选中的「启动时加载的仓库」模式（两项单选，未选中时按默认的当前目录优先）。</summary>
+    private StartupRepoMode CurrentStartupRepo =>
+        RbStartupLast.IsChecked == true ? StartupRepoMode.LastUsed : StartupRepoMode.CurrentDirectory;
+
+    /// <summary>切换启动来源时刷新说明文字（不执行任何目录扫描 / git 调用，避免卡顿）。</summary>
+    private void StartupMode_Changed(object? sender, RoutedEventArgs e) => RefreshStartupHint();
+
+    /// <summary>显示当前目录，并给出所选模式的生效方式与回退规则。</summary>
+    private void RefreshStartupHint()
+    {
+        string cwd = Environment.CurrentDirectory;
+        TxtStartupHint.Text = CurrentStartupRepo == StartupRepoMode.LastUsed
+            ? $"启动时直接打开上次成功加载的仓库（不看当前目录）。当前目录：{cwd}"
+            : $"启动时先看当前目录及其上级目录中的 .git / {ProjectConfig.ConfigFileName}，" +
+              $"找不到仓库再回退到上次使用的仓库。当前目录：{cwd}";
+    }
+
     // ==================== 凭据（账号）来源 ====================
 
     /// <summary>当前选中的凭据（账号）来源模式。</summary>
@@ -729,6 +756,9 @@ public partial class GitSettingsWindow : Window
         // 凭据（账号）与来源模式写回设置对象（调用方在点确定后统一保存；点取消不会落盘）
         _settings.Credentials = _credentials;
         _settings.CredentialSource = SelectedCredentialSource = CurrentCredentialSource;
+
+        // 启动时加载的仓库：同样在点确定后由调用方统一保存
+        SelectedStartupRepo = CurrentStartupRepo;
 
         Close(true);
     }

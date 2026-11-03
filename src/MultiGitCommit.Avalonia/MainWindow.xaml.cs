@@ -107,7 +107,7 @@ public partial class MainWindow : Window
         // 解析 git 来源（内嵌 / 自动检测 / 系统 PATH / 指定路径），不依赖系统安装 git
         RefreshGitEnvironment();
 
-        // 启动仓库定位：上次使用过的仓库 → 当前工作目录 → 程序目录向上逐级查找仓库
+        // 启动仓库定位：按设置决定「当前目录优先」还是「上次使用的仓库优先」
         string? startup = ResolveStartupRepoPath(out string startupMessage);
         TxtRepoPath.Text = startup ?? string.Empty;
         if (startupMessage.Length > 0) Log(startupMessage);
@@ -422,6 +422,7 @@ public partial class MainWindow : Window
         _settings.Current.GitSource = win.SelectedSource;
         _settings.Current.CustomGitPath = win.SelectedCustomPath;
         _settings.Current.CredentialSource = win.SelectedCredentialSource;
+        _settings.Current.StartupRepo = win.SelectedStartupRepo;
         try
         {
             _settings.Save();
@@ -433,6 +434,9 @@ public partial class MainWindow : Window
         }
 
         RefreshGitEnvironment();
+        Log(_settings.Current.StartupRepo == StartupRepoMode.LastUsed
+            ? "启动时加载的仓库：上次使用的仓库优先（下次启动生效）。"
+            : "启动时加载的仓库：当前目录优先（下次启动生效）。");
     }
 
     /// <summary>按当前设置重新解析 git，更新状态栏显示并输出日志。</summary>
@@ -1031,22 +1035,16 @@ public partial class MainWindow : Window
     // ==================== 启动仓库定位（记住上次项目） ====================
 
     /// <summary>
-    /// 决定启动时默认加载哪个仓库目录（依次尝试）：
-    /// 1) 上次成功加载过的仓库（最符合"打开就看到上次项目"的预期）；
-    /// 2) 当前工作目录（非程序自身目录时直接使用）；
-    /// 3) 程序自身目录（bin\Debug\net10.0 等）时向上逐级查找含 .git / multigitcommit.config.json 的祖先目录，
-    ///    使 IDE 调试或程序放在仓库内的场景也能自动加载配置；
-    /// 4) 都没有则返回 null（由用户点【浏览】选择）。
+    /// 决定启动时默认加载哪个仓库目录，顺序由设置「启动时加载的仓库」决定：
+    /// 「当前目录优先」（默认）：
+    /// 1) 当前目录（含程序自身目录）向上最近的 .git / multigitcommit.config.json 所在目录，
+    ///    使 IDE 调试或把程序放在仓库内的场景直接加载当前仓库；
+    /// 2) 当前目录不在仓库内时，回退到上次成功加载过的仓库；
+    /// 3) 都没有则返回当前目录本身（非程序自身目录时，仅作占位）或 null（由用户点【浏览】选择）。
+    /// 「上次使用的仓库优先」：1) 上次成功加载过的仓库；2) 再走上面的当前目录逻辑。
     /// </summary>
     private string? ResolveStartupRepoPath(out string message)
     {
-        string last = _settings.Current.LastRepoPath ?? string.Empty;
-        if (last.Length > 0 && Directory.Exists(last))
-        {
-            message = $"已载入上次使用的仓库目录：{last}";
-            return last;
-        }
-
         string cwd = Environment.CurrentDirectory;
         string baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
         string cwdFull = string.IsNullOrWhiteSpace(cwd)
@@ -1057,18 +1055,35 @@ public partial class MainWindow : Window
                         string.Equals(cwdFull, baseDir, StringComparison.Ordinal) ||
                         cwdFull.StartsWith(baseDir + Path.DirectorySeparatorChar, StringComparison.Ordinal);
 
-        if (!isAppDir)
+        string last = _settings.Current.LastRepoPath ?? string.Empty;
+        bool hasLast = last.Length > 0 && Directory.Exists(last);
+
+        // 设置里选了「上次使用的仓库优先」：直接沿用，不再看当前目录
+        if (_settings.Current.StartupRepo == StartupRepoMode.LastUsed && hasLast)
         {
-            message = string.Empty;
-            return cwd;
+            message = $"已载入上次使用的仓库目录（设置：上次使用的仓库优先）：{last}";
+            return last;
         }
 
-        // 程序自身目录不能当仓库（通常是被 .gitignore 忽略的 bin\ 输出目录），改为向上找真正的仓库
-        string? found = RepoLocator.FindRepoAncestor(cwdFull.Length > 0 ? cwdFull : baseDir);
-        if (found != null)
+        // 当前目录（或其上级）所在的仓库：默认最优先
+        string? cwdRepo = RepoLocator.FindRepoAncestor(cwdFull.Length > 0 ? cwdFull : baseDir);
+        if (cwdRepo != null)
         {
-            message = $"已从程序目录向上定位到 Git 仓库：{found}";
-            return found;
+            message = $"已载入当前目录所在的仓库：{cwdRepo}";
+            return cwdRepo;
+        }
+
+        // 当前目录不在任何仓库内：回退到上次使用的仓库
+        if (hasLast)
+        {
+            message = $"当前目录不是 Git 仓库，已载入上次使用的仓库目录：{last}";
+            return last;
+        }
+
+        if (!isAppDir)
+        {
+            message = "当前目录不是 Git 仓库，也没有可回退的上次仓库：请点击【浏览…】选择 Git 仓库根目录。";
+            return cwd;
         }
 
         message = "未自动填充仓库目录：当前目录及上级目录中未找到 Git 仓库，请点击【浏览…】选择 Git 仓库根目录。";
