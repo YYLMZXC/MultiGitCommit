@@ -76,7 +76,8 @@ public static class CredentialTester
         int timeoutSeconds = DefaultTimeoutSeconds,
         IGitCliRunner? runner = null)
     {
-        string host = GitCredentials.GetHost(cred.Host) ?? (cred.Host ?? string.Empty).Trim();
+        // 规范化为纯主机名：用户可能粘贴了带引号 / 协议 / 路径的地址
+        string host = GitCredentials.NormalizeHost(cred.Host);
         string user = (cred.Username ?? string.Empty).Trim();
         string token = (cred.Token ?? string.Empty).Trim();
 
@@ -146,7 +147,7 @@ public static class CredentialTester
             {
                 if (string.IsNullOrWhiteSpace(url)) continue;
 
-                string s = url.Trim();
+                string s = GitCredentials.NormalizeUrl(url);
                 if (!s.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                     !s.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
                     continue;
@@ -194,6 +195,34 @@ public static class CredentialTester
             {
                 Status = CredentialTestStatus.RepoNotFound,
                 Message = $"账号可用：{user}@{host} 的身份已被服务端接受（探测地址 {target} 不存在，凭据有效）。",
+                Detail = detail,
+                Target = target
+            };
+        }
+
+        // TLS 握手失败 / 证书问题单列：这两类不是"账号不正确"，需要用户改网络或证书配置
+        if (ContainsAny(lower, TlsHandshakeKeywords))
+        {
+            return new CredentialTestResult
+            {
+                Status = CredentialTestStatus.NetworkError,
+                Message = $"无法与 {host} 建立 TLS 连接（握手失败），账号未能验证。" +
+                          "常见原因：代理 / 防火墙拦截了 TLS、服务端只接受特定 TLS 版本或客户端证书、该地址并非 https git 服务；" +
+                          "也请确认主机名拼写是否正确（公开 CNB 平台为 cnb.cool）。" +
+                          $"可用浏览器打开 https://{host} 确认，或改用 ssh 远端。",
+                Detail = detail,
+                Target = target
+            };
+        }
+
+        if (ContainsAny(lower, CertificateKeywords))
+        {
+            return new CredentialTestResult
+            {
+                Status = CredentialTestStatus.NetworkError,
+                Message = $"无法验证 {host} 的服务器证书，账号未能验证" +
+                          "（自签名证书 / 缺少根证书 / 证书过期或与主机名不符）。" +
+                          "可让 git 信任该 CA（http.sslCAInfo）或改用 ssh 远端。",
                 Detail = detail,
                 Target = target
             };
@@ -266,6 +295,22 @@ public static class CredentialTester
         "does not appear to be a git repository", "couldn't find", "could not find",
         "no such project", "no such repository",
         "仓库不存在", "项目不存在", "未找到仓库", "未找到项目", "找不到仓库", "不存在"
+    };
+
+    /// <summary>TLS 握手类错误：加密连接建立失败，与账号无关。</summary>
+    private static readonly string[] TlsHandshakeKeywords =
+    {
+        "failed to receive handshake", "ssl/tls connection failed", "tls handshake", "handshake failure",
+        "ssl_connect", "gnutls_handshake", "unexpected eof", "wrong version number",
+        "received fatal alert", "sslv3 alert", "tlsv1 alert", "protocol version"
+    };
+
+    /// <summary>证书校验类错误：需要配置受信任的 CA 或改用 ssh。</summary>
+    private static readonly string[] CertificateKeywords =
+    {
+        "ssl certificate problem", "certificate verify failed", "self signed certificate",
+        "self-signed certificate", "unable to get local issuer certificate", "certificate has expired",
+        "certificate is not yet valid", "hostname mismatch", "no alternative certificate subject name"
     };
 
     /// <summary>网络 / 连接类关键字：无法判定账号是否有效。</summary>

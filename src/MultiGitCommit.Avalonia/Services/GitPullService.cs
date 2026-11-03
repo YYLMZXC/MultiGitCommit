@@ -69,17 +69,18 @@ public sealed class GitPullService
     public async Task<PullResult> PullAsync(PullRequest request, Action<string> log,
         CancellationToken cancellationToken = default)
     {
+        // 兼容旧配置里带引号 / 空白的 URL
+        string pullUrl = GitCredentials.NormalizeUrl(request.RemoteUrl);
+
         log("========== 开始拉取更新 ==========");
-        log($"远端：{GitCredentials.Mask(request.RemoteUrl)}");
+        log($"远端：{GitCredentials.Mask(pullUrl)}");
         log($"分支：{request.Branch}（{DescribeStrategy(request.Strategy)}）");
 
-        if (string.IsNullOrWhiteSpace(request.RemoteUrl) || string.IsNullOrWhiteSpace(request.Branch))
+        if (pullUrl.Length == 0 || string.IsNullOrWhiteSpace(request.Branch))
         {
             log("流程终止：缺少远端地址或分支。");
             return new PullResult { Message = "缺少远端地址或分支" };
         }
-
-        string pullUrl = request.RemoteUrl;
 
         // https 远端：按账号来源取得凭据并注入 URL（与推送同样的处理）
         if (GitCredentials.NeedsCredential(pullUrl))

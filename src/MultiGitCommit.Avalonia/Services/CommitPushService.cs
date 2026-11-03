@@ -92,8 +92,10 @@ public sealed class CommitPushService
         CancellationToken cancellationToken = default)
     {
         string repoDir = request.RepoRoot;
+        // 兼容旧配置里带引号 / 空白的 URL：统一清洗后再使用
         var urls = request.RemoteUrls
-            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Select(GitCredentials.NormalizeUrl)
+            .Where(url => url.Length > 0)
             .Distinct()
             .ToList();
 

@@ -342,9 +342,16 @@ public partial class MainWindow : Window
         var win = new CloneWindow(initialDir);
         if (await win.ShowDialog<bool?>(this) != true) return;
 
-        string url = win.RepoUrl;
+        // 去掉粘贴时可能带上的引号 / 空白，否则 git clone 会拿到变形的 URL
+        string url = GitCredentials.NormalizeUrl(win.RepoUrl);
         string parentDir = win.ParentDir;
         string targetDir = win.TargetDir;
+
+        if (url.Length == 0)
+        {
+            Log("克隆地址为空，已取消。");
+            return;
+        }
 
         BtnClone.IsEnabled = false;
         try
@@ -661,12 +668,15 @@ public partial class MainWindow : Window
         var text = await Dialogs.PromptAsync(this, "添加远端",
             "请输入推送远端 URL（支持 ssh/https 格式，例如 https://gitee.com/user/repo.git）：", string.Empty);
         if (text == null) return;
-        if (string.IsNullOrWhiteSpace(text)) { Log("远端 URL 不能为空。"); return; }
-        if (_config.RemoteUrls.Contains(text)) { Log($"远端 URL 已存在：{text}"); return; }
 
-        _config.RemoteUrls.Add(text);
+        // 去掉粘贴时可能带上的引号 / 空白，避免写入脏 URL 后推送与验证都失败
+        string url = GitCredentials.NormalizeUrl(text);
+        if (url.Length == 0) { Log("远端 URL 不能为空。"); return; }
+        if (_config.RemoteUrls.Contains(url)) { Log($"远端 URL 已存在：{url}"); return; }
+
+        _config.RemoteUrls.Add(url);
         RefreshRemoteList();
-        Log($"已添加远端：{text}");
+        Log($"已添加远端：{url}");
         SaveConfig();
     }
 
@@ -684,11 +694,13 @@ public partial class MainWindow : Window
         string oldUrl = _config.RemoteUrls[index];
         var text = await Dialogs.PromptAsync(this, "编辑远端", "修改远端 URL：", oldUrl);
         if (text == null) return;
-        if (string.IsNullOrWhiteSpace(text)) { Log("远端 URL 不能为空。"); return; }
 
-        _config.RemoteUrls[index] = text;
+        string url = GitCredentials.NormalizeUrl(text);
+        if (url.Length == 0) { Log("远端 URL 不能为空。"); return; }
+
+        _config.RemoteUrls[index] = url;
         RefreshRemoteList();
-        Log($"已修改远端：{oldUrl} → {text}");
+        Log($"已修改远端：{oldUrl} → {url}");
         SaveConfig();
     }
 

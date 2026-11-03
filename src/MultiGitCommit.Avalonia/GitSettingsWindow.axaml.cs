@@ -134,15 +134,18 @@ public partial class GitSettingsWindow : Window
     /// </summary>
     private async void BtnCredAdd_Click(object? sender, RoutedEventArgs e)
     {
-        string host = TxtCredHost.Text?.Trim() ?? string.Empty;
+        // 允许直接粘贴完整 URL / 带引号的地址，这里统一规范化为纯主机名
+        string host = GitCredentials.NormalizeHost(TxtCredHost.Text);
         string user = TxtCredUser.Text?.Trim() ?? string.Empty;
         string token = TxtCredToken.Text?.Trim() ?? string.Empty;
 
         if (host.Length == 0)
         {
-            ShowCredResult("× 请先填写远端主机（如 cnb.cool）。", false);
+            ShowCredResult("× 请先填写远端主机（如 cnb.cool），或直接粘贴完整 URL。", false);
             return;
         }
+
+        TxtCredHost.Text = host; // 回填清洗后的主机名，避免引号 / 路径混入配置
 
         if (user.Length == 0 || token.Length == 0)
         {
@@ -207,13 +210,13 @@ public partial class GitSettingsWindow : Window
             return;
         }
 
-        string host = TxtCredHost.Text?.Trim() ?? string.Empty;
+        string host = GitCredentials.NormalizeHost(TxtCredHost.Text);
         string user = TxtCredUser.Text?.Trim() ?? string.Empty;
         string token = TxtCredToken.Text?.Trim() ?? string.Empty;
 
         if (host.Length == 0)
         {
-            ShowCredResult("× 请先填写远端主机（如 cnb.cool）。", false);
+            ShowCredResult("× 请先填写远端主机（如 cnb.cool），或直接粘贴完整 URL。", false);
             return;
         }
 
@@ -223,6 +226,7 @@ public partial class GitSettingsWindow : Window
             return;
         }
 
+        TxtCredHost.Text = host;
         await VerifyCredentialAsync(host, user, token);
     }
 
