@@ -107,10 +107,13 @@
                                    TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
 
                         <RadioButton x:Name="RbStartupCurrent" Margin="0,3" IsCheckedChanged="StartupMode_Changed">
-                            <TextBlock Text="当前目录优先（推荐）：当前目录或其上级目录是 Git 仓库时直接加载它" TextWrapping="Wrap"/>
+                            <TextBlock Text="只读取当前目录（默认，推荐）：启动时只加载当前目录或其上级目录所在的 Git 仓库；找不到时不自动打开上次项目" TextWrapping="Wrap"/>
                         </RadioButton>
                         <RadioButton x:Name="RbStartupLast" Margin="0,3" IsCheckedChanged="StartupMode_Changed">
-                            <TextBlock Text="上次使用的仓库优先：始终打开上次成功加载的仓库" TextWrapping="Wrap"/>
+                            <TextBlock Text="上次使用的仓库优先：始终打开上次成功加载的仓库，不看当前目录" TextWrapping="Wrap"/>
+                        </RadioButton>
+                        <RadioButton x:Name="RbStartupFallback" Margin="0,3" IsCheckedChanged="StartupMode_Changed">
+                            <TextBlock Text="当前目录优先，找不到时回退上次项目：当前目录不是 Git 仓库时，自动打开上次使用过的仓库" TextWrapping="Wrap"/>
                         </RadioButton>
 
                         <TextBlock x:Name="TxtStartupHint" TextWrapping="Wrap" Margin="0,8,0,0"

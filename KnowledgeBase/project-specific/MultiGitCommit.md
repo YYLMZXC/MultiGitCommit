@@ -28,7 +28,7 @@
 
 - 提交消息固定 `yyyy-MM-dd HH:mm:ss 用户备注`；备注为空时仅时间戳；工作区无变更跳过 `git commit`，【强制提交】用 `--allow-empty`。
 - 每仓库远端列表 / 复选框状态存仓库根目录 `multigitcommit.config.json`；全局设置 `settings.json` 字段三平台一致，可直接互相拷贝。
-- 启动定位仓库：默认当前目录优先，向上最多 12 层找 `.git` 或 `multigitcommit.config.json`，失败回退上次仓库，再失败才提示手选；可在【Git 环境】改为「上次使用的仓库优先」。
+- 启动定位仓库：默认只读取当前目录（向上最多 12 层找 `.git` 或 `multigitcommit.config.json`），找不到不自动打开上次项目、提示手选；【Git 环境】可改为「上次使用的仓库优先」或「当前目录优先，找不到时回退上次项目」（`StartupRepo`：`0`/`1`/`2`）。
 - git 来源四选一：自动检测（内嵌 → 常见安装位置 → PATH）/ 仅内嵌 / 仅系统 PATH / 指定路径；切换来源时凭据助手缓存失效。
 - 凭据来源四选一：自动检测（自定义优先）/ 仅系统 / 仅自定义 / 不使用；账号实测使用一次 `git ls-remote`；`credential.helper` 不可用时临时 `-c credential.helper=xxx` 覆盖，不改用户配置。
 - 超时档位：快速命令 20 秒、普通 git 命令 10 分钟、克隆 30 分钟；手动命令 Windows 走 `cmd.exe /c chcp 65001`，macOS/Linux 走登录 shell `/bin/bash -lc`。

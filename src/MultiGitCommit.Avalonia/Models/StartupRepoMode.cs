@@ -6,9 +6,12 @@ namespace MultiGitCommit;
 /// </summary>
 public enum StartupRepoMode
 {
-    /// <summary>当前目录优先：当前目录（或其上级目录）是 Git 仓库时直接加载，否则回退到上次使用的仓库。</summary>
+    /// <summary>只读取当前目录（默认）：当前目录（或其上级目录）是 Git 仓库时直接加载，找不到时不自动打开上次项目。</summary>
     CurrentDirectory = 0,
 
     /// <summary>上次使用的仓库优先：直接打开上次成功加载的仓库，不看当前目录。</summary>
-    LastUsed = 1
+    LastUsed = 1,
+
+    /// <summary>当前目录优先并回退：当前目录不在仓库内时，自动回退到上次使用的仓库。</summary>
+    CurrentDirectoryThenLastUsed = 2
 }

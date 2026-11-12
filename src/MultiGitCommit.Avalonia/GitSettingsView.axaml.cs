@@ -111,8 +111,12 @@ public partial class GitSettingsView : DialogView<bool>
         RbCredNone.IsChecked = current.CredentialSource == CredentialSourceMode.None;
 
         // 启动时加载的仓库：默认「当前目录优先」，用户可在设置里改为「上次使用的仓库优先」
-        RbStartupCurrent.IsChecked = current.StartupRepo != StartupRepoMode.LastUsed;
+        RbStartupCurrent.IsChecked = current.StartupRepo == StartupRepoMode.CurrentDirectory;
         RbStartupLast.IsChecked = current.StartupRepo == StartupRepoMode.LastUsed;
+        RbStartupFallback.IsChecked = current.StartupRepo == StartupRepoMode.CurrentDirectoryThenLastUsed;
+        if (RbStartupCurrent.IsChecked != true && RbStartupLast.IsChecked != true &&
+            RbStartupFallback.IsChecked != true)
+            RbStartupCurrent.IsChecked = true;
         RefreshStartupHint();
 
         // 执行 git add 的文件添加方式：默认「全提交」（git add .），也可改为「可选提交」（提交前勾选文件）
@@ -588,9 +592,13 @@ public partial class GitSettingsView : DialogView<bool>
 
     // ==================== 启动时加载的仓库 ====================
 
-    /// <summary>当前选中的「启动时加载的仓库」模式（两项单选，未选中时按默认的当前目录优先）。</summary>
+    /// <summary>当前选中的「启动时加载的仓库」模式（未选中时按默认的只读取当前目录）。</summary>
     private StartupRepoMode CurrentStartupRepo =>
-        RbStartupLast.IsChecked == true ? StartupRepoMode.LastUsed : StartupRepoMode.CurrentDirectory;
+        RbStartupLast.IsChecked == true
+            ? StartupRepoMode.LastUsed
+            : RbStartupFallback.IsChecked == true
+                ? StartupRepoMode.CurrentDirectoryThenLastUsed
+                : StartupRepoMode.CurrentDirectory;
 
     /// <summary>切换启动来源时刷新说明文字（不执行任何目录扫描 / git 调用，避免卡顿）。</summary>
     private void StartupMode_Changed(object? sender, RoutedEventArgs e) => RefreshStartupHint();
@@ -599,10 +607,17 @@ public partial class GitSettingsView : DialogView<bool>
     private void RefreshStartupHint()
     {
         string cwd = Environment.CurrentDirectory;
-        TxtStartupHint.Text = CurrentStartupRepo == StartupRepoMode.LastUsed
-            ? $"启动时直接打开上次成功加载的仓库（不看当前目录）。当前目录：{cwd}"
-            : $"启动时先看当前目录及其上级目录中的 .git / {ProjectConfig.ConfigFileName}，" +
-              $"找不到仓库再回退到上次使用的仓库。当前目录：{cwd}";
+        TxtStartupHint.Text = CurrentStartupRepo switch
+        {
+            StartupRepoMode.LastUsed =>
+                $"启动时直接打开上次成功加载的仓库（不看当前目录）。当前目录：{cwd}",
+            StartupRepoMode.CurrentDirectoryThenLastUsed =>
+                $"启动时先看当前目录及其上级目录中的 .git / {ProjectConfig.ConfigFileName}，" +
+                $"找不到仓库再回退到上次使用的仓库。当前目录：{cwd}",
+            _ =>
+                $"启动时只读取当前目录及其上级目录中的 .git / {ProjectConfig.ConfigFileName}；" +
+                $"找不到仓库时不自动加载上次项目，留空由你手选。当前目录：{cwd}"
+        };
     }
 
     // ==================== 执行 git add 的文件添加方式 ====================

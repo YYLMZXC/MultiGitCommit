@@ -33,11 +33,14 @@ public class AppSettings
     [JsonPropertyName("CommitIdentity")]
     public GitIdentity CommitIdentity { get; set; } = new();
 
-    /// <summary>上次成功加载的仓库根目录，下次启动自动载入该项目的 multigitcommit.config.json。</summary>
+    /// <summary>上次成功加载的仓库根目录；启动模式为「上次使用的仓库优先」或「找不到时回退」时用于自动载入。</summary>
     [JsonPropertyName("LastRepoPath")]
     public string LastRepoPath { get; set; } = string.Empty;
 
-    /// <summary>启动时优先加载哪个仓库：默认当前目录优先，也可改为上次使用的仓库优先。</summary>
+    /// <summary>
+    /// 启动时加载哪个仓库：默认只读取当前目录（找不到时不自动打开上次项目），
+    /// 也可改为「上次使用的仓库优先」或「当前目录优先，找不到时回退上次项目」。
+    /// </summary>
     [JsonPropertyName("StartupRepo")]
     public StartupRepoMode StartupRepo { get; set; } = StartupRepoMode.CurrentDirectory;
 

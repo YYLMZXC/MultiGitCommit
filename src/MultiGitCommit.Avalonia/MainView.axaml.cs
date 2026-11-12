@@ -510,9 +510,13 @@ public partial class MainView : UserControl
         }
 
         RefreshGitEnvironment();
-        Log(_settings.Current.StartupRepo == StartupRepoMode.LastUsed
-            ? "启动时加载的仓库：上次使用的仓库优先（下次启动生效）。"
-            : "启动时加载的仓库：当前目录优先（下次启动生效）。");
+        Log(_settings.Current.StartupRepo switch
+        {
+            StartupRepoMode.LastUsed => "启动时加载的仓库：上次使用的仓库优先（下次启动生效）。",
+            StartupRepoMode.CurrentDirectoryThenLastUsed =>
+                "启动时加载的仓库：当前目录优先，找不到时回退上次项目（下次启动生效）。",
+            _ => "启动时加载的仓库：只读取当前目录，不自动加载上次项目（下次启动生效）。"
+        });
         Log(_settings.Current.StageMode == StageMode.Select
             ? "执行 git add 时的文件添加方式：可选提交（提交前勾选要添加的文件）。"
             : "执行 git add 时的文件添加方式：全提交（git add .）。");
@@ -1082,12 +1086,13 @@ public partial class MainView : UserControl
 
     /// <summary>
     /// 决定启动时默认加载哪个仓库目录，顺序由设置「启动时加载的仓库」决定：
-    /// 「当前目录优先」（默认）：
+    /// 「只读取当前目录」（默认）：
     /// 1) 当前目录（含程序自身目录）向上最近的 .git / multigitcommit.config.json 所在目录，
     ///    使 IDE 调试或把程序放在仓库内的场景直接加载当前仓库；
-    /// 2) 当前目录不在仓库内时，回退到上次成功加载过的仓库；
-    /// 3) 都没有则返回当前目录本身（非程序自身目录时，仅作占位）或 null（由用户点【浏览】选择）。
+    /// 2) 当前目录不在仓库内时，不自动打开上次项目，也不填入一个必然无效的路径，
+    ///    留空由用户点【浏览】选择。
     /// 「上次使用的仓库优先」：1) 上次成功加载过的仓库；2) 再走上面的当前目录逻辑。
+    /// 「当前目录优先，找不到时回退」：先走当前目录逻辑，找不到再回退到上次使用的仓库。
     /// </summary>
     private string? ResolveStartupRepoPath(out string message)
     {
@@ -1097,15 +1102,12 @@ public partial class MainView : UserControl
             ? string.Empty
             : Path.GetFullPath(cwd).TrimEnd(Path.DirectorySeparatorChar);
 
-        bool isAppDir = cwdFull.Length == 0 ||
-                        string.Equals(cwdFull, baseDir, StringComparison.Ordinal) ||
-                        cwdFull.StartsWith(baseDir + Path.DirectorySeparatorChar, StringComparison.Ordinal);
-
         string last = _settings.Current.LastRepoPath ?? string.Empty;
         bool hasLast = last.Length > 0 && Directory.Exists(last);
+        StartupRepoMode mode = _settings.Current.StartupRepo;
 
         // 设置里选了「上次使用的仓库优先」：直接沿用，不再看当前目录
-        if (_settings.Current.StartupRepo == StartupRepoMode.LastUsed && hasLast)
+        if (mode == StartupRepoMode.LastUsed && hasLast)
         {
             message = $"已载入上次使用的仓库目录（设置：上次使用的仓库优先）：{last}";
             return last;
@@ -1119,20 +1121,18 @@ public partial class MainView : UserControl
             return cwdRepo;
         }
 
-        // 当前目录不在任何仓库内：回退到上次使用的仓库
-        if (hasLast)
+        // 只有显式选择「当前目录优先，找不到时回退」才自动打开上次项目；
+        // 默认的「只读取当前目录」不会把上个项目带进来
+        if (mode == StartupRepoMode.CurrentDirectoryThenLastUsed && hasLast)
         {
-            message = $"当前目录不是 Git 仓库，已载入上次使用的仓库目录：{last}";
+            message = $"当前目录不是 Git 仓库，已载入上次使用的仓库目录（设置：找不到时回退）：{last}";
             return last;
         }
 
-        if (!isAppDir)
-        {
-            message = "当前目录不是 Git 仓库，也没有可回退的上次仓库：请点击【浏览…】选择 Git 仓库根目录。";
-            return cwd;
-        }
+        string hint = "请点击【浏览…】选择 Git 仓库根目录；" +
+                      "如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。";
 
-        message = "未自动填充仓库目录：当前目录及上级目录中未找到 Git 仓库，请点击【浏览…】选择 Git 仓库根目录。";
+        message = $"当前目录及上级目录中未找到 Git 仓库，按设置不自动加载上次项目，已留空仓库目录：{hint}";
         return null;
     }
 
