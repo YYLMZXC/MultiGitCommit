@@ -6,8 +6,9 @@ using Avalonia.Platform.Storage;
 namespace MultiGitCommit;
 
 /// <summary>
-/// Git 环境设置视图：选择 git 来源（自动检测 / 系统 PATH / 指定路径 / 软件内嵌），
-/// 让工具不依赖系统安装的 git，可使用软件自带或便携版 Git。
+/// Git 环境设置视图（按用户任务分层，而不是按配置类字段平铺）：
+/// 默认展开「提交身份」与「基础行为」，Git 来源 / 启动策略 / 推送凭据等底层配置收进默认收起的「高级设置」。
+/// 高级面板首次展开时才执行 git 检测，普通用户不必为一辈子用不到的配置付出等待。
 /// </summary>
 public partial class GitSettingsView : DialogView<bool>
 {
@@ -56,10 +57,20 @@ public partial class GitSettingsView : DialogView<bool>
     /// <summary>git 环境服务（来源预览、凭据助手缓存失效）。</summary>
     private readonly IGitEnvironmentService _environment;
 
-    /// <summary>是否已触发打开后的自动检测（只执行一次）。</summary>
+    /// <summary>是否已触发打开后的身份读取（只执行一次）。</summary>
     private bool _initialTested;
 
-    /// <summary>窄屏（移动端）布局阈值：视图宽度低于该值时凭据输入换两行（手机竖屏对话框卡片约 300）。</summary>
+    /// <summary>高级面板是否已执行过首次检测（git 来源 / 凭据助手）；展开时才做，只做一次。</summary>
+    private bool _advancedChecksStarted;
+
+    /// <summary>身份输入框是否已用 git config 的生效值预填过一次。</summary>
+    private bool _identityInputLoaded;
+
+    /// <summary>身份输入框的初始值，用于点【确定】时判断用户是否编辑过但没点【设置】。</summary>
+    private string _identityInitialName = string.Empty;
+    private string _identityInitialEmail = string.Empty;
+
+    /// <summary>窄屏（移动端）布局阈值：低于该值时身份 / 凭据输入改为逐行排列。</summary>
     private const double NarrowLayoutThreshold = 420;
 
     /// <summary>当前是否处于窄屏布局。</summary>
@@ -91,8 +102,25 @@ public partial class GitSettingsView : DialogView<bool>
         InitializeComponent();
         _suppress = false;
 
-        // 窄屏响应式：宽度变化时在「主机/用户名/令牌一行三个」与「令牌独占第二行」之间切换
+        // 窄屏响应式：宽度变化时切换身份输入与凭据输入的行列布局
         SizeChanged += (_, _) => ApplyResponsiveLayout();
+
+        // 提交身份：写入范围默认跟随已保存的设置；没有仓库时 --local 必然失败，
+        // 禁用「仅当前仓库」并切到全局，用灰度表达这层依赖关系。
+        CmbIdentityScope.SelectedIndex = current.CommitIdentity?.Scope == IdentityScope.Global ? 1 : 0;
+        if (_repoPath == null)
+        {
+            CmbIdentityScopeLocal.IsEnabled = false;
+            CmbIdentityScope.SelectedIndex = 1;
+            TxtIdentityScopeHint.Text = "未加载仓库：身份将写入全局配置（--global）。";
+        }
+
+        // 高级面板默认收起：首次展开时才做 git 来源 / 凭据助手检测（都要启动外部进程）
+        AdvancedExpander.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == Expander.IsExpandedProperty && AdvancedExpander.IsExpanded)
+                _ = EnsureAdvancedChecksAsync();
+        };
 
         RbAuto.IsChecked = current.GitSource == GitSourceMode.Auto;
         RbEmbedded.IsChecked = current.GitSource == GitSourceMode.Embedded;
@@ -138,11 +166,13 @@ public partial class GitSettingsView : DialogView<bool>
 
         RefreshCredList();
         UpdateEnabled();
+        UpdateCredEditEnabled();
 
         // 默认“自定义”：只显示说明，不改变用户已填内容
         ApplyPlatform(string.Empty);
 
-        // 挂到可视树后再执行检测：git 调用全部放到线程池，界面（含【取消】按钮）始终可响应
+        // 打开时只读取基础面板需要的身份信息；高级面板里的检测延迟到首次展开时执行。
+        // git 调用全部放到线程池，界面（含【取消】按钮）始终可响应。
         AttachedToVisualTree += async (_, _) =>
         {
             if (_initialTested) return;
@@ -150,13 +180,11 @@ public partial class GitSettingsView : DialogView<bool>
             try
             {
                 await RefreshIdentityInfoAsync();
-                await RefreshHelperInfoAsync();
-                await TestAsync();
             }
             catch (Exception ex)
             {
-                // async void 事件处理器异常会终止进程，这里兜底显示为普通提示
-                ShowResult("× 检测 git 配置失败：" + ex.Message, false);
+                // async void 事件处理器异常会终止进程，这里兜底显示在基础面板可见的结果区
+                ShowIdentityResult("× 读取提交身份失败：" + ex.Message, false);
             }
         };
     }
@@ -448,6 +476,13 @@ public partial class GitSettingsView : DialogView<bool>
         }
     }
 
+    /// <summary>提示日志文本的统一配色：成功 / 失败 / 中性，浅色与深色主题下都可读。</summary>
+    private static IBrush ResultBrush(bool? ok) => ok == true
+        ? Brush.Parse("#2E9B57")
+        : ok == false
+            ? Brush.Parse("#D93036")
+            : Brush.Parse("#8A9099");
+
     /// <summary>
     /// 把 Git 配置测试结果写入 TxtResult（true 成功 / false 失败 / null 中性提示）。
     /// 只服务于「Git 来源」这一组，账号 / 身份的结果各有独立文本，互不覆盖。
@@ -455,33 +490,21 @@ public partial class GitSettingsView : DialogView<bool>
     private void ShowResult(string message, bool? ok)
     {
         TxtResult.Text = message;
-        TxtResult.Foreground = ok == true
-            ? Brush.Parse("#1E8E3E")
-            : ok == false
-                ? Brush.Parse("#B00020")
-                : Brush.Parse("#666666");
+        TxtResult.Foreground = ResultBrush(ok);
     }
 
     /// <summary>把账号相关提示写入账号区的 TxtCredResult（与 git 配置测试结果分开）。</summary>
     private void ShowCredResult(string message, bool? ok)
     {
         TxtCredResult.Text = message;
-        TxtCredResult.Foreground = ok == true
-            ? Brush.Parse("#1E8E3E")
-            : ok == false
-                ? Brush.Parse("#B00020")
-                : Brush.Parse("#666666");
+        TxtCredResult.Foreground = ResultBrush(ok);
     }
 
     /// <summary>把提交身份相关提示写入身份区的 TxtIdentityResult（与 git 配置测试结果分开）。</summary>
     private void ShowIdentityResult(string message, bool? ok)
     {
         TxtIdentityResult.Text = message;
-        TxtIdentityResult.Foreground = ok == true
-            ? Brush.Parse("#1E8E3E")
-            : ok == false
-                ? Brush.Parse("#B00020")
-                : Brush.Parse("#666666");
+        TxtIdentityResult.Foreground = ResultBrush(ok);
     }
 
     /// <summary>删除选中的凭据。</summary>
@@ -517,15 +540,30 @@ public partial class GitSettingsView : DialogView<bool>
     {
         if (_suppress) return;
         UpdateEnabled();
-        await TestAsync();
+
+        // 高级面板没展开时不检测：构造时程序化选中 radio 也会触发本事件，
+        // 此时不该为普通用户启动 git --version（真正需要时由首次展开的懒检测负责）。
+        if (AdvancedExpander.IsExpanded) await TestAsync();
     }
 
     private void UpdateEnabled()
     {
         bool custom = RbCustom.IsChecked == true;
+        // 整块禁用 + 灰度：明确表达「只有指定路径模式才需要填这里」
+        CustomPathPanel.IsEnabled = custom;
+        CustomPathPanel.Opacity = custom ? 1.0 : 0.45;
         TxtCustomPath.IsEnabled = custom;
         BtnBrowse.IsEnabled = custom;
-        if (custom && !_suppress) TxtCustomPath.Focus();
+        // 高级面板未展开时不聚焦隐藏控件（构造时程序化选中 radio 也会走这里）
+        if (custom && !_suppress && AdvancedExpander.IsExpanded) TxtCustomPath.Focus();
+    }
+
+    /// <summary>自定义账号只在「自动检测 / 只用自定义账号」下会用到，其余来源整块灰度禁用。</summary>
+    private void UpdateCredEditEnabled()
+    {
+        bool editable = CurrentCredentialSource is CredentialSourceMode.Auto or CredentialSourceMode.Custom;
+        CredEditPanel.IsEnabled = editable;
+        CredEditPanel.Opacity = editable ? 1.0 : 0.4;
     }
 
     /// <summary>浏览选择 git 可执行文件。</summary>
@@ -567,13 +605,13 @@ public partial class GitSettingsView : DialogView<bool>
         if (mode == GitSourceMode.Custom && string.IsNullOrWhiteSpace(custom))
         {
             TxtResult.Text = "× 请先填写 git 路径或 Git 根目录。";
-            TxtResult.Foreground = Brush.Parse("#B00020");
+            TxtResult.Foreground = ResultBrush(false);
             return;
         }
 
         int seq = ++_testSeq;
         TxtResult.Text = "正在检测当前所选 git 配置…";
-        TxtResult.Foreground = Brush.Parse("#666666");
+        TxtResult.Foreground = ResultBrush(null);
 
         var (exe, description) = await Task.Run(() =>
         {
@@ -585,9 +623,26 @@ public partial class GitSettingsView : DialogView<bool>
         if (seq != _testSeq) return;
 
         TxtResult.Text = (exe != null ? "√ " : "× ") + description;
-        TxtResult.Foreground = exe != null
-            ? Brush.Parse("#1E8E3E")
-            : Brush.Parse("#B00020");
+        TxtResult.Foreground = ResultBrush(exe != null);
+    }
+
+    /// <summary>
+    /// 高级面板首次展开时才做的检测：git --version 与凭据助手扫描都会启动外部进程，
+    /// 不展开就不必等待，符合渐进式披露。只执行一次。
+    /// </summary>
+    private async Task EnsureAdvancedChecksAsync()
+    {
+        if (_advancedChecksStarted) return;
+        _advancedChecksStarted = true;
+        try
+        {
+            await RefreshHelperInfoAsync();
+            await TestAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowResult("× 检测 git 配置失败：" + ex.Message, false);
+        }
     }
 
     // ==================== 启动时加载的仓库 ====================
@@ -610,13 +665,11 @@ public partial class GitSettingsView : DialogView<bool>
         TxtStartupHint.Text = CurrentStartupRepo switch
         {
             StartupRepoMode.LastUsed =>
-                $"启动时直接打开上次成功加载的仓库（不看当前目录）。当前目录：{cwd}",
+                $"启动时直接打开上次成功加载的仓库，不看当前目录。当前目录：{cwd}",
             StartupRepoMode.CurrentDirectoryThenLastUsed =>
-                $"启动时先看当前目录及其上级目录中的 .git / {ProjectConfig.ConfigFileName}，" +
-                $"找不到仓库再回退到上次使用的仓库。当前目录：{cwd}",
+                $"启动时先在当前目录及其上级目录找仓库，找不到再打开上次使用的仓库。当前目录：{cwd}",
             _ =>
-                $"启动时只读取当前目录及其上级目录中的 .git / {ProjectConfig.ConfigFileName}；" +
-                $"找不到仓库时不自动加载上次项目，留空由你手选。当前目录：{cwd}"
+                $"启动时只看当前目录及其上级目录里有没有仓库；找不到就留空由你手选。当前目录：{cwd}"
         };
     }
 
@@ -637,8 +690,8 @@ public partial class GitSettingsView : DialogView<bool>
     private void RefreshStageHint()
     {
         TxtStageHint.Text = CurrentStageMode == StageMode.Select
-            ? "可选提交：主界面勾选【执行 git add】后，点提交会先弹出文件列表，勾选的文件才会被添加（默认全部勾选，可取消）。"
-            : "全提交：主界面勾选【执行 git add】后，提交前直接执行 git add .，添加工作区全部变更（与旧版行为一致）。";
+            ? "提交前先列出变更文件，由你勾选这次要提交哪些（默认全部勾选，可取消）。仅在主界面勾选【执行 git add】时生效。"
+            : "提交前自动把工作区里的全部变更加入本次提交，不用每次确认。仅在主界面勾选【执行 git add】时生效。";
     }
 
     // ==================== 凭据（账号）来源 ====================
@@ -656,6 +709,9 @@ public partial class GitSettingsView : DialogView<bool>
     private void CredMode_Changed(object? sender, RoutedEventArgs e)
     {
         if (_suppress) return;
+
+        // 切到「只用系统凭据 / 不使用凭据」时，自定义账号编辑区随之灰度禁用
+        UpdateCredEditEnabled();
 
         switch (CurrentCredentialSource)
         {
@@ -754,9 +810,7 @@ public partial class GitSettingsView : DialogView<bool>
         });
 
         TxtHelperInfo.Text = text;
-        TxtHelperInfo.Foreground = usable
-            ? Brush.Parse("#1E8E3E")
-            : Brush.Parse("#B00020");
+        TxtHelperInfo.Foreground = ResultBrush(usable);
     }
 
     // ==================== 提交身份（user.name / user.email） ====================
@@ -771,41 +825,80 @@ public partial class GitSettingsView : DialogView<bool>
         string savedText = saved != null && saved.IsComplete ? $"已保存：{saved}" : "尚未保存";
 
         var (name, email) = await Task.Run(() => _identityService.Read(_repoPath));
+
+        // 首次读取时把 git config 的生效值预填进内联输入框；用户若已在输入则不覆盖
+        if (!_identityInputLoaded)
+        {
+            _identityInputLoaded = true;
+            _identityInitialName = name;
+            _identityInitialEmail = email;
+            if (string.IsNullOrEmpty(TxtIdentityName.Text)) TxtIdentityName.Text = name;
+            if (string.IsNullOrEmpty(TxtIdentityEmail.Text)) TxtIdentityEmail.Text = email;
+        }
+
         TxtIdentityInfo.Text = (name.Length > 0 && email.Length > 0)
             ? $"当前生效：{name} <{email}>（{savedText}）"
             : $"当前生效：未设置（{savedText}）";
 
-        TxtIdentityInfo.Foreground = (name.Length > 0 && email.Length > 0)
-            ? Brush.Parse("#1E8E3E")
-            : Brush.Parse("#B00020");
+        bool complete = name.Length > 0 && email.Length > 0;
+        TxtIdentityInfo.Foreground = ResultBrush(complete);
     }
 
-    /// <summary>打开【提交身份】对话框并写入 git config（仓库级或全局）。</summary>
+    /// <summary>【设置】：把内联输入框里的用户名 / 邮箱写入 git config（本仓库或全局）。</summary>
     private async void BtnIdentity_Click(object? sender, RoutedEventArgs e)
     {
-        var (name, email) = _identityService.Read(_repoPath);
-        var current = new GitIdentity
-        {
-            Name = name,
-            Email = email,
-            Scope = _settings.CommitIdentity?.Scope ?? IdentityScope.Local
-        };
+        string name = TxtIdentityName.Text?.Trim() ?? string.Empty;
+        string email = TxtIdentityEmail.Text?.Trim() ?? string.Empty;
 
-        var identityView = new IdentityView(current);
-        if (await UiDialogs.ShowAsync<bool?>(this, identityView, "提交身份（git user.name / user.email）") != true) return;
-
-        var identity = identityView.SelectedIdentity;
-        if (!_identityService.TryApply(identity, _repoPath, out string error))
+        if (name.Length == 0)
         {
-            string detail = error.Length > 0 ? $"{Environment.NewLine}{error}" : string.Empty;
-            ShowIdentityResult("× 写入提交身份失败，请确认 git 可用且该仓库目录可写。" + detail, false);
+            await Dialogs.ShowMessageAsync(this, "提交身份", "请填写用户名（git config user.name）。");
+            TxtIdentityName.Focus();
             return;
         }
 
+        if (email.Length == 0 || !email.Contains('@'))
+        {
+            await Dialogs.ShowMessageAsync(this, "提交身份", "请填写有效的邮箱（git config user.email）。");
+            TxtIdentityEmail.Focus();
+            return;
+        }
+
+        await ApplyIdentityAsync(name, email);
+    }
+
+    /// <summary>写入身份并刷新显示；返回是否成功（失败原因已显示在基础面板的结果区）。</summary>
+    private async Task<bool> ApplyIdentityAsync(string name, string email)
+    {
+        var identity = new GitIdentity
+        {
+            Name = name,
+            Email = email,
+            Scope = CmbIdentityScope.SelectedIndex == 1 ? IdentityScope.Global : IdentityScope.Local
+        };
+
+        // git config 会启动外部进程，放到线程池执行，避免界面卡住
+        var (ok, error) = await Task.Run(() =>
+        {
+            bool applied = _identityService.TryApply(identity, _repoPath, out string err);
+            return (applied, err);
+        });
+
+        if (!ok)
+        {
+            string detail = error.Length > 0 ? $"{Environment.NewLine}{error}" : string.Empty;
+            ShowIdentityResult("× 写入提交身份失败，请确认 git 可用且该仓库目录可写。" + detail, false);
+            return false;
+        }
+
         _settings.CommitIdentity = identity;
+        _identityInitialName = name;
+        _identityInitialEmail = email;
         await RefreshIdentityInfoAsync();
-        ShowIdentityResult($"√ 已写入提交身份（{(identity.Scope == IdentityScope.Global ? "全局 --global" : "本仓库 --local")}）：" +
-                           $"{identity.Name} <{identity.Email}>", true);
+        ShowIdentityResult(
+            $"√ 已写入提交身份（{(identity.Scope == IdentityScope.Global ? "全局 --global" : "本仓库 --local")}）：" +
+            $"{identity.Name} <{identity.Email}>", true);
+        return true;
     }
 
     /// <summary>
@@ -820,6 +913,24 @@ public partial class GitSettingsView : DialogView<bool>
 
     private async void BtnOk_Click(object? sender, RoutedEventArgs e)
     {
+        // 身份输入框改过但没点【设置】时，点【确定】一并按当前范围写入，避免改动静默丢失
+        string identityName = TxtIdentityName.Text?.Trim() ?? string.Empty;
+        string identityEmail = TxtIdentityEmail.Text?.Trim() ?? string.Empty;
+        bool identityEdited = !string.Equals(identityName, _identityInitialName, StringComparison.Ordinal) ||
+                              !string.Equals(identityEmail, _identityInitialEmail, StringComparison.Ordinal);
+        if (identityEdited)
+        {
+            if (identityName.Length > 0 && identityEmail.Contains('@'))
+            {
+                if (!await ApplyIdentityAsync(identityName, identityEmail)) return;
+            }
+            else
+            {
+                await Dialogs.ShowMessageAsync(this, "提交身份",
+                    "用户名或邮箱填写不完整，身份不会写入；可补全后点【设置】，其它设置仍会保存。");
+            }
+        }
+
         SelectedSource = CurrentMode;
         SelectedCustomPath = TxtCustomPath.Text?.Trim() ?? string.Empty;
 
@@ -858,9 +969,10 @@ public partial class GitSettingsView : DialogView<bool>
 
     /// <summary>
     /// 窄屏适配（视图宽度变化时调用）：
-    /// 宽度低于阈值（手机竖屏对话框卡片）时，把凭据输入的「令牌」输入框从第一行第三列
-    /// 换到第二行并横跨整行（主机/用户名均分第一行），避免三个输入框挤成一团无法输入；
-    /// 恢复宽屏（桌面）时回到「主机 150 / 用户名 110 / 令牌占满剩余」的单行布局。
+    /// 宽度低于阈值（手机竖屏对话框卡片）时，身份输入改为「用户名 / 邮箱」逐行堆叠；
+    /// 凭据输入把「令牌」输入框从第一行第三列换到第二行并横跨整行（主机/用户名均分第一行），
+    /// 避免三个输入框挤成一团无法输入。
+    /// 恢复宽屏（桌面）时身份字段并排、凭据回到「主机 150 / 用户名 110 / 令牌占满剩余」的单行布局。
     /// </summary>
     private void ApplyResponsiveLayout()
     {
@@ -869,17 +981,54 @@ public partial class GitSettingsView : DialogView<bool>
         // 身份信息是运行时拼出来的长文本（当前生效：xxx <xxx>（已保存：…）），
         // 窄屏下限制最大宽度让它换行，否则会把整行连同按钮一起撑出视口、右侧被裁切。
         if (width > 0)
-            TxtIdentityInfo.MaxWidth = width < NarrowLayoutThreshold
-                ? System.Math.Max(120, width - 60)
-                // MaxWidth 只接受有限值或 +∞（默认值）；设 NaN 会抛 ArgumentException，
-                // 且异常发生在布局的 SizeChanged 事件里会直接终止进程（点击【Git 环境】闪退）
-                : double.PositiveInfinity;
+        {
+            bool small = width < NarrowLayoutThreshold;
+            // MaxWidth 只接受有限值或 +∞（默认值）；设 NaN 会抛 ArgumentException，
+            // 且异常发生在布局的 SizeChanged 事件里会直接终止进程（点击【Git 环境】闪退）
+            TxtIdentityInfo.MaxWidth = small ? System.Math.Max(120, width - 60) : double.PositiveInfinity;
+            TxtIdentityScopeHint.MaxWidth = small ? System.Math.Max(120, width - 60) : 330;
+        }
 
         bool narrow = width > 0 && width < NarrowLayoutThreshold;
         if (narrow == _isNarrowLayout)
             return;
 
         _isNarrowLayout = narrow;
+
+        // 身份输入：宽屏两个字段并排，窄屏逐行堆叠（标签始终在输入框上方）
+        if (narrow)
+        {
+            Grid.SetRow(IdentityNameField, 0);
+            Grid.SetColumn(IdentityNameField, 0);
+            Grid.SetColumnSpan(IdentityNameField, 2);
+            IdentityNameField.Margin = new Avalonia.Thickness(0, 0, 0, 8);
+
+            Grid.SetRow(IdentityEmailField, 1);
+            Grid.SetColumn(IdentityEmailField, 0);
+            Grid.SetColumnSpan(IdentityEmailField, 2);
+            IdentityEmailField.Margin = new Avalonia.Thickness(0);
+
+            Grid.SetRow(IdentityActionRow, 2);
+            Grid.SetRow(TxtIdentityInfo, 3);
+            Grid.SetRow(IdentityResultBox, 4);
+        }
+        else
+        {
+            Grid.SetRow(IdentityNameField, 0);
+            Grid.SetColumn(IdentityNameField, 0);
+            Grid.SetColumnSpan(IdentityNameField, 1);
+            IdentityNameField.Margin = new Avalonia.Thickness(0, 0, 6, 0);
+
+            Grid.SetRow(IdentityEmailField, 0);
+            Grid.SetColumn(IdentityEmailField, 1);
+            Grid.SetColumnSpan(IdentityEmailField, 1);
+            IdentityEmailField.Margin = new Avalonia.Thickness(6, 0, 0, 0);
+
+            Grid.SetRow(IdentityActionRow, 1);
+            Grid.SetRow(TxtIdentityInfo, 2);
+            Grid.SetRow(IdentityResultBox, 3);
+        }
+
         var columns = CredInputGrid.ColumnDefinitions;
         if (narrow)
         {

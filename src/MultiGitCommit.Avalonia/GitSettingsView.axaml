@@ -1,225 +1,382 @@
 <UserControl x:Class="MultiGitCommit.GitSettingsView"
              xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             Width="700" MinHeight="560"
+             Width="700" MinHeight="500"
              FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
 
-    <!-- DockPanel：底部按钮栏固定，中间内容区可滚动。
-         顺序重要：最后一个子元素（ScrollViewer）会占满剩余空间。 -->
+    <!--
+      设置页信息架构（按用户任务排布，而不是按配置类字段平铺）：
+        1. 提交身份       —— 人人都要配，默认展开
+        2. 基础行为       —— 少量人改，默认展开
+        3. 高级设置       —— 极少数人需要，默认收起（渐进式披露）
+      文字层级：板块大标题 > 选项标题 / 字段标签 > 辅助说明小字 > 提示日志文本。
+      颜色一律用「主题前景 + 不透明度」或半透明中性灰，浅色 / 深色主题下都可读。
+    -->
+    <UserControl.Styles>
+        <Style Selector="TextBlock.page-title">
+            <Setter Property="FontSize" Value="19"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.section-title">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.subsection-title">
+            <Setter Property="FontSize" Value="13.5"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="TextBlock.field-label">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Opacity" Value="0.85"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style Selector="TextBlock.section-sub">
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Opacity" Value="0.72"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="TextBlock.hint">
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Opacity" Value="0.72"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="TextBlock.log">
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Opacity" Value="0.92"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="RadioButton.option">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="0,4"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="BorderBrush" Value="#D8DEE6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+        </Style>
+        <Style Selector="Border.subcard">
+            <Setter Property="Background" Value="#0C808080"/>
+            <Setter Property="BorderBrush" Value="#E3E7ED"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        <Style Selector="Border.note">
+            <Setter Property="Background" Value="#14808080"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="9,7"/>
+            <Setter Property="Margin" Value="0,10,0,0"/>
+        </Style>
+        <Style Selector="Border.log-box">
+            <Setter Property="Background" Value="#1A808080"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="9,7"/>
+            <Setter Property="Margin" Value="0,8,0,0"/>
+        </Style>
+    </UserControl.Styles>
+
+    <!-- DockPanel：底部按钮栏固定，中间内容区可滚动；最后一个子元素占满剩余空间。 -->
     <DockPanel>
 
         <!-- 底部按钮栏：始终可见，不随内容滚动 -->
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
-                    HorizontalAlignment="Right" Margin="14,8,14,14">
-            <Button Content="确定" Width="80" IsDefault="True" Padding="8,2" Click="BtnOk_Click"/>
-            <Button Content="取消" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2" Click="BtnCancel_Click"/>
-        </StackPanel>
+        <Border DockPanel.Dock="Bottom" BorderBrush="#D8DEE6" BorderThickness="0,1,0,0" Padding="18,10">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="确定" Width="88" IsDefault="True" Padding="8,3" Click="BtnOk_Click"/>
+                <Button Content="取消" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,3" Click="BtnCancel_Click"/>
+            </StackPanel>
+        </Border>
 
-        <!-- 中间内容区：ScrollViewer 包裹，高度超出时可滚动 -->
         <ScrollViewer VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
-                      Padding="14,14,14,6">
+                      Padding="18,16,18,12">
             <StackPanel>
 
-                <!-- ============ 第一组：Git 来源 ============ -->
-                <Border BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="4" Margin="0,0,0,10">
-                    <StackPanel Margin="12">
-                        <TextBlock Text="Git 来源" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,8"/>
-                        <TextBlock Text="选择本工具执行 git 命令所用的 git 来源（不依赖系统是否安装 / 配置 git）："
-                                   TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
+                <TextBlock Text="Git 环境设置" Classes="page-title"/>
+                <TextBlock Classes="section-sub" Margin="0,4,0,16"
+                           Text="常用项放在前面；不常用的底层配置收在下方【高级设置】里，默认收起。点【确定】保存，启动策略下次启动生效。"/>
 
-                        <RadioButton x:Name="RbAuto" Margin="0,3" IsCheckedChanged="Mode_Changed">
-                            <!-- 内容用 TextBlock 换行：窄屏（移动端）下长文案自动折行，不裁切 -->
-                            <TextBlock Text="自动检测（推荐）：软件内嵌 Git → 常见安装位置 → 系统 PATH" TextWrapping="Wrap"/>
-                        </RadioButton>
-                        <RadioButton x:Name="RbEmbedded" Content="仅使用软件内嵌的 Git"
-                                     Margin="0,3" IsCheckedChanged="Mode_Changed"/>
-                        <RadioButton x:Name="RbSystem" Margin="0,3" IsCheckedChanged="Mode_Changed">
-                            <TextBlock Text="仅使用系统 PATH 环境变量中的 git（环境 git）" TextWrapping="Wrap"/>
-                        </RadioButton>
-                        <RadioButton x:Name="RbCustom" Margin="0,3" IsCheckedChanged="Mode_Changed">
-                            <TextBlock Text="指定 git 可执行文件或 Git 目录（软件自带 / 便携版 Git）" TextWrapping="Wrap"/>
-                        </RadioButton>
+                <!-- ============ 第一块：提交身份（默认展开，所有人都用） ============ -->
+                <Border Classes="card">
+                    <StackPanel>
+                        <TextBlock Text="提交身份" Classes="section-title"/>
+                        <TextBlock Text="git user.name / user.email" Classes="section-sub" Margin="0,2,0,0"/>
+                        <TextBlock Classes="hint" Margin="0,6,0,0"
+                                   Text="commit 提交必须身份，不配置无法提交。修改后点【设置】写入 git config。"/>
 
-                        <Grid Margin="20,4,0,4">
+                        <!-- 标签在上、输入框在下；窄屏（移动端）由 ApplyResponsiveLayout 改为逐行排列 -->
+                        <Grid x:Name="IdentityInputGrid" Margin="0,14,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="TxtCustomPath" Grid.Column="0" VerticalContentAlignment="Center"
-                                     ToolTip.Tip="git 可执行文件完整路径，或 Git 安装 / 解压根目录（自动查找其中的 bin/git、cmd/git、libexec/git-core/git）"/>
-                            <Button x:Name="BtnBrowse" Grid.Column="1" Content="浏览..." Margin="6,0,0,0"
-                                    Padding="10,2" Click="BtnBrowse_Click"
-                                    ToolTip.Tip="选择 git 可执行文件；若想指定 Git 根目录请直接粘贴目录路径"/>
-                        </Grid>
-
-                        <Button x:Name="BtnTest" Content="测试当前所选配置" HorizontalAlignment="Left"
-                                Padding="10,2" Margin="0,10,0,0" Click="BtnTest_Click"/>
-
-                        <TextBlock x:Name="TxtResult" TextWrapping="Wrap" Margin="0,8,0,0"
-                                   MinHeight="18" Foreground="#666"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- ============ 第二组：提交身份 ============ -->
-                <Border BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="4" Margin="0,0,0,10">
-                    <StackPanel Margin="12">
-                        <TextBlock Text="提交身份（git user.name / user.email）" FontWeight="SemiBold" FontSize="14"
-                                   TextWrapping="Wrap" Margin="0,0,0,8"/>
-                        <TextBlock Text="生成 commit 的前置条件：二者缺一时 git 直接报错，根本生成不了提交。未配置时，首次提交会自动弹窗引导填写。"
-                                   TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
-                        <!-- WrapPanel：窄屏下身份信息换行后按钮自动落到下一行，不挤成一排被裁切 -->
-                        <WrapPanel>
-                            <TextBlock x:Name="TxtIdentityInfo" VerticalAlignment="Center" Foreground="#666"
-                                       TextWrapping="Wrap"/>
-                            <Button x:Name="BtnIdentity" Content="设置提交身份…" Padding="10,2" Margin="10,0,0,0" Click="BtnIdentity_Click"/>
-                        </WrapPanel>
-                        <TextBlock x:Name="TxtIdentityResult" TextWrapping="Wrap" Margin="0,6,0,0"
-                                   MinHeight="18" Foreground="#666"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- ============ 文件添加方式（git add） ============ -->
-                <Border BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="4" Margin="0,0,0,10">
-                    <StackPanel Margin="12">
-                        <TextBlock Text="执行 git add 时的文件添加方式" FontWeight="SemiBold" FontSize="14"
-                                   TextWrapping="Wrap" Margin="0,0,0,8"/>
-                        <TextBlock Text="主界面勾选了【执行 git add】后，提交前按这里的选择添加文件（默认全提交，不需要每次确认）："
-                                   TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
-
-                        <RadioButton x:Name="RbStageAll" Margin="0,3" IsCheckedChanged="StageMode_Changed">
-                            <TextBlock Text="全提交（默认，推荐）：直接执行 git add .，添加工作区全部变更，不弹窗" TextWrapping="Wrap"/>
-                        </RadioButton>
-                        <RadioButton x:Name="RbStageSelect" Margin="0,3" IsCheckedChanged="StageMode_Changed">
-                            <TextBlock Text="可选提交：先列出工作区变更，由你勾选要添加的文件，只对勾选项执行 git add" TextWrapping="Wrap"/>
-                        </RadioButton>
-
-                        <TextBlock x:Name="TxtStageHint" TextWrapping="Wrap" Margin="0,8,0,0"
-                                   MinHeight="18" Foreground="#888" FontSize="11"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- ============ 第二组：启动时加载的仓库 ============ -->
-                <Border BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="4" Margin="0,0,0,10">
-                    <StackPanel Margin="12">
-                        <TextBlock Text="启动时加载的仓库" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,8"/>
-                        <TextBlock Text="决定软件启动时自动填入哪个仓库目录（改动在下次启动时生效）："
-                                   TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
-
-                        <RadioButton x:Name="RbStartupCurrent" Margin="0,3" IsCheckedChanged="StartupMode_Changed">
-                            <TextBlock Text="只读取当前目录（默认，推荐）：启动时只加载当前目录或其上级目录所在的 Git 仓库；找不到时不自动打开上次项目" TextWrapping="Wrap"/>
-                        </RadioButton>
-                        <RadioButton x:Name="RbStartupLast" Margin="0,3" IsCheckedChanged="StartupMode_Changed">
-                            <TextBlock Text="上次使用的仓库优先：始终打开上次成功加载的仓库，不看当前目录" TextWrapping="Wrap"/>
-                        </RadioButton>
-                        <RadioButton x:Name="RbStartupFallback" Margin="0,3" IsCheckedChanged="StartupMode_Changed">
-                            <TextBlock Text="当前目录优先，找不到时回退上次项目：当前目录不是 Git 仓库时，自动打开上次使用过的仓库" TextWrapping="Wrap"/>
-                        </RadioButton>
-
-                        <TextBlock x:Name="TxtStartupHint" TextWrapping="Wrap" Margin="0,8,0,0"
-                                   MinHeight="18" Foreground="#888" FontSize="11"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- ============ 第三组：推送凭据 / 账号 ============ -->
-                <Border BorderBrush="#DDDDDD" BorderThickness="1" CornerRadius="4" Margin="0,0,0,4">
-                    <StackPanel Margin="12">
-                        <TextBlock Text="推送凭据 / 账号（https 远端免交互推送用，按主机匹配，可配置多个）"
-                                   FontWeight="SemiBold" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,8"/>
-                        <TextBlock Text="工具为非交互执行（禁用终端提示），https 远端没有账号时 git 无法弹窗询问，推送必然失败。可选择账号来源："
-                                   TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
-
-                        <RadioButton x:Name="RbCredAuto" IsCheckedChanged="CredMode_Changed" Margin="0,3">
-                            <TextBlock Text="自动检测（推荐）：优先使用已保存的账号，缺失时自动从系统凭据获取" TextWrapping="Wrap"/>
-                        </RadioButton>
-                        <RadioButton x:Name="RbCredSystem" IsCheckedChanged="CredMode_Changed" Margin="0,3">
-                            <TextBlock Text="仅使用系统凭据：每次推送实时向系统凭据库（凭据管理器 / 钥匙串 / Secret Service）索取（令牌不保存到配置文件）" TextWrapping="Wrap"/>
-                        </RadioButton>
-                        <RadioButton x:Name="RbCredCustom" IsCheckedChanged="CredMode_Changed" Margin="0,3">
-                            <TextBlock Text="仅使用自定义账号：只用下方保存的凭据，不访问系统" TextWrapping="Wrap"/>
-                        </RadioButton>
-                        <RadioButton x:Name="RbCredNone" IsCheckedChanged="CredMode_Changed" Margin="0,3">
-                            <TextBlock Text="不使用凭据：ssh 远端，或已自行配置（ssh-agent / URL 内已带账号）" TextWrapping="Wrap"/>
-                        </RadioButton>
-
-                        <TextBlock Text="自定义账号列表（按主机匹配，可配置多个；点【检测系统凭据】可把系统已保存的账号导入到这里）"
-                                   TextWrapping="Wrap" Margin="0,10,0,4"/>
-                        <TextBlock Text="填入平台的用户名与访问令牌，推送时自动注入 URL（令牌在日志中显示为 ***）。"
-                                   TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"/>
-
-                        <ListBox x:Name="ListCred" Height="90" SelectionChanged="ListCred_SelectionChanged"/>
-
-                        <!-- 平台预设：选平台自动填主机名（CNB 还固定用户名 cnb），避免手打域名出错 -->
-                        <Grid Margin="0,6,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="平台：" VerticalAlignment="Center"/>
-                            <ComboBox x:Name="CmbPlatform" Grid.Column="1" Margin="6,0,0,0" MinWidth="100"
-                                      SelectedIndex="3"
-                                      SelectionChanged="CmbPlatform_SelectionChanged"
-                                      ToolTip.Tip="选择平台会自动填入主机名与用户名规则；也可选“自定义”手动填写">
-                                <ComboBoxItem Content="Gitee（gitee.com）" Tag="gitee.com"/>
-                                <ComboBoxItem Content="GitHub（github.com）" Tag="github.com"/>
-                                <ComboBoxItem Content="CNB 云原生构建（cnb.cool）" Tag="cnb.cool"/>
-                                <ComboBoxItem Content="自定义（手动填写主机）" Tag=""/>
-                            </ComboBox>
-                            <Button x:Name="BtnPlatformToken" Grid.Column="2" Content="获取访问令牌" Padding="10,2" Margin="6,0,0,0"
-                                    IsEnabled="False" Click="BtnPlatformToken_Click"
-                                    ToolTip.Tip="用浏览器打开当前平台的访问令牌创建页面"/>
-                        </Grid>
-
-                        <TextBlock x:Name="TxtPlatformHint" TextWrapping="Wrap" Margin="0,4,0,0"
-                                   Foreground="#888" FontSize="11"/>
-
-                        <!-- 凭据输入：宽屏一行三个（主机/用户名/令牌）；窄屏（移动端）由 code-behind
-                             把令牌输入框换到第二行占满整行（见 ApplyResponsiveLayout） -->
-                        <Grid x:Name="CredInputGrid" Margin="0,6,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="150"/>
-                                <ColumnDefinition Width="110"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            <TextBox x:Name="TxtCredHost" Grid.Column="0" VerticalContentAlignment="Center"
-                                     Watermark="主机，如 cnb.cool"
-                                     ToolTip.Tip="远端主机名（cnb.cool / gitee.com / github.com），也可直接粘贴完整 URL"/>
-                            <TextBox x:Name="TxtCredUser" Grid.Column="1" Margin="6,0,0,0" VerticalContentAlignment="Center"
-                                     Watermark="用户名" ToolTip.Tip="平台账号名"/>
-                            <TextBox x:Name="TxtCredToken" Grid.Column="2" Margin="6,0,0,0" VerticalContentAlignment="Center"
-                                     Watermark="访问令牌 / 密码" PasswordChar="*"
-                                     ToolTip.Tip="平台的访问令牌（Personal Access Token），不要填登录密码以外的敏感口令"/>
+
+                            <StackPanel x:Name="IdentityNameField" Grid.Row="0" Grid.Column="0" Margin="0,0,6,0">
+                                <TextBlock Text="用户名" Classes="field-label"/>
+                                <TextBox x:Name="TxtIdentityName" VerticalContentAlignment="Center"
+                                         Watermark="提交记录里显示的名字"
+                                         ToolTip.Tip="git config user.name，提交记录里显示的作者名"/>
+                            </StackPanel>
+
+                            <StackPanel x:Name="IdentityEmailField" Grid.Row="0" Grid.Column="1" Margin="6,0,0,0">
+                                <TextBlock Text="邮箱" Classes="field-label"/>
+                                <TextBox x:Name="TxtIdentityEmail" VerticalContentAlignment="Center"
+                                         Watermark="name@example.com"
+                                         ToolTip.Tip="git config user.email，建议与代码平台注册邮箱一致"/>
+                            </StackPanel>
+
+                            <WrapPanel x:Name="IdentityActionRow" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
+                                       Margin="0,12,0,0">
+                                <StackPanel Margin="0,0,10,0">
+                                    <TextBlock Text="写入到" Classes="field-label"/>
+                                    <ComboBox x:Name="CmbIdentityScope" Width="170" SelectedIndex="0"
+                                              ToolTip.Tip="本仓库只影响当前项目，全局对所有仓库生效">
+                                        <ComboBoxItem x:Name="CmbIdentityScopeLocal" Content="仅当前仓库"/>
+                                        <ComboBoxItem Content="全局（所有仓库）"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <Button x:Name="BtnIdentity" Content="设置" MinWidth="78" Padding="14,4"
+                                        VerticalAlignment="Bottom" Margin="0,0,10,0"
+                                        Click="BtnIdentity_Click"/>
+                                <TextBlock x:Name="TxtIdentityScopeHint" Classes="hint" MaxWidth="330"
+                                           VerticalAlignment="Bottom" Margin="0,0,0,5"
+                                           Text="默认只写入当前仓库；选「全局」对所有仓库生效。"/>
+                            </WrapPanel>
+
+                            <TextBlock x:Name="TxtIdentityInfo" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="2"
+                                       Classes="log" Margin="0,10,0,0" TextWrapping="Wrap" MinHeight="16"/>
+                            <Border x:Name="IdentityResultBox" Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="2" Classes="log-box">
+                                <TextBlock x:Name="TxtIdentityResult" Classes="log" MinHeight="14"/>
+                            </Border>
                         </Grid>
-
-                        <WrapPanel Margin="0,6,0,0">
-                            <Button x:Name="BtnCredTest" Content="验证账号" Padding="10,2" Click="BtnCredTest_Click"
-                                    ToolTip.Tip="用一次 git ls-remote 实测该账号能否通过服务端认证（最多 20 秒，可随时取消）"/>
-                            <Button x:Name="BtnCredAdd" Content="添加/更新" Padding="10,2" Margin="6,0,0,0" Click="BtnCredAdd_Click"/>
-                            <Button x:Name="BtnCredDelete" Content="删除" Padding="10,2" Margin="6,0,0,0" Click="BtnCredDelete_Click"/>
-                            <Button x:Name="BtnCredDetect" Content="检测系统凭据…" Padding="10,2" Margin="6,0,0,0" Click="BtnCredDetect_Click"
-                                    ToolTip.Tip="打开检测窗口：自行选择要检测的主机，再按需导入（可随时停止，不会全量扫描）"/>
-                        </WrapPanel>
-
-                        <!-- 账号操作的结果独立显示：不与上方 Git 配置测试结果共用一行 -->
-                        <TextBlock x:Name="TxtCredResult" TextWrapping="Wrap" Margin="0,8,0,0"
-                                   MinHeight="18" Foreground="#666"/>
-
-                        <TextBlock Text="凭据助手（credential.helper）"
-                                   Margin="0,12,0,4" FontWeight="SemiBold"/>
-                        <TextBlock Text="按当前已生效的 git 检测；点【确定】保存新的 git 来源后会重新检测。"
-                                   TextWrapping="Wrap" Margin="0,0,0,4" Foreground="#888" FontSize="11"/>
-                        <TextBlock x:Name="TxtHelperInfo" TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#666"
-                                   ToolTip.Tip="git 取用系统保存的账号所依赖的助手；若配置的助手在当前 git 中不存在（常见于精简便携版），推送时会报 'credential-manager' is not a git command"/>
-
-                        <TextBlock Text="凭据明文保存在应用设置目录的 settings.json"
-                                   TextWrapping="Wrap" Margin="0,6,0,0" Foreground="#888" FontSize="11"/>
                     </StackPanel>
                 </Border>
+
+                <!-- ============ 第二块：基础行为（默认展开，少量人会改） ============ -->
+                <Border Classes="card">
+                    <StackPanel>
+                        <TextBlock Text="提交文件添加方式" Classes="section-title"/>
+                        <TextBlock Text="git add 策略 · 主界面勾选【执行 git add】后生效" Classes="section-sub" Margin="0,2,0,0"/>
+
+                        <StackPanel Margin="0,12,0,0">
+                            <RadioButton x:Name="RbStageAll" Classes="option" IsCheckedChanged="StageMode_Changed">
+                                <TextBlock Text="全部提交（默认）" TextWrapping="Wrap"/>
+                            </RadioButton>
+                            <RadioButton x:Name="RbStageSelect" Classes="option" IsCheckedChanged="StageMode_Changed">
+                                <TextBlock Text="可选提交（手动勾选文件）" TextWrapping="Wrap"/>
+                            </RadioButton>
+                        </StackPanel>
+
+                        <!-- 组底部统一备注：单选只保留短标题，说明文字下沉到这里 -->
+                        <Border Classes="note">
+                            <TextBlock x:Name="TxtStageHint" Classes="hint" MinHeight="16"/>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- ============ 第三块：高级设置（默认收起，渐进式披露） ============ -->
+                <Expander x:Name="AdvancedExpander" IsExpanded="False"
+                          HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                          Margin="0,4,0,8">
+                    <Expander.Header>
+                        <StackPanel Margin="0,2">
+                            <TextBlock Text="高级设置" Classes="section-title"/>
+                            <TextBlock Classes="section-sub" Margin="0,2,0,0"
+                                       Text="Git 程序来源 · 启动仓库加载策略 · 远端凭据与账号认证。绝大多数用户永远不需要碰这里。"/>
+                        </StackPanel>
+                    </Expander.Header>
+
+                    <StackPanel Margin="0,10,0,0">
+
+                        <!--  高级 1：Git 程序来源  -->
+                        <Border Classes="subcard">
+                            <StackPanel>
+                                <TextBlock Text="Git 程序来源" Classes="subsection-title"/>
+                                <TextBlock Classes="hint" Margin="0,4,0,10"
+                                           Text="本工具执行 git 命令时用哪个 git 程序。默认自动检测，一般不用改；装了便携版 Git 或要用特定版本时才需要指定。"/>
+
+                                <RadioButton x:Name="RbAuto" Classes="option" IsCheckedChanged="Mode_Changed">
+                                    <TextBlock Text="自动检测（推荐）" TextWrapping="Wrap"/>
+                                </RadioButton>
+                                <RadioButton x:Name="RbEmbedded" Classes="option" IsCheckedChanged="Mode_Changed">
+                                    <TextBlock Text="软件内嵌 Git" TextWrapping="Wrap"/>
+                                </RadioButton>
+                                <RadioButton x:Name="RbSystem" Classes="option" IsCheckedChanged="Mode_Changed">
+                                    <TextBlock Text="系统 Git（PATH 环境变量）" TextWrapping="Wrap"/>
+                                </RadioButton>
+                                <RadioButton x:Name="RbCustom" Classes="option" IsCheckedChanged="Mode_Changed">
+                                    <TextBlock Text="指定 git 路径 / Git 目录" TextWrapping="Wrap"/>
+                                </RadioButton>
+
+                                <!-- 依赖区：只有选「指定路径」才可用，其余情况整块灰度 -->
+                                <StackPanel x:Name="CustomPathPanel" Margin="24,8,0,0" IsEnabled="False" Opacity="0.45">
+                                    <TextBlock Text="git 可执行文件，或 Git 安装 / 解压根目录" Classes="field-label"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox x:Name="TxtCustomPath" Grid.Column="0" VerticalContentAlignment="Center"
+                                                 ToolTip.Tip="git 可执行文件完整路径，或 Git 安装 / 解压根目录（自动查找其中的 bin/git、cmd/git、libexec/git-core/git）"/>
+                                        <Button x:Name="BtnBrowse" Grid.Column="1" Content="浏览…" Margin="6,0,0,0"
+                                                Padding="10,3" Click="BtnBrowse_Click"
+                                                ToolTip.Tip="选择 git 可执行文件；若想指定 Git 根目录请直接粘贴目录路径"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <WrapPanel Margin="0,12,0,0">
+                                    <Button x:Name="BtnTest" Content="检测当前 Git 配置" Padding="10,3"
+                                            Click="BtnTest_Click"/>
+                                </WrapPanel>
+
+                                <Border Classes="note">
+                                    <TextBlock Classes="hint"
+                                               Text="自动检测顺序：软件内嵌 Git → 常见安装位置 → 系统 PATH。"/>
+                                </Border>
+                                <Border Classes="log-box">
+                                    <TextBlock x:Name="TxtResult" Classes="log" MinHeight="14"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!--  高级 2：启动仓库加载策略  -->
+                        <Border Classes="subcard">
+                            <StackPanel>
+                                <TextBlock Text="启动仓库加载策略" Classes="subsection-title"/>
+                                <TextBlock Classes="hint" Margin="0,4,0,10"
+                                           Text="打开软件时自动填入哪个仓库目录；改动在下次启动时生效。"/>
+
+                                <RadioButton x:Name="RbStartupCurrent" Classes="option" IsCheckedChanged="StartupMode_Changed">
+                                    <TextBlock Text="只读取当前目录（默认）" TextWrapping="Wrap"/>
+                                </RadioButton>
+                                <RadioButton x:Name="RbStartupLast" Classes="option" IsCheckedChanged="StartupMode_Changed">
+                                    <TextBlock Text="打开上次使用的仓库" TextWrapping="Wrap"/>
+                                </RadioButton>
+                                <RadioButton x:Name="RbStartupFallback" Classes="option" IsCheckedChanged="StartupMode_Changed">
+                                    <TextBlock Text="当前目录优先，找不到再回退上次仓库" TextWrapping="Wrap"/>
+                                </RadioButton>
+
+                                <Border Classes="note">
+                                    <TextBlock x:Name="TxtStartupHint" Classes="hint" MinHeight="16"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!--  高级 3：远端凭据 & 账号认证  -->
+                        <Border Classes="subcard">
+                            <StackPanel>
+                                <TextBlock Text="远端凭据与账号认证" Classes="subsection-title"/>
+                                <TextBlock Classes="hint" Margin="0,4,0,10"
+                                           Text="HTTPS 远端推送时工具不会弹窗询问账号，所以要先准备好凭据。SSH 远端或 URL 里已带账号时选「不使用凭据」。"/>
+
+                                <RadioButton x:Name="RbCredAuto" Classes="option" IsCheckedChanged="CredMode_Changed">
+                                    <TextBlock Text="自动检测（推荐）" TextWrapping="Wrap"/>
+                                </RadioButton>
+                                <RadioButton x:Name="RbCredSystem" Classes="option" IsCheckedChanged="CredMode_Changed">
+                                    <TextBlock Text="只用系统凭据" TextWrapping="Wrap"/>
+                                </RadioButton>
+                                <RadioButton x:Name="RbCredCustom" Classes="option" IsCheckedChanged="CredMode_Changed">
+                                    <TextBlock Text="只用自定义账号" TextWrapping="Wrap"/>
+                                </RadioButton>
+                                <RadioButton x:Name="RbCredNone" Classes="option" IsCheckedChanged="CredMode_Changed">
+                                    <TextBlock Text="不使用凭据" TextWrapping="Wrap"/>
+                                </RadioButton>
+
+                                <Border Classes="note">
+                                    <TextBlock Classes="hint"
+                                               Text="自动检测＝优先用下方保存的账号，找不到时再从系统凭据库获取；「只用系统凭据」每次推送实时索取，令牌不保存到配置文件。"/>
+                                </Border>
+
+                                <!-- 依赖区：仅「自动检测 / 只用自定义账号」需要自定义账号，其他模式整块灰度 -->
+                                <StackPanel x:Name="CredEditPanel" Margin="0,14,0,0">
+                                    <TextBlock Text="自定义账号（按主机匹配，可配多个）" Classes="subsection-title"/>
+                                    <TextBlock Classes="hint" Margin="0,4,0,6"
+                                               Text="选平台自动填主机名；推送时自动注入账号，令牌在日志中显示为 ***。"/>
+                                    <ListBox x:Name="ListCred" Height="90" SelectionChanged="ListCred_SelectionChanged"/>
+
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="平台：" VerticalAlignment="Center"/>
+                                        <ComboBox x:Name="CmbPlatform" Grid.Column="1" Margin="6,0,0,0" MinWidth="100"
+                                                  SelectedIndex="3" SelectionChanged="CmbPlatform_SelectionChanged"
+                                                  ToolTip.Tip="选择平台会自动填入主机名与用户名规则；也可选“自定义”手动填写">
+                                            <ComboBoxItem Content="Gitee（gitee.com）" Tag="gitee.com"/>
+                                            <ComboBoxItem Content="GitHub（github.com）" Tag="github.com"/>
+                                            <ComboBoxItem Content="CNB 云原生构建（cnb.cool）" Tag="cnb.cool"/>
+                                            <ComboBoxItem Content="自定义（手动填写主机）" Tag=""/>
+                                        </ComboBox>
+                                        <Button x:Name="BtnPlatformToken" Grid.Column="2" Content="获取访问令牌"
+                                                Padding="10,3" Margin="6,0,0,0" IsEnabled="False"
+                                                Click="BtnPlatformToken_Click"
+                                                ToolTip.Tip="用浏览器打开当前平台的访问令牌创建页面"/>
+                                    </Grid>
+
+                                    <TextBlock x:Name="TxtPlatformHint" Classes="hint" Margin="0,6,0,0"/>
+
+                                    <!-- 凭据输入：宽屏一行三个；窄屏由 ApplyResponsiveLayout 把令牌换到第二行 -->
+                                    <Grid x:Name="CredInputGrid" Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="150"/>
+                                            <ColumnDefinition Width="110"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBox x:Name="TxtCredHost" Grid.Column="0" VerticalContentAlignment="Center"
+                                                 Watermark="主机，如 cnb.cool"
+                                                 ToolTip.Tip="远端主机名（cnb.cool / gitee.com / github.com），也可直接粘贴完整 URL"/>
+                                        <TextBox x:Name="TxtCredUser" Grid.Column="1" Margin="6,0,0,0" VerticalContentAlignment="Center"
+                                                 Watermark="用户名" ToolTip.Tip="平台账号名"/>
+                                        <TextBox x:Name="TxtCredToken" Grid.Column="2" Margin="6,0,0,0" VerticalContentAlignment="Center"
+                                                 Watermark="访问令牌 / 密码" PasswordChar="*"
+                                                 ToolTip.Tip="平台的访问令牌（Personal Access Token），不要填登录密码以外的敏感口令"/>
+                                    </Grid>
+
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <Button x:Name="BtnCredTest" Content="验证账号" Padding="10,3" Click="BtnCredTest_Click"
+                                                ToolTip.Tip="用一次 git ls-remote 实测该账号能否通过服务端认证（最多 20 秒，可随时取消）"/>
+                                        <Button x:Name="BtnCredAdd" Content="添加/更新" Padding="10,3" Margin="6,0,0,0" Click="BtnCredAdd_Click"/>
+                                        <Button x:Name="BtnCredDelete" Content="删除" Padding="10,3" Margin="6,0,0,0" Click="BtnCredDelete_Click"/>
+                                        <Button x:Name="BtnCredDetect" Content="检测系统凭据…" Padding="10,3" Margin="6,0,0,0" Click="BtnCredDetect_Click"
+                                                ToolTip.Tip="打开检测窗口：自行选择要检测的主机，再按需导入（可随时停止，不会全量扫描）"/>
+                                    </WrapPanel>
+
+                                    <TextBlock Classes="hint" Margin="0,10,0,0"
+                                               Text="凭据明文保存在应用设置目录的 settings.json，请只在本机使用。"/>
+                                </StackPanel>
+
+                                <!-- 账号操作结果放在依赖区之外，切换模式后的提示始终可见 -->
+                                <Border Classes="log-box">
+                                    <TextBlock x:Name="TxtCredResult" Classes="log" MinHeight="14"/>
+                                </Border>
+
+                                <TextBlock Text="凭据助手（credential.helper）" Classes="subsection-title" Margin="0,14,0,0"/>
+                                <TextBlock Classes="hint" Margin="0,4,0,6"
+                                           Text="系统凭据能否取到，取决于当前 git 有没有可用的助手；点【确定】保存新的 git 来源后会重新检测。"/>
+                                <Border Classes="log-box" Margin="0,0,0,0">
+                                    <TextBlock x:Name="TxtHelperInfo" Classes="log" MinHeight="14" TextWrapping="Wrap"
+                                               ToolTip.Tip="git 取用系统保存的账号所依赖的助手；若配置的助手在当前 git 中不存在（常见于精简便携版），推送时会报 'credential-manager' is not a git command"/>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                    </StackPanel>
+                </Expander>
 
             </StackPanel>
         </ScrollViewer>
