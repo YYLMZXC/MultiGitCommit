@@ -134,7 +134,13 @@ public sealed class GitCliRunner : IGitCliRunner
         if (!string.IsNullOrWhiteSpace(request.WorkingDirectory))
             psi.WorkingDirectory = request.WorkingDirectory!;
 
-        if (isGit) ApplyNonInteractiveEnvironment(psi, env);
+        if (isGit)
+        {
+            ApplyNonInteractiveEnvironment(psi, env);
+            // Android：内嵌 git（Termux 构建）需要 LD_LIBRARY_PATH / GIT_EXEC_PATH / CA 证书等
+            // 运行时环境；非 Android 平台为空操作，见 AndroidGitPlatform。
+            AndroidGitPlatform.ApplyEnvironment(psi);
+        }
 
         // 请求级环境变量优先（例如探测凭据时强制 GCM_INTERACTIVE=never）
         if (request.Environment != null)

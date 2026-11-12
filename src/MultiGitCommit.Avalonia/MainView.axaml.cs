@@ -141,7 +141,10 @@ public partial class MainView : UserControl
         if (OperatingSystem.IsIOS())
             Log("注意：iOS 沙盒禁止执行子进程，git 相关功能在本平台不可用；界面与设置仅供浏览。");
         else if (OperatingSystem.IsAndroid())
-            Log("提示：Android 可通过【Git 环境】指定 git 可执行文件路径（内置便携 Git 不包含安卓版本）。");
+        {
+            Log("提示：Android 已内嵌 git（APK 原生库目录），提交推送默认开箱即用；");
+            Log("      远端请使用 https 协议（APK 未内置 ssh 客户端，ssh 协议远端不可用）。");
+        }
 
         // 解析 git 来源（内嵌 / 自动检测 / 系统 PATH / 指定路径），不依赖系统安装 git
         RefreshGitEnvironment();

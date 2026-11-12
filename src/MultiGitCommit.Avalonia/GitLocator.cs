@@ -247,7 +247,9 @@ public static class GitLocator
                 found = EmbeddedCandidates().FirstOrDefault(IsExecutable);
                 description = found != null
                     ? $"软件内嵌：{found}"
-                    : "软件目录 / .app 内未发现内嵌 Git（git/bin/git 或 Resources/git/bin/git），请改用其他来源";
+                    : OperatingSystem.IsAndroid()
+                        ? "APK 原生库目录未发现内嵌 Git（libgit.so），请改用其他来源"
+                        : "软件目录 / .app 内未发现内嵌 Git（git/bin/git 或 Resources/git/bin/git），请改用其他来源";
                 break;
 
             case GitSourceMode.System:
@@ -395,13 +397,15 @@ public static class GitLocator
     {
         version = string.Empty;
 
-        // 只执行 --version：不注入 PATH / 交互环境（候选路径探测会频繁调用，保持轻量）
+        // 只执行 --version：不注入 PATH / 交互环境（候选路径探测会频繁调用，保持轻量）。
+        // Android：动态链接的 libgit.so 依赖同目录的 lib*.so，探测也必须能找到（LD_LIBRARY_PATH）。
         GitCommandResult result = ProbeRunner.Run(new GitCommandRequest
         {
             FileName = gitPath,
             Arguments = "--version",
             Timeout = TimeSpan.FromSeconds(5),
-            TreatAsGit = false
+            TreatAsGit = false,
+            Environment = AndroidGitPlatform.LoaderEnvironment()
         });
 
         if (!result.Success) return false;
@@ -421,6 +425,13 @@ public static class GitLocator
     /// </summary>
     private static IEnumerable<string> EmbeddedCandidates()
     {
+#if ANDROID
+        // Android：内嵌 git 以 lib*.so 形式打进 APK 原生库目录（Android 10+ 禁止执行应用数据
+        // 目录里的文件，原生库目录是唯一保持可执行的落点），运行时支撑见 AndroidGitPlatform。
+        string? androidNativeDir = AndroidGitPlatform.NativeLibraryDir;
+        if (!string.IsNullOrEmpty(androidNativeDir))
+            yield return Path.Combine(androidNativeDir, "libgit.so");
+#endif
         string appDir = AppContext.BaseDirectory;
 
         // 单文件发布（Release）时 AppContext.BaseDirectory 不一定是 exe 所在目录，
