@@ -1,48 +1,57 @@
 <UserControl x:Class="MultiGitCommit.AboutView"
              xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:media="using:Avalonia.Media"
              Width="500" MinHeight="380"
              FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
 
-    <Grid Margin="20">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
-            <TextBlock Text="MultiGitCommit" FontSize="20" FontWeight="Bold" Foreground="#2B579A"/>
-            <!-- 版本号运行时从程序集读取（csproj 构建时自动生成），这里不再硬编码 -->
-            <TextBlock x:Name="TxtVersion" Text="  v（Windows / macOS / Linux / Android / iOS）" FontSize="13" Foreground="#888888" VerticalAlignment="Bottom" Margin="4,0,0,3"/>
-        </StackPanel>
-
-        <TextBlock Grid.Row="1" Text="个人自用的 Git 一键提交推送工具（Avalonia 跨平台版，支持 Windows、macOS、Linux、Android 与 iOS）。"
-                   TextAlignment="Center" TextWrapping="Wrap" Foreground="#555555" Margin="0,0,0,14"/>
-
-        <Border Grid.Row="2" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">
-            <StackPanel Margin="8">
-                <TextBlock Text="Gitee" FontWeight="Bold" Foreground="#555555"/>
-                <HyperlinkButton Content="https://gitee.com/yylmzxc/multi-git-commit"
-                                 NavigateUri="https://gitee.com/yylmzxc/multi-git-commit"
-                                 Click="Link_Click" Margin="0,2,0,8"/>
-
-                <TextBlock Text="cnb.cool" FontWeight="Bold" Foreground="#555555"/>
-                <HyperlinkButton Content="https://cnb.cool/YYLMZXC/MultiGitCommit"
-                                 NavigateUri="https://cnb.cool/YYLMZXC/MultiGitCommit"
-                                 Click="Link_Click" Margin="0,2,0,8"/>
-
-                <TextBlock Text="GitHub" FontWeight="Bold" Foreground="#555555"/>
-                <HyperlinkButton Content="https://github.com/YYLMZXC/MultiGitCommit"
-                                 NavigateUri="https://github.com/YYLMZXC/MultiGitCommit"
-                                 Click="Link_Click" Margin="0,2,0,0"/>
-            </StackPanel>
-        </Border>
-
-        <StackPanel Grid.Row="4" HorizontalAlignment="Center" Margin="0,14,0,0">
+    <!-- 内容放进 ScrollViewer（横向禁用，窄窗口 / 移动端按视口宽度换行而不是超宽裁切），
+         底部【确定】按钮放在 ScrollViewer 外，始终可见 -->
+    <DockPanel Margin="20" LastChildFill="True">
+        <StackPanel DockPanel.Dock="Bottom" HorizontalAlignment="Center" Margin="0,14,0,0">
             <Button Content="确定" Width="90" IsDefault="True" Click="BtnOk_Click"/>
         </StackPanel>
-    </Grid>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <!-- 名称与版本号分行居中：版本号含 5 个平台名，挤在一行会超出窗口宽度被裁切 -->
+                <StackPanel HorizontalAlignment="Center" Margin="0,0,0,6">
+                    <TextBlock Text="MultiGitCommit" FontSize="20" FontWeight="Bold"
+                               Foreground="#2B579A" TextAlignment="Center"/>
+                    <!-- 版本号运行时从程序集读取（csproj 构建时自动生成），这里不再硬编码 -->
+                    <TextBlock x:Name="TxtVersion" Text="v（Windows / macOS / Linux / Android / iOS）"
+                               FontSize="13" Foreground="#888888" TextAlignment="Center"
+                               TextWrapping="Wrap" Margin="0,3,0,0"/>
+                </StackPanel>
+
+                <TextBlock Text="个人自用的 Git 一键提交推送工具（Avalonia 跨平台版，支持 Windows、macOS、Linux、Android 与 iOS）。"
+                           TextAlignment="Center" TextWrapping="Wrap" Foreground="#555555" Margin="0,0,0,14"/>
+
+                <Border BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">
+                    <StackPanel Margin="8">
+                        <TextBlock Text="Gitee" FontWeight="Bold" Foreground="#555555"/>
+                        <HyperlinkButton NavigateUri="https://gitee.com/yylmzxc/multi-git-commit"
+                                         Click="Link_Click" Margin="0,2,0,8" Padding="0">
+                            <TextBlock Text="https://gitee.com/yylmzxc/multi-git-commit"
+                                       TextWrapping="Wrap" TextDecorations="{x:Static media:TextDecorations.Underline}"/>
+                        </HyperlinkButton>
+
+                        <TextBlock Text="cnb.cool" FontWeight="Bold" Foreground="#555555"/>
+                        <HyperlinkButton NavigateUri="https://cnb.cool/YYLMZXC/MultiGitCommit"
+                                         Click="Link_Click" Margin="0,2,0,8" Padding="0">
+                            <TextBlock Text="https://cnb.cool/YYLMZXC/MultiGitCommit"
+                                       TextWrapping="Wrap" TextDecorations="{x:Static media:TextDecorations.Underline}"/>
+                        </HyperlinkButton>
+
+                        <TextBlock Text="GitHub" FontWeight="Bold" Foreground="#555555"/>
+                        <HyperlinkButton NavigateUri="https://github.com/YYLMZXC/MultiGitCommit"
+                                         Click="Link_Click" Margin="0,2,0,0" Padding="0">
+                            <TextBlock Text="https://github.com/YYLMZXC/MultiGitCommit"
+                                       TextWrapping="Wrap" TextDecorations="{x:Static media:TextDecorations.Underline}"/>
+                        </HyperlinkButton>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
 </UserControl>

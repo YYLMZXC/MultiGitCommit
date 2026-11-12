@@ -8,12 +8,19 @@ namespace MultiGitCommit;
 /// </summary>
 public partial class AboutView : DialogView<bool>
 {
+    /// <summary>
+    /// 移动端覆盖层按视口尺寸布局：卡片内禁用横向滚动，视图宽度固定为屏幕宽度，
+    /// 标题 / 说明 / 链接的 TextWrapping 才会真正生效，避免桌面版 500 宽的内容被手机屏幕裁掉。
+    /// 桌面端不经过覆盖层，仍按 XAML 的 Width=500 呈现。
+    /// </summary>
+    public override bool FitsOverlayViewport => true;
+
     public AboutView()
     {
         InitializeComponent();
 
         // 版本号来自 csproj 构建时自动生成的 Version，界面无需手改
-        TxtVersion.Text = $"  v{AppVersion.Current}（Windows / macOS / Linux / Android / iOS）";
+        TxtVersion.Text = $"v{AppVersion.Current}（Windows / macOS / Linux / Android / iOS）";
     }
 
     /// <summary>用系统默认浏览器打开项目地址（TopLevel.Launcher 跨平台，移动端也可用）。</summary>
