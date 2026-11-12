@@ -296,27 +296,46 @@ MultiGitCommit/
 ├── multigitcommit.config.json       # 本项目自身的工具配置（远端列表）
 ├── res/                             # 图标等素材
 └── src/
-    ├── MultiGitCommit.Avalonia/     # 【当前主项目】一套代码同时支持 Windows / macOS / Linux
-    │   ├── Program.cs                       # 入口，Avalonia 应用构建
-    │   ├── App.axaml / App.axaml.cs         # 应用定义（Fluent 主题）
-    │   ├── MainWindow.axaml(.xaml.cs)       # 主界面与全部事件驱动逻辑
-    │   ├── CloneWindow.axaml(.xaml.cs)      # 克隆项目窗口（URL/目录/分支/选项 + 命令预览）
-    │   ├── GitSettingsWindow.axaml(.cs)     # Git 环境设置窗口（来源选择/浏览/测试 + 提交身份 + 推送凭据）
-    │   ├── IdentityWindow.axaml(.cs)        # 提交身份窗口（user.name / user.email + 仓库级/全局）
-    │   ├── CredentialDetectWindow.axaml(.cs)# 系统凭据检测窗口（选主机 → 检测（可停止）→ 勾选导入）
-    │   ├── HistoryWindow.axaml(.cs)         # 提交历史窗口（浏览 / 重置提交 + 打开该提交修改的文件）
-    │   ├── StageFilesWindow.axaml(.cs)      # 选择性 git add 窗口（工作区变更文件勾选）
-    │   ├── AboutWindow.axaml(.cs)           # 关于窗口（版本 + 项目地址）
-    │   ├── Dialogs.cs                       # 自建提示 / 确认 / 输入对话框
-    │   ├── ProjectConfig.cs                 # 每仓库配置读写（multigitcommit.config.json）
-    │   ├── GitLocator.cs                    # git 定位/校验 + 全局设置持久化
+    ├── MultiGitCommit.Avalonia/     # 【当前主项目】net10.0 / net10.0-android / net10.0-ios 一套代码
+    │   ├── Program.cs / App.axaml(.cs)      # 入口与应用定义；App 从组合根装配桌面 / 移动两条启动路径
+    │   ├── MainWindow.axaml(.xaml.cs)       # 桌面窗口薄壳（标题 / 图标 / 关闭收尾）
+    │   ├── MainView.axaml(.cs)              # 主界面（全平台共用）：UI 事件、日志、响应式布局
+    │   ├── *View.axaml(.cs)                 # 对话框视图：GitSettings / Clone / History / StageFiles /
+    │   │                                   # Identity / Pull / CredentialDetect / About
+    │   ├── Dialogs.cs / UiDialogs.cs        # 提示 / 确认 / 输入 + 桌面 Window、移动 DialogOverlay 统一宿主
+    │   ├── Abstractions/IGitCliRunner.cs    # 外部命令执行契约 + Request / Result DTO + 超时档位
+    │   ├── Services/
+    │   │   ├── GitCliRunner.cs              # 唯一进程执行实现（UTF-8 / 非交互 / 超时杀进程树 / PATH 注入）
+    │   │   ├── GitCommandReporter.cs        # 命令执行 + 日志呈现（ILoggedGitRunner）
+    │   │   ├── CommitPushService.cs         # 提交并推送全部远端
+    │   │   ├── GitPullService.cs            # 拉取更新
+    │   │   ├── RepositoryCommands.cs        # init / 默认分支 / clone / 工作区状态 / 手动命令 + clone 参数规则
+    │   │   ├── GitHistoryReader.cs          # log / show / status / reset 命令与解析
+    │   │   ├── GitEnvironmentService.cs     # git 来源解析、可用性判断、凭据助手缓存失效
+    │   │   ├── RepoLocator.cs / GitIdentityService.cs / GitCredentialResolver.cs
+    │   │   └── FileOpener.cs / GitCredentials.cs / GitArgument.cs
+    │   ├── Settings/
+    │   │   ├── AppServices.cs               # 组合根（唯一装配点）+ AppSession（一次界面生命周期的服务集合）
+    │   │   ├── ISettingsProvider.cs         # 全局设置访问契约
+    │   │   ├── AppSettings.cs               # 全局设置模型 + 跨平台持久化
+    │   │   └── ProjectConfigStore.cs        # 每仓库配置仓储（IProjectConfigStore）
+    │   ├── Models/                          # 纯数据模型与领域规则（GitRefName / GitCommit / GitIdentity …）
+    │   ├── ProjectConfig.cs                 # 每仓库配置模型（纯数据，不自持久化）
+    │   ├── GitLocator.cs                    # git 可执行文件定位（仅由 GitEnvironmentService 调用）
     │   ├── GitCredentialHelper.cs           # credential.helper 可用性检测与自动覆盖
-    │   ├── SystemCredentialProbe.cs         # 系统凭据探测（凭据管理器 / 钥匙串 / Secret Service / .git-credentials，可取消、5 秒超时）
-    │   ├── CredentialTester.cs              # 账号验证（git ls-remote 实测，20 秒超时、可取消、输出脱敏）
-    │   ├── Services/FileOpener.cs           # 用系统默认程序打开文件 / 在文件管理器中定位（Windows / macOS / Linux）
-    │   ├── MultiGitCommit.csproj            # 项目文件（net10.0，RID：win-x64 / osx-arm64 / osx-x64 / linux-x64 / linux-arm64）
-    │   └── res/                             # 应用图标（icon.png / icon.ico）
+    │   ├── SystemCredentialProbe.cs / CredentialTester.cs  # 系统凭据探测 / 账号实测
+    │   ├── Platforms/Android|iOS/           # 移动入口与清单（按 TFM 显式编译）
+    │   ├── Fonts/ / res/ / git/             # 安卓中文字体 / 图标 / 便携 Git
+    │   └── MultiGitCommit.csproj            # 多 TFM / RID / 发布配置
     └── old-version/                 # 已归档的旧版实现（不再更新）
-        ├── MultiGitCommit.NET/      # 旧 Windows WPF 版（net10.0-windows）
-        └── MultiGitCommit.MACOS/    # 旧 macOS 版（各自独立代码库）
+        ├── MultiGitCommit.NET/      # 旧 Windows WPF 版
+        └── MultiGitCommit.MACOS/    # 旧 macOS 版
 ```
+
+分层约定（高内聚 / 低耦合）：
+
+- 依赖方向单一：`View → AppSession → Services → IGitCliRunner`；静态默认值只在 `AppServices` 组合根出现一次。
+- 视图只做参数收集、确认与展示；不拼 git 命令、不判断操作系统、不读写配置文件、不直接摸 `GitLocator` 等全局状态。
+- 命令与规则各有一份实现：clone 参数由 `GitCloneArguments` 同时供预览与执行使用，分支名规则由 `GitRefName` 供主界面与克隆对话框共用，工作区状态解析由 `GitStatusText` 供拉取与历史共用。
+- 模型只表示数据：`ProjectConfig` 的读写交给 `IProjectConfigStore`，`AppSettings` 的访问交给 `ISettingsProvider`。
+- 生命周期收口：视图离开可视树 / 窗口关闭时统一取消后台 git 任务并退订事件；git 环境切换时由环境服务自动让凭据助手缓存失效。

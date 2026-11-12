@@ -48,20 +48,14 @@ public partial class MainView : UserControl
     /// <summary>远端 URL 列表（绑定到 ListBox）。</summary>
     private readonly ObservableCollection<string> _remotes = new();
 
-    /// <summary>
-    /// 外部命令执行器：进程创建、UTF-8 编码、非交互环境、超时杀进程树、PATH 注入
-    /// 等细节全部由它负责，本视图只关心「跑什么命令、结果怎么用」。
-    /// </summary>
-    private readonly IGitCliRunner _cli;
+    /// <summary>本视图生命周期内共享的服务集合（由组合根 <see cref="AppServices"/> 统一装配）。</summary>
+    private readonly AppSession _app;
 
-    /// <summary>提交身份读写服务（与 Git 环境设置视图共用同一套实现）。</summary>
+    /// <summary>提交身份读写服务（与 Git 环境设置视图共用同一实例）。</summary>
     private readonly GitIdentityService _identity;
 
     /// <summary>仓库定位服务（「路径 → 仓库根目录」的唯一判定入口）。</summary>
     private readonly RepoLocator _repoLocator;
-
-    /// <summary>带日志呈现的命令执行（日志格式只有一份实现）。</summary>
-    private readonly ILoggedGitRunner _logged;
 
     /// <summary>提交推送业务流程（不依赖任何 UI 类型）。</summary>
     private readonly CommitPushService _commitPush;
@@ -69,31 +63,43 @@ public partial class MainView : UserControl
     /// <summary>拉取更新业务流程（与推送共用凭据解析与命令执行实现）。</summary>
     private readonly GitPullService _pull;
 
-    /// <summary>当前拉取的取消令牌（【取消拉取】按钮 / 关闭主窗口时使用）。</summary>
+    /// <summary>仓库级 git 命令（初始化 / 分支 / 克隆 / 状态 / 手动命令）。</summary>
+    private readonly IRepositoryCommands _commands;
+
+    /// <summary>项目配置仓储（模型不自持久化）。</summary>
+    private readonly IProjectConfigStore _configs;
+
+    /// <summary>git 环境（解析与缓存失效由服务统一负责）。</summary>
+    private readonly IGitEnvironmentService _environment;
+
+    /// <summary>当前拉取的取消令牌（【取消拉取】按钮 / 视图销毁时使用）。</summary>
     private CancellationTokenSource? _pullCts;
 
-    /// <summary>应用设置来源（不再直接摸 GitLocator 的静态单例）。</summary>
+    /// <summary>应用设置来源。</summary>
     private readonly ISettingsProvider _settings;
 
-    public MainView() : this(GitCliRunner.Default, SettingsProvider.Instance)
+    public MainView() : this(AppServices.Current.Cli, AppServices.Current.Settings)
     {
     }
 
     /// <summary>可注入命令执行器（单元测试时传入假实现，无需真实 git 与 UI 运行时）。</summary>
-    public MainView(IGitCliRunner cli) : this(cli, SettingsProvider.Instance)
+    public MainView(IGitCliRunner cli) : this(cli, AppServices.Current.Settings)
     {
     }
 
     /// <summary>可注入命令执行器与设置来源（完全脱离真实磁盘设置，便于测试）。</summary>
     public MainView(IGitCliRunner cli, ISettingsProvider settings)
     {
-        _cli = cli;
-        _settings = settings;
-        _identity = new GitIdentityService(cli);
-        _repoLocator = new RepoLocator(cli);
-        _logged = new GitCommandReporter(cli, Log);
-        _commitPush = new CommitPushService(_logged, _identity, settings);
-        _pull = new GitPullService(_logged, settings);
+        _app = AppServices.Current.CreateSession(cli, settings, Log);
+        _settings = _app.Settings;
+        _identity = _app.Identity;
+        _repoLocator = _app.RepoLocator;
+        _commitPush = _app.CommitPush;
+        _pull = _app.Pull;
+        _commands = _app.Repositories;
+        _configs = _app.ProjectConfigs;
+        _environment = _app.GitEnvironment;
+
         _loading = true;
         InitializeComponent();
         _loading = false;
@@ -114,14 +120,12 @@ public partial class MainView : UserControl
             _repoHeaderButtonColumns.Add(button, column);
         }
 
-        SizeChanged += (_, _) => ApplyResponsiveLayout();
+        SizeChanged += OnSizeChanged;
+        // 移动端没有 Window.Closing：视图离开可视树时统一收尾，避免拉取进程残留
+        DetachedFromVisualTree += (_, _) => Shutdown();
 
         _pathDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
-        _pathDebounce.Tick += (_, _) =>
-        {
-            _pathDebounce.Stop();
-            LoadConfigFromPath();
-        };
+        _pathDebounce.Tick += OnPathDebounceTick;
 
         Log("MultiGitCommit 已启动（跨平台版：Windows / macOS / Linux / Android / iOS）。");
         Log("提示：本工具不会修改 git 原生 .git/config；远端地址保存在每个项目目录下的 multigitcommit.config.json。");
@@ -141,11 +145,21 @@ public partial class MainView : UserControl
         if (startupMessage.Length > 0) Log(startupMessage);
     }
 
-    /// <summary>主窗口关闭 / 视图销毁时中止仍在进行的拉取，避免 git 进程残留（由桌面壳调用）。</summary>
+    private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => ApplyResponsiveLayout();
+
+    private void OnPathDebounceTick(object? sender, EventArgs e)
+    {
+        _pathDebounce.Stop();
+        LoadConfigFromPath();
+    }
+
+    /// <summary>主窗口关闭 / 视图销毁时中止仍在进行的拉取，避免 git 进程残留。</summary>
     internal void Shutdown()
     {
         _pullCts?.Cancel();
         _pathDebounce.Stop();
+        SizeChanged -= OnSizeChanged;
+        _pathDebounce.Tick -= OnPathDebounceTick;
     }
 
     // ==================== 日志输出 ====================
@@ -166,25 +180,6 @@ public partial class MainView : UserControl
             TxtLog.CaretIndex = TxtLog.Text?.Length ?? 0;
         }
     }
-
-    // ==================== 外部命令执行 ====================
-    // 进程细节（编码 / 非交互 / 超时杀进程树 / PATH 注入）全部在 IGitCliRunner 内，
-    // 这里只做「调用 + 日志呈现」，业务代码不再直接接触 Process。
-
-    /// <summary>同步执行快速校验类命令（输出量小），超时即终止。</summary>
-    private GitCommandResult RunCommand(string workingDir, string fileName, string arguments)
-        => _cli.Run(new GitCommandRequest
-        {
-            FileName = fileName,
-            Arguments = arguments,
-            WorkingDirectory = workingDir,
-            Timeout = GitTimeouts.Quick
-        });
-
-    /// <summary>异步执行命令，stdout/stderr 逐行实时输出到日志区；超时后终止进程并返回失败。</summary>
-    private Task<GitCommandResult> RunCommandAsync(string workingDir, string fileName, string arguments,
-        string? logLabel = null, TimeSpan? timeout = null)
-        => _logged.RunAsync(workingDir, arguments, logLabel, timeout, fileName);
 
     // ==================== 配置加载与保存 ====================
 
@@ -250,12 +245,7 @@ public partial class MainView : UserControl
             }
 
             // 读取本项目独立配置；不存在则返回空白配置（首次保存时才写入文件）
-            _config = ProjectConfig.Load(repoRoot);
-            if (_config == null)
-            {
-                Log($"读取项目配置失败：{repoRoot}");
-                return;
-            }
+            _config = _configs.Load(repoRoot);
 
             foreach (var url in _config.RemoteUrls)
             {
@@ -287,7 +277,7 @@ public partial class MainView : UserControl
         if (_config == null) return;
         try
         {
-            _config.Save();
+            _configs.Save(_config);
             Log($"已保存配置：{_config.ConfigFilePath}");
         }
         catch (Exception ex)
@@ -440,13 +430,13 @@ public partial class MainView : UserControl
         BtnClone.IsEnabled = false;
         try
         {
-            // url 与目标目录分别加引号，兼容其中包含空格的情况
-            string args = CloneView.BuildCloneArgs(cloneView.BranchName, cloneView.Recursive, cloneView.Shallow);
-            string fullArgs = $"{args}\"{url}\" \"{targetDir}\"";
+            // 与对话框里的命令预览共用同一份参数组装规则，保证「所见即所执行」
+            string fullArgs = GitCloneArguments.Build(
+                cloneView.BranchName, cloneView.Recursive, cloneView.Shallow, url, targetDir);
 
             Log($"========== 开始克隆仓库：{url} ==========");
             Log($"目标目录：{targetDir}");
-            var clone = await RunCommandAsync(parentDir, GitLocator.GitExe, fullArgs, $"git {fullArgs}", GitTimeouts.Clone);
+            var clone = await _commands.CloneAsync(parentDir, fullArgs, $"git {fullArgs}");
             if (!clone.Success)
             {
                 Log("克隆失败：请查看上方日志（常见原因：URL 无效或无权限、目标目录已存在且非空、网络/ssh 配置问题）。");
@@ -500,7 +490,8 @@ public partial class MainView : UserControl
     {
         // 传入当前项目的远端 URL：验证账号时优先用同主机的真实远端做探测；
         // 传入仓库根目录：在设置对话框里可直接写入 / 读取仓库级提交身份
-        var settingsView = new GitSettingsView(_settings.Current, _config?.RemoteUrls, _repoRoot);
+        // 传入会话：子视图复用同一套执行器 / 身份服务 / git 环境，不再自行 new
+        var settingsView = new GitSettingsView(_settings.Current, _config?.RemoteUrls, _repoRoot, _app);
         if (await UiDialogs.ShowAsync<bool?>(this, settingsView, "Git 环境设置") != true) return;
 
         _settings.Current.GitSource = settingsView.SelectedSource;
@@ -530,31 +521,22 @@ public partial class MainView : UserControl
     /// <summary>按当前设置重新解析 git，更新状态栏显示并输出日志。</summary>
     private void RefreshGitEnvironment()
     {
-        // git 变了，凭据助手的扫描结果也失效，必须重新扫描（否则会沿用旧 git 的助手列表）
-        GitCredentialHelper.Invalidate();
+        // 解析 + 凭据助手缓存失效都由环境服务统一负责，视图不直接读写静态状态
+        GitEnvironmentSnapshot env = _environment.Refresh(
+            _settings.Current.GitSource, _settings.Current.CustomGitPath);
 
-        bool ok = GitLocator.Resolve(_settings.Current.GitSource, _settings.Current.CustomGitPath);
-        TxtGitStatus.Text = ok
-            ? $"Git：{GitLocator.GitExePath}"
-            : "Git：未找到（点击【Git 环境】配置）";
-        ToolTip.SetTip(TxtGitStatus, ok
-            ? $"当前生效：{GitLocator.Description}"
-            : "未找到可用的 git，请点击【Git 环境】按钮配置来源。");
+        TxtGitStatus.Text = env.StatusText;
+        ToolTip.SetTip(TxtGitStatus, env.ToolTipText);
 
-        if (ok)
-        {
-            Log($"Git 环境：{GitLocator.Description}");
-        }
-        else
-        {
-            Log("未找到可用的 git：请点击【Git 环境】按钮选择环境 git（系统 PATH）或指定路径 / 内嵌 Git。");
-        }
+        Log(env.Available
+            ? $"Git 环境：{env.Description}"
+            : "未找到可用的 git：请点击【Git 环境】按钮选择环境 git（系统 PATH）或指定路径 / 内嵌 Git。");
     }
 
     /// <summary>确保 git 可用（已解析成功）；不可用时输出日志并返回 false。</summary>
     private bool EnsureGitAvailable()
     {
-        if (GitLocator.GitExePath != null) return true;
+        if (_environment.IsAvailable) return true;
 
         Log("流程终止：未找到可用的 git，请点击【Git 环境】按钮配置（自动检测 / 系统 PATH / 指定路径 / 内嵌 Git）。");
         return false;
@@ -611,7 +593,7 @@ public partial class MainView : UserControl
             if (branch == null) return;
 
             Log($"========== 初始化 git 仓库：{path} ==========");
-            var init = await RunCommandAsync(path, GitLocator.GitExe, "init", "git init");
+            var init = await _commands.InitAsync(path);
             if (!init.Success)
             {
                 Log("git init 执行失败，初始化终止。");
@@ -679,28 +661,11 @@ public partial class MainView : UserControl
         }
     }
 
-    /// <summary>
-    /// 将仓库默认分支设置为指定名称：
-    /// 1. 空仓库（尚无任何提交）：git symbolic-ref HEAD refs/heads/{branch}；
-    /// 2. 已有提交：分支已存在则切换，不存在则新建并切换。
-    /// </summary>
+    /// <summary>设置默认分支（空仓库 / 已有提交两种情况由命令服务判定）。</summary>
     private async Task SetDefaultBranchAsync(string repoDir, string branch)
     {
-        var head = RunCommand(repoDir, GitLocator.GitExe, "rev-parse --verify HEAD");
-        if (!head.Success)
-        {
-            string args = $"symbolic-ref HEAD refs/heads/{branch}";
-            var r = await RunCommandAsync(repoDir, GitLocator.GitExe, args, $"git {args}");
-            Log(r.Success ? $"已将默认分支设置为：{branch}" : $"设置默认分支失败：{branch}");
-            return;
-        }
-
-        var exists = RunCommand(repoDir, GitLocator.GitExe, $"show-ref --verify --quiet refs/heads/{branch}");
-        string checkoutArgs = exists.Success ? $"checkout {branch}" : $"checkout -b {branch}";
-        var res = await RunCommandAsync(repoDir, GitLocator.GitExe, checkoutArgs, $"git {checkoutArgs}");
-        Log(res.Success
-            ? (exists.Success ? $"已切换到默认分支：{branch}" : $"已创建并切换到默认分支：{branch}")
-            : $"创建默认分支失败：{branch}");
+        SetDefaultBranchResult result = await _commands.SetDefaultBranchAsync(repoDir, branch);
+        Log(result.Message);
     }
 
     /// <summary>
@@ -720,7 +685,7 @@ public partial class MainView : UserControl
                 continue;
             }
 
-            if (!IsValidBranchName(text))
+            if (!GitRefName.IsValidBranchName(text))
             {
                 await Dialogs.ShowMessageAsync(this, title,
                     "分支名不合法：不能包含空格或 ~ ^ : ? * [ \\ .. // 等字符，且不能以 - / . 开头或结尾。");
@@ -729,17 +694,6 @@ public partial class MainView : UserControl
 
             return text;
         }
-    }
-
-    /// <summary>校验分支名是否符合 git 引用命名基本规则。</summary>
-    internal static bool IsValidBranchName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return false;
-        if (name.Any(char.IsWhiteSpace)) return false;
-        if (name.StartsWith('-') || name.StartsWith('/') || name.EndsWith('/') || name.EndsWith('.')) return false;
-        if (name.Contains("..") || name.Contains("//") || name.Contains("@{")) return false;
-        if (name.IndexOfAny(new[] { '~', '^', ':', '?', '*', '[', '\\' }) >= 0) return false;
-        return true;
     }
 
     // ==================== 远端地址管理事件 ====================
@@ -990,19 +944,14 @@ public partial class MainView : UserControl
         if (await UiDialogs.ShowAsync<bool?>(this, pullView, "拉取更新") != true) return;
 
         // 工作区有未提交改动时给出提示（不阻止：能否拉取最终由 git 判断）
-        GitCommandResult status = await _logged.RunAsync(_repoRoot, "status --porcelain",
-            "git status --porcelain", GitTimeouts.Quick);
-        if (status.Success)
+        int changed = await _commands.CountChangedFilesAsync(_repoRoot);
+        if (changed > 0)
         {
-            int changed = status.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
-            if (changed > 0)
-            {
-                bool keepGoing = await Dialogs.ConfirmAsync(this, "拉取更新",
-                    $"当前工作区有 {changed} 项未提交的改动。" + Environment.NewLine +
-                    "如果远端改动涉及这些文件，git 会拒绝拉取或产生冲突。" + Environment.NewLine + Environment.NewLine +
-                    "仍要继续拉取吗？（建议先提交或暂存）");
-                if (!keepGoing) return;
-            }
+            bool keepGoing = await Dialogs.ConfirmAsync(this, "拉取更新",
+                $"当前工作区有 {changed} 项未提交的改动。" + Environment.NewLine +
+                "如果远端改动涉及这些文件，git 会拒绝拉取或产生冲突。" + Environment.NewLine + Environment.NewLine +
+                "仍要继续拉取吗？（建议先提交或暂存）");
+            if (!keepGoing) return;
         }
 
         _pullCts = new CancellationTokenSource();
@@ -1065,7 +1014,7 @@ public partial class MainView : UserControl
 
         if (!EnsureGitAvailable()) return;
 
-        await UiDialogs.ShowAsync(this, new HistoryView(_repoRoot, _cli), "提交历史");
+        await UiDialogs.ShowAsync(this, new HistoryView(_repoRoot, _app.History), "提交历史");
 
         // 对话框内可能执行过 reset：关闭后重新读取分支信息，保持界面与仓库一致
         if (_repoRoot != null)
@@ -1106,37 +1055,14 @@ public partial class MainView : UserControl
                 workDir = Environment.CurrentDirectory;
 
             Log($"执行命令：{command}（目录：{workDir}）");
-            GitCommandResult r;
-            if (command.StartsWith("git ", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(command, "git", StringComparison.OrdinalIgnoreCase))
+            ManualCommandResult r = await _commands.RunManualCommandAsync(workDir, command);
+            if (r.Error != null)
             {
-                // 以 git 开头的命令直接调用解析到的 git（支持内嵌 / 系统 / 指定路径）
-                string gitArgs = command.Length > 4 ? command[4..] : string.Empty;
-                if (GitLocator.GitExePath == null)
-                {
-                    Log("未找到可用的 git：请点击【Git 环境】按钮配置（自动检测 / 系统 PATH / 指定路径 / 内嵌 Git）。");
-                    return;
-                }
-
-                r = await RunCommandAsync(workDir, GitLocator.GitExe, gitArgs, command);
-            }
-            else if (OperatingSystem.IsWindows())
-            {
-                // Windows：其他命令（dir 等）通过 cmd.exe 执行；
-                // 先 chcp 65001 切到 UTF-8 代码页，否则中文输出乱码
-                r = await RunCommandAsync(workDir, "cmd.exe", $"/c chcp 65001 >nul & {command}", command);
-            }
-            else
-            {
-                // macOS / Linux / Android：其他命令通过 shell 执行，-l 保证能拿到 Homebrew 等 PATH 配置
-                string shell = File.Exists("/bin/bash") ? "/bin/bash"
-                    : File.Exists("/bin/sh") ? "/bin/sh"
-                    : "/system/bin/sh";
-                string escaped = command.Replace("\"", "\\\"");
-                r = await RunCommandAsync(workDir, shell, $"-lc \"{escaped}\"", command);
+                Log(r.Error);
+                return;
             }
 
-            Log($"命令退出码：{r.ExitCode}");
+            Log($"命令退出码：{r.Result?.ExitCode ?? -1}");
         }
         catch (Exception ex)
         {

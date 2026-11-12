@@ -6,7 +6,7 @@ namespace MultiGitCommit;
 /// 抽取原因：此前业务代码直接读写静态可变的 <c>GitLocator.Settings</c>，
 /// 任何文件都能在不被察觉的情况下替换 / 改写全局状态，测试时也无法隔离。
 /// 现在调用方依赖这个接口，<see cref="SettingsProvider.Instance"/> 只是它的默认实现；
-/// 将来换成依赖注入容器或测试替身，调用方一行都不用改。
+/// 默认实现由 <see cref="AppServices"/> 组合根统一装配，调用方可换成测试替身而无需改业务代码。
 /// </summary>
 public interface ISettingsProvider
 {

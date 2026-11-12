@@ -24,13 +24,14 @@ public partial class App : Avalonia.Application
             System.Console.Error.WriteLine("未处理异常：" + (args.ExceptionObject as System.Exception)?.Message);
         };
 
+        // 唯一的应用装配入口：桌面 / 移动两条启动路径都从组合根取同一套默认依赖
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow();
+            desktop.MainWindow = new MainWindow(AppServices.Current.Cli, AppServices.Current.Settings);
         }
         else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
         {
-            single.MainView = new MainView();
+            single.MainView = new MainView(AppServices.Current.Cli, AppServices.Current.Settings);
         }
 
         base.OnFrameworkInitializationCompleted();

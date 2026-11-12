@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace MultiGitCommit;
 
 /// <summary>
-/// 项目配置文件模型与读写帮助类（跨平台版，Windows / macOS / Linux 字段完全兼容）。
+/// 项目配置文件模型（纯数据，跨平台版字段完全兼容）；读写由 <see cref="IProjectConfigStore"/> 负责。
 ///
 /// 配置规则：
 /// 1. 配置文件 <c>multigitcommit.config.json</c> 存放在【每个 git 仓库根目录】，与 .git 文件夹同级；
@@ -37,62 +37,12 @@ public class ProjectConfig
     [JsonPropertyName("CheckForcePush")]
     public bool CheckForcePush { get; set; }
 
-    /// <summary>配置文件完整路径（仓库根目录 + 文件名）。</summary>
+    /// <summary>配置文件完整路径（由 <see cref="IProjectConfigStore"/> 加载时填充）。</summary>
     [JsonIgnore]
-    public string ConfigFilePath { get; private set; } = string.Empty;
+    public string ConfigFilePath { get; internal set; } = string.Empty;
 
-    /// <summary>
-    /// 从指定仓库根目录读取项目配置；不存在则返回新建的空白配置（不落盘）。
-    /// </summary>
-    public static ProjectConfig? Load(string repoRootDir)
-    {
-        if (string.IsNullOrWhiteSpace(repoRootDir))
-            return null;
-
-        var config = new ProjectConfig
-        {
-            ConfigFilePath = Path.Combine(repoRootDir, ConfigFileName)
-        };
-
-        try
-        {
-            if (File.Exists(config.ConfigFilePath))
-            {
-                string json = File.ReadAllText(config.ConfigFilePath, System.Text.Encoding.UTF8);
-                var loaded = JsonSerializer.Deserialize<ProjectConfig>(json, JsonOptions);
-                if (loaded != null)
-                {
-                    loaded.ConfigFilePath = config.ConfigFilePath;
-                    loaded.RemoteUrls ??= new List<string>();
-                    return loaded;
-                }
-            }
-        }
-        catch (Exception)
-        {
-            // 读取失败不抛异常，返回空白配置由上层处理
-        }
-
-        return config;
-    }
-
-    /// <summary>保存配置到当前项目根目录的 multigitcommit.config.json（绝不触碰 .git/config）。</summary>
-    public bool Save()
-    {
-        if (string.IsNullOrWhiteSpace(ConfigFilePath))
-            throw new InvalidOperationException("配置路径为空，无法保存（未选择有效的仓库目录）。");
-
-        string dir = Path.GetDirectoryName(ConfigFilePath) ?? string.Empty;
-        if (!Directory.Exists(dir))
-            throw new DirectoryNotFoundException($"仓库根目录不存在：{dir}");
-
-        string json = JsonSerializer.Serialize(this, JsonOptions);
-        File.WriteAllText(ConfigFilePath, json, new System.Text.UTF8Encoding(false));
-        return true;
-    }
-
-    /// <summary>序列化选项：缩进、保留中文、忽略 null 集合。</summary>
-    private static readonly JsonSerializerOptions JsonOptions = new()
+    /// <summary>序列化选项：缩进、保留中文、忽略 null 集合（仅供仓储使用）。</summary>
+    internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,

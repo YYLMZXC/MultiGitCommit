@@ -15,9 +15,9 @@ public sealed class RepoLocator
 
     private readonly IGitCliRunner _cli;
 
-    /// <summary>构造定位器；<paramref name="cliRunner"/> 为 null 时使用默认执行器。</summary>
-    public RepoLocator(IGitCliRunner? cliRunner = null)
-        => _cli = cliRunner ?? GitCliRunner.Default;
+    /// <summary>构造定位器；执行器由 <see cref="AppServices"/> 组合根显式注入。</summary>
+    public RepoLocator(IGitCliRunner cliRunner)
+        => _cli = cliRunner ?? throw new ArgumentNullException(nameof(cliRunner));
 
     /// <summary>
     /// 解析仓库根目录：输入可以是仓库的任意子目录（甚至是被 .gitignore 忽略的 bin/ 输出目录）。

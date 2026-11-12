@@ -41,13 +41,18 @@ public partial class CredentialDetectView : DialogView<bool>
     /// <summary>检测取消令牌（【停止】按钮使用）。</summary>
     private CancellationTokenSource? _cts;
 
+    /// <summary>git 环境（可用性判断与 git 文件名统一由服务提供）。</summary>
+    private readonly IGitEnvironmentService _environment;
+
     /// <summary>用户勾选并确认导入的凭据。</summary>
     public IReadOnlyList<DetectedCredential> SelectedCredentials =>
         _results.Where(i => i.Selected).Select(i => i.Credential).ToList();
 
     /// <param name="remoteUrls">当前项目的推送远端 URL（作为最优先的检测线索）。</param>
-    public CredentialDetectView(IEnumerable<string>? remoteUrls)
+    /// <param name="environment">调用方会话里的 git 环境服务；为 null 时取组合根默认值。</param>
+    public CredentialDetectView(IEnumerable<string>? remoteUrls, IGitEnvironmentService? environment = null)
     {
+        _environment = environment ?? AppServices.Current.GitEnvironment;
         _hosts = SystemCredentialProbe.CandidateHosts(remoteUrls)
             .Select(c => new HostSelectItem { Host = c.Host, Origin = c.Origin, Selected = c.Preselected })
             .ToList();
@@ -130,7 +135,7 @@ public partial class CredentialDetectView : DialogView<bool>
             return;
         }
 
-        if (GitLocator.GitExePath == null)
+        if (!_environment.IsAvailable)
         {
             ShowStatus("未找到可用的 git，请先在 Git 环境设置里配置 git 来源。", false);
             return;
@@ -162,7 +167,7 @@ public partial class CredentialDetectView : DialogView<bool>
                 string host = targets[i];
                 TxtProgress.Text = $"正在检测 {i + 1}/{targets.Count}：{host}";
 
-                var cred = await SystemCredentialProbe.ProbeAsync(host, GitLocator.GitExe, ct, helperArg)
+                var cred = await SystemCredentialProbe.ProbeAsync(host, _environment.GitExe, ct, helperArg)
                     .ConfigureAwait(true);
 
                 if (cred != null)

@@ -11,12 +11,12 @@ public partial class MainWindow : Window
 {
     private readonly MainView _view;
 
-    public MainWindow() : this(GitCliRunner.Default, SettingsProvider.Instance)
+    public MainWindow() : this(AppServices.Current.Cli, AppServices.Current.Settings)
     {
     }
 
     /// <summary>可注入命令执行器（单元测试时传入假实现，无需真实 git 与 UI 运行时）。</summary>
-    public MainWindow(IGitCliRunner cli) : this(cli, SettingsProvider.Instance)
+    public MainWindow(IGitCliRunner cli) : this(cli, AppServices.Current.Settings)
     {
     }
 

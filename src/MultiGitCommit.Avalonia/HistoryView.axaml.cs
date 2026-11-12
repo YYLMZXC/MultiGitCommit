@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -19,7 +20,7 @@ public partial class HistoryView : DialogView<bool>
     private const int MaxCommits = 200;
 
     private readonly string _repoRoot;
-    private readonly IGitCliRunner _cli;
+    private readonly IGitHistoryReader _history;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly List<GitCommit> _commits = new();
 
@@ -38,39 +39,48 @@ public partial class HistoryView : DialogView<bool>
     /// <summary>是否已触发首次加载（只加载一次）。</summary>
     private bool _initialLoaded;
 
-    /// <summary>git reset 的三种模式。</summary>
-    private enum ResetMode
-    {
-        Soft,
-        Mixed,
-        Hard
-    }
-
-    public HistoryView(string repoRoot) : this(repoRoot, GitCliRunner.Default)
+    public HistoryView(string repoRoot) : this(repoRoot, AppServices.Current.History)
     {
     }
 
-    /// <summary>可注入命令执行器（单元测试时传入假实现，无需真实 git 与 UI 运行时）。</summary>
-    public HistoryView(string repoRoot, IGitCliRunner cli)
+    /// <summary>可注入命令执行器（测试时传入假实现，无需真实 git 与 UI 运行时）。</summary>
+    public HistoryView(string repoRoot, IGitCliRunner cli) : this(repoRoot, new GitHistoryReader(cli))
+    {
+    }
+
+    /// <summary>可注入历史服务（由主视图的会话传入，复用同一套命令实现）。</summary>
+    public HistoryView(string repoRoot, IGitHistoryReader history)
     {
         _repoRoot = repoRoot;
-        _cli = cli;
+        _history = history;
 
         InitializeComponent();
 
         TxtRepoPath.Text = repoRoot;
 
         // 关闭对话框（确认关闭或宿主直接关闭）时中止未完成的 git 进程（读取历史 / 重置）
-        CloseRequested += (_, _) => _lifetime.Cancel();
-        HostClosed += (_, _) => _lifetime.Cancel();
+        CloseRequested += OnDialogClosing;
+        HostClosed += OnDialogClosing;
+    }
 
-        // 挂到可视树后读取，避免构造函数里做 IO 拖慢显示
-        AttachedToVisualTree += (_, _) =>
-        {
-            if (_initialLoaded) return;
-            _initialLoaded = true;
-            _ = LoadCommitsAsync();
-        };
+    private void OnDialogClosing(object? sender, EventArgs e) => _lifetime.Cancel();
+
+    /// <summary>挂到可视树后再读取，避免构造函数里做 IO 拖慢显示。</summary>
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_initialLoaded) return;
+        _initialLoaded = true;
+        _ = LoadCommitsAsync();
+    }
+
+    /// <summary>离开可视树时统一取消后台任务并退订，桌面 / 移动端行为一致。</summary>
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _lifetime.Cancel();
+        CloseRequested -= OnDialogClosing;
+        HostClosed -= OnDialogClosing;
+        base.OnDetachedFromVisualTree(e);
     }
 
     // ==================== 读取历史 ====================
@@ -84,13 +94,9 @@ public partial class HistoryView : DialogView<bool>
 
         try
         {
-            // 字段之间用 0x1F 分隔：提交标题里的空格 / 制表符不会破坏解析
-            GitCommandResult result = await _cli.RunAsync(new GitCommandRequest
-            {
-                Arguments = $"log -n {MaxCommits} --date=iso --pretty=format:%H%x1f%h%x1f%ad%x1f%an%x1f%s",
-                WorkingDirectory = _repoRoot,
-                Timeout = GitTimeouts.Quick
-            }, _lifetime.Token).ConfigureAwait(true);
+            // 命令拼装、输出解析与空仓库判定都在历史服务内，视图只呈现结果
+            HistoryLoadResult result = await _history.LoadCommitsAsync(_repoRoot, MaxCommits, _lifetime.Token)
+                .ConfigureAwait(true);
 
             if (seq != _loadSeq || _lifetime.IsCancellationRequested) return;
 
@@ -101,15 +107,15 @@ public partial class HistoryView : DialogView<bool>
 
                 SetStatus(result.TimedOut
                         ? "× 读取提交历史超时，已终止 git 进程（仓库过大或磁盘响应慢）。"
-                        : IsEmptyRepository(result)
+                        : result.EmptyRepository
                             ? "当前仓库还没有任何提交（执行一次提交后即可在这里查看历史）。"
-                            : "× 读取提交历史失败：" + result.ErrorText,
+                            : "× 读取提交历史失败：" + result.Error,
                     false);
                 return;
             }
 
             _commits.Clear();
-            _commits.AddRange(GitCommit.Parse(result.Stdout));
+            _commits.AddRange(result.Commits);
             RefreshList();
 
             SetStatus(_commits.Count == 0
@@ -130,16 +136,6 @@ public partial class HistoryView : DialogView<bool>
         {
             if (seq == _loadSeq && !_busy) BtnRefresh.IsEnabled = true;
         }
-    }
-
-    /// <summary>git log 在空仓库上的报错文本判定（不同 git 版本措辞略有差异）。</summary>
-    private static bool IsEmptyRepository(GitCommandResult result)
-    {
-        string text = result.ErrorText;
-        return text.Contains("does not have any commits yet", StringComparison.OrdinalIgnoreCase) ||
-               (text.Contains("your current branch", StringComparison.OrdinalIgnoreCase) &&
-                text.Contains("no commits", StringComparison.OrdinalIgnoreCase)) ||
-               text.Contains("unknown revision", StringComparison.OrdinalIgnoreCase);
     }
 
     private void RefreshList()
@@ -182,13 +178,8 @@ public partial class HistoryView : DialogView<bool>
 
         try
         {
-            // --format= 只输出文件清单；--first-parent 让合并提交与第一父提交比较（否则不显示文件）
-            GitCommandResult result = await _cli.RunAsync(new GitCommandRequest
-            {
-                Arguments = $"show --name-status --format= --first-parent {commit.Hash}",
-                WorkingDirectory = _repoRoot,
-                Timeout = GitTimeouts.Quick
-            }, cts.Token).ConfigureAwait(true);
+            GitCommandResult result = await _history.LoadChangedFilesAsync(_repoRoot, commit.Hash, cts.Token)
+                .ConfigureAwait(true);
 
             if (cts.IsCancellationRequested || _lifetime.IsCancellationRequested) return;
 
@@ -336,47 +327,26 @@ public partial class HistoryView : DialogView<bool>
     {
         if (_busy || ListCommits.SelectedItem is not GitCommit commit) return;
 
-        ResetMode mode = RbHard.IsChecked == true
-            ? ResetMode.Hard
+        GitResetMode mode = RbHard.IsChecked == true
+            ? GitResetMode.Hard
             : RbMixed.IsChecked == true
-                ? ResetMode.Mixed
-                : ResetMode.Soft;
+                ? GitResetMode.Mixed
+                : GitResetMode.Soft;
 
-        string modeArg = mode switch
-        {
-            ResetMode.Hard => "--hard",
-            ResetMode.Mixed => "--mixed",
-            _ => "--soft"
-        };
-
-        string effect = mode switch
-        {
-            ResetMode.Hard => "工作区中所有未提交的改动都会被永久丢弃（无法恢复）",
-            ResetMode.Mixed => "暂存区会被重置，工作区中的文件内容保持不变",
-            _ => "不会改动暂存区和工作区，改动会保留为已暂存状态"
-        };
+        string modeArg = GitResetDescriptions.Argument(mode);
+        string effect = GitResetDescriptions.Effect(mode);
 
         // hard 会丢掉未提交改动：先统计数量，让用户在确认框里看到具体影响
         string dirty = string.Empty;
-        if (mode == ResetMode.Hard)
+        if (mode == GitResetMode.Hard)
         {
-            GitCommandResult status = await _cli.RunAsync(new GitCommandRequest
-            {
-                Arguments = "status --porcelain",
-                WorkingDirectory = _repoRoot,
-                Timeout = GitTimeouts.Quick
-            }, _lifetime.Token).ConfigureAwait(true);
-
+            int changed = await _history.CountDirtyFilesAsync(_repoRoot, _lifetime.Token).ConfigureAwait(true);
             if (_lifetime.IsCancellationRequested) return;
 
-            if (status.Success)
+            if (changed > 0)
             {
-                int changed = status.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length;
-                if (changed > 0)
-                {
-                    dirty = $"{Environment.NewLine}{Environment.NewLine}" +
-                            $"注意：当前工作区有 {changed} 个文件存在未提交改动，执行 hard 重置后将全部丢失。";
-                }
+                dirty = $"{Environment.NewLine}{Environment.NewLine}" +
+                        $"注意：当前工作区有 {changed} 个文件存在未提交改动，执行 hard 重置后将全部丢失。";
             }
         }
 
@@ -401,12 +371,8 @@ public partial class HistoryView : DialogView<bool>
 
         try
         {
-            GitCommandResult result = await _cli.RunAsync(new GitCommandRequest
-            {
-                Arguments = $"reset {modeArg} {commit.Hash}",
-                WorkingDirectory = _repoRoot,
-                Timeout = GitTimeouts.Default
-            }, _lifetime.Token).ConfigureAwait(true);
+            GitCommandResult result = await _history.ResetAsync(_repoRoot, mode, commit.Hash, _lifetime.Token)
+                .ConfigureAwait(true);
 
             if (_lifetime.IsCancellationRequested) return;
 

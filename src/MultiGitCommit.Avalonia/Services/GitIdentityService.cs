@@ -11,9 +11,9 @@ public sealed class GitIdentityService
 {
     private readonly IGitCliRunner _cli;
 
-    /// <summary>构造服务；<paramref name="cliRunner"/> 为 null 时使用默认执行器。</summary>
-    public GitIdentityService(IGitCliRunner? cliRunner = null)
-        => _cli = cliRunner ?? GitCliRunner.Default;
+    /// <summary>构造服务；执行器由 <see cref="AppServices"/> 组合根显式注入。</summary>
+    public GitIdentityService(IGitCliRunner cliRunner)
+        => _cli = cliRunner ?? throw new ArgumentNullException(nameof(cliRunner));
 
     /// <summary>
     /// 读取当前生效的提交身份。<c>git config --get</c> 取的是生效值（仓库级 → 全局 → 系统级），

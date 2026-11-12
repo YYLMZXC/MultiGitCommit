@@ -1,4 +1,3 @@
-using System.Text;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
@@ -9,7 +8,8 @@ namespace MultiGitCommit;
 /// 克隆项目视图：填写远端 URL 与本地目录，执行 git clone。
 ///
 /// 说明：
-/// 1. 仅负责收集参数并做前置校验，真正的 git 调用由 <see cref="MainView"/> 复用统一的进程调用逻辑完成；
+/// 1. 仅负责收集参数并做前置校验；命令预览与实际执行共用 <see cref="GitCloneArguments"/>，
+///    真正的 git 调用由 <see cref="IRepositoryCommands"/> 完成；
 /// 2. 目标目录名默认根据 URL 自动推导，用户手动修改后不再被自动覆盖；
 /// 3. 可选项：指定分支、递归子模块、浅克隆、克隆后写入推送远端列表。
 /// </summary>
@@ -118,24 +118,7 @@ public partial class CloneView : DialogView<bool>
         TxtTargetPath.Text = target;
         TxtCommandPreview.Text = string.IsNullOrEmpty(url)
             ? "（请先填写远端 URL）"
-            : $"git {BuildCloneArgs(TxtBranch.Text?.Trim() ?? string.Empty, ChkRecursive.IsChecked == true, ChkShallow.IsChecked == true)}\"{url}\" \"{target}\"";
-    }
-
-    /// <summary>
-    /// 组装 git clone 参数（不含 url 与目标目录，二者由调用方分别加引号后追加）。
-    /// 追加 --progress：输出被重定向到管道时强制 git 输出克隆进度，便于写入日志。
-    /// </summary>
-    internal static string BuildCloneArgs(string branch, bool recursive, bool shallow)
-    {
-        var sb = new StringBuilder("clone");
-        if (!string.IsNullOrWhiteSpace(branch))
-            sb.Append(" --branch ").Append(branch.Trim());
-        if (recursive)
-            sb.Append(" --recursive");
-        if (shallow)
-            sb.Append(" --depth 1");
-        sb.Append(" --progress ");
-        return sb.ToString();
+            : $"git {GitCloneArguments.Build(TxtBranch.Text?.Trim() ?? string.Empty, ChkRecursive.IsChecked == true, ChkShallow.IsChecked == true, url, target)}";
     }
 
     /// <summary>根据远端 URL 推导默认目录名（去掉 .git 后缀，取最后一段路径）。</summary>
@@ -245,7 +228,7 @@ public partial class CloneView : DialogView<bool>
         }
 
         string branch = TxtBranch.Text?.Trim() ?? string.Empty;
-        if (branch.Length > 0 && !MainView.IsValidBranchName(branch))
+        if (branch.Length > 0 && !GitRefName.IsValidBranchName(branch))
         {
             await Warn("分支名不合法：不能包含空格或 ~ ^ : ? * [ \\ .. // 等字符，且不能以 - / . 开头或结尾。");
             TxtBranch.Focus();

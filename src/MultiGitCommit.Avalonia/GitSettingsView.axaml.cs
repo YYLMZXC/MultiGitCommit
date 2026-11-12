@@ -50,8 +50,11 @@ public partial class GitSettingsView : DialogView<bool>
     /// <summary>git 配置检测序号：快速切换选项时丢弃过期的检测结果。</summary>
     private int _testSeq;
 
-    /// <summary>提交身份读写服务（与主视图共用同一套实现，不再各自拼 git config 命令）。</summary>
-    private readonly GitIdentityService _identityService = new();
+    /// <summary>提交身份读写服务（与主视图共用组合根里的同一实例）。</summary>
+    private readonly GitIdentityService _identityService;
+
+    /// <summary>git 环境服务（来源预览、凭据助手缓存失效）。</summary>
+    private readonly IGitEnvironmentService _environment;
 
     /// <summary>是否已触发打开后的自动检测（只执行一次）。</summary>
     private bool _initialTested;
@@ -65,8 +68,12 @@ public partial class GitSettingsView : DialogView<bool>
     /// <param name="current">全局设置。</param>
     /// <param name="remoteUrls">当前项目的推送远端 URL（可选，验证账号时用同主机远端做真实探测）。</param>
     /// <param name="repoPath">当前仓库根目录（可选，用于读取/写入仓库级提交身份）。</param>
-    public GitSettingsView(AppSettings current, IEnumerable<string>? remoteUrls = null, string? repoPath = null)
+    /// <param name="services">调用方会话（复用同一套执行器与环境服务）；为 null 时取组合根默认值。</param>
+    public GitSettingsView(AppSettings current, IEnumerable<string>? remoteUrls = null, string? repoPath = null,
+        AppSession? services = null)
     {
+        _identityService = services?.Identity ?? AppServices.Current.Identity;
+        _environment = services?.GitEnvironment ?? AppServices.Current.GitEnvironment;
         _remoteUrls = remoteUrls?.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
         _repoPath = string.IsNullOrWhiteSpace(repoPath) ? null : repoPath;
         _settings = current;
@@ -330,13 +337,19 @@ public partial class GitSettingsView : DialogView<bool>
                        $" {host} 的推送凭据（点【确定】后生效）。", result.Success);
     }
 
+    /// <summary>按主机查找编辑中的凭据（主机归一规则只在这里写一次）。</summary>
+    private GitCredential? FindCredential(string host)
+    {
+        string hostKey = GitCredentials.GetHost(host) ?? host.Trim().ToLowerInvariant();
+        return _credentials.FirstOrDefault(c =>
+            string.Equals(GitCredentials.GetHost(c.Host) ?? c.Host.Trim().ToLowerInvariant(),
+                hostKey, StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>写入（或更新同主机的）一条凭据并刷新列表。</summary>
     private void SaveCredential(string host, string user, string token)
     {
-        string hostKey = GitCredentials.GetHost(host) ?? host.ToLowerInvariant();
-        var existing = _credentials.FirstOrDefault(c =>
-            string.Equals(GitCredentials.GetHost(c.Host) ?? c.Host.Trim().ToLowerInvariant(),
-                hostKey, StringComparison.OrdinalIgnoreCase));
+        var existing = FindCredential(host);
 
         if (existing != null)
         {
@@ -391,7 +404,7 @@ public partial class GitSettingsView : DialogView<bool>
     private async Task<CredentialTestResult?> VerifyCredentialAsync(string host, string user, string token)
     {
         // 按对话框里当前选择的 git 来源实时解析，未点【确定】也能用刚选的 git 验证
-        string? exe = GitLocator.ResolvePreview(CurrentMode, TxtCustomPath.Text?.Trim() ?? string.Empty, out _);
+        string? exe = _environment.Preview(CurrentMode, TxtCustomPath.Text?.Trim() ?? string.Empty, out _);
         if (exe == null)
         {
             ShowCredResult("× 当前 git 来源下未找到可用的 git，请先配置 git 来源再验证账号。", false);
@@ -560,7 +573,7 @@ public partial class GitSettingsView : DialogView<bool>
 
         var (exe, description) = await Task.Run(() =>
         {
-            string? found = GitLocator.ResolvePreview(mode, custom, out string desc);
+            string? found = _environment.Preview(mode, custom, out string desc);
             return (found, desc);
         });
 
@@ -654,13 +667,13 @@ public partial class GitSettingsView : DialogView<bool>
     {
         try
         {
-            if (GitLocator.ResolvePreview(CurrentMode, TxtCustomPath.Text?.Trim() ?? string.Empty, out _) == null)
+            if (_environment.Preview(CurrentMode, TxtCustomPath.Text?.Trim() ?? string.Empty, out _) == null)
             {
                 ShowCredResult("× 当前 git 来源未找到可用的 git，请先配置 git 来源再检测系统凭据。", false);
                 return;
             }
 
-            var detectView = new CredentialDetectView(_remoteUrls);
+            var detectView = new CredentialDetectView(_remoteUrls, _environment);
             if (await UiDialogs.ShowAsync<bool?>(this, detectView, "检测系统 git 凭据") != true)
             {
                 ShowCredResult("已取消，未导入任何系统账号。", null);
@@ -677,10 +690,7 @@ public partial class GitSettingsView : DialogView<bool>
             int imported = 0;
             foreach (var cred in found)
             {
-                string hostKey = GitCredentials.GetHost(cred.Host) ?? cred.Host.Trim().ToLowerInvariant();
-                var existing = _credentials.FirstOrDefault(c =>
-                    string.Equals(GitCredentials.GetHost(c.Host) ?? c.Host.Trim().ToLowerInvariant(),
-                        hostKey, StringComparison.OrdinalIgnoreCase));
+                var existing = FindCredential(cred.Host);
 
                 if (existing != null)
                 {
@@ -720,7 +730,7 @@ public partial class GitSettingsView : DialogView<bool>
     /// </summary>
     private async Task RefreshHelperInfoAsync()
     {
-        GitCredentialHelper.Invalidate();
+        _environment.InvalidateCredentialHelpers();
 
         var (text, usable) = await Task.Run(() =>
         {
@@ -807,7 +817,7 @@ public partial class GitSettingsView : DialogView<bool>
             }
 
             // 路径无效时给出确认，避免静默保存一个用不了的配置
-            if (GitLocator.ResolveCustomPath(SelectedCustomPath) == null)
+            if (_environment.ResolveCustomPath(SelectedCustomPath) == null)
             {
                 bool keep = await Dialogs.ConfirmAsync(this, "Git 环境设置",
                     "指定路径中未找到可用的 git，仍保存该设置吗？");

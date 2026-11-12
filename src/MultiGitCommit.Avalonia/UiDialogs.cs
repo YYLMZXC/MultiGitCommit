@@ -126,11 +126,22 @@ internal static class UiDialogs
         Dialogs.ApplyIcon(win);
 
         // 视图请求关闭 → 把结果带回 ShowDialog 返回值
-        content.CloseRequested += async (_, _) => win.Close(await content.GetResultAsync().ConfigureAwait(true));
+        async void OnCloseRequested(object? _, EventArgs __)
+            => win.Close(await content.GetResultAsync().ConfigureAwait(true));
+
         // 用户直接点窗口 × 按钮 → 以默认值完成结果任务，避免调用方永久等待
-        win.Closed += (_, _) => content.CancelIfPending();
+        void OnClosed(object? _, EventArgs __)
+        {
+            content.CancelIfPending();
+            content.CloseRequested -= OnCloseRequested;
+            win.Closed -= OnClosed;
+        }
+
+        content.CloseRequested += OnCloseRequested;
+        win.Closed += OnClosed;
 
         await win.ShowDialog(owner).ConfigureAwait(true);
+        content.CloseRequested -= OnCloseRequested;
         return await content.GetResultAsync().ConfigureAwait(true);
     }
 }
