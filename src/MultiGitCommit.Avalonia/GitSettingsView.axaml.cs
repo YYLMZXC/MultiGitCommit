@@ -856,7 +856,9 @@ public partial class GitSettingsView : DialogView<bool>
         if (width > 0)
             TxtIdentityInfo.MaxWidth = width < NarrowLayoutThreshold
                 ? System.Math.Max(120, width - 60)
-                : double.NaN;
+                // MaxWidth 只接受有限值或 +∞（默认值）；设 NaN 会抛 ArgumentException，
+                // 且异常发生在布局的 SizeChanged 事件里会直接终止进程（点击【Git 环境】闪退）
+                : double.PositiveInfinity;
 
         bool narrow = width > 0 && width < NarrowLayoutThreshold;
         if (narrow == _isNarrowLayout)
