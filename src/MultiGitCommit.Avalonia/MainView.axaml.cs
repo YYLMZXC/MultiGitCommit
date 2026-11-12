@@ -104,9 +104,16 @@ public partial class MainView : UserControl
         InitializeComponent();
         _loading = false;
 
-        // 移动端（单视图生命周期，无 Window）：把覆盖层宿主注册给统一对话框服务
+        // 移动端（单视图生命周期，无 Window）：把覆盖层宿主注册给统一对话框服务，
+        // 并启用整页纵向滚动 + 日志区最小高度（视口高度由屏幕决定，内容可超出）。
+        // 桌面端保持有限高度测量：日志区随窗口剩余空间伸缩，日志只在 TxtLog 内部滚动，
+        // 输出多少行都不会改变窗口尺寸或页面布局。
         if (Avalonia.Application.Current?.ApplicationLifetime is ISingleViewApplicationLifetime)
+        {
             UiDialogs.OverlayHost ??= Overlay;
+            RootScroll.VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
+            LogFrame.MinHeight = 160;
+        }
 
         ListRemotes.ItemsSource = _remotes;
 

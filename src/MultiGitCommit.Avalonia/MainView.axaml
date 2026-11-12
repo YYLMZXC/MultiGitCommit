@@ -18,10 +18,12 @@
         </Style>
     </UserControl.Styles>
 
-    <!-- 根布局：内容放进 ScrollViewer（窄屏纵向可滚动，防止显示不全）；
+    <!-- 根布局：桌面端由 Window 提供有限高度，纵向滚动关闭，日志区（* 行）占满剩余空间、
+         日志只在 TxtLog 内部滚动，避免日志文本撑高内容导致窗口 / 布局随输出变化；
+         移动端（单视图生命周期，无 Window）在代码中改为 Auto 纵向滚动 + 日志区最小高度。
          对话框覆盖层放在 ScrollViewer 外，无论页面滚到哪里都盖满视口 -->
     <Grid>
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer x:Name="RootScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled">
         <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>   <!-- 仓库目录 -->
@@ -178,7 +180,7 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Classes="sectionTitle" Text="日志输出" Margin="0,0,0,6"/>
-                <Border Grid.Row="1" BorderBrush="#444" BorderThickness="1" Background="#1E1E1E" MinHeight="160">
+                <Border x:Name="LogFrame" Grid.Row="1" BorderBrush="#444" BorderThickness="1" Background="#1E1E1E">
                     <TextBox x:Name="TxtLog"
                              IsReadOnly="True"
                              AcceptsReturn="True"
