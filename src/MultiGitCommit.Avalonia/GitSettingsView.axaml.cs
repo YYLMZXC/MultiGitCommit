@@ -50,6 +50,12 @@ public partial class GitSettingsView : DialogView<bool>
     /// <summary>是否已触发打开后的自动检测（只执行一次）。</summary>
     private bool _initialTested;
 
+    /// <summary>窄屏（移动端）布局阈值：视图宽度低于该值时凭据输入换两行（手机竖屏对话框卡片约 300）。</summary>
+    private const double NarrowLayoutThreshold = 420;
+
+    /// <summary>当前是否处于窄屏布局。</summary>
+    private bool _isNarrowLayout;
+
     /// <param name="current">全局设置。</param>
     /// <param name="remoteUrls">当前项目的推送远端 URL（可选，验证账号时用同主机远端做真实探测）。</param>
     /// <param name="repoPath">当前仓库根目录（可选，用于读取/写入仓库级提交身份）。</param>
@@ -71,6 +77,9 @@ public partial class GitSettingsView : DialogView<bool>
         _suppress = true;
         InitializeComponent();
         _suppress = false;
+
+        // 窄屏响应式：宽度变化时在「主机/用户名/令牌一行三个」与「令牌独占第二行」之间切换
+        SizeChanged += (_, _) => ApplyResponsiveLayout();
 
         RbAuto.IsChecked = current.GitSource == GitSourceMode.Auto;
         RbEmbedded.IsChecked = current.GitSource == GitSourceMode.Embedded;
@@ -812,5 +821,42 @@ public partial class GitSettingsView : DialogView<bool>
         _settings.StageMode = SelectedStageMode;
 
         Close(true);
+    }
+
+    // ==================== 窄屏（移动端）响应式布局 ====================
+
+    /// <summary>
+    /// 窄屏适配（视图宽度变化时调用）：
+    /// 宽度低于阈值（手机竖屏对话框卡片）时，把凭据输入的「令牌」输入框从第一行第三列
+    /// 换到第二行并横跨整行（主机/用户名均分第一行），避免三个输入框挤成一团无法输入；
+    /// 恢复宽屏（桌面）时回到「主机 150 / 用户名 110 / 令牌占满剩余」的单行布局。
+    /// </summary>
+    private void ApplyResponsiveLayout()
+    {
+        double width = Bounds.Width;
+        bool narrow = width > 0 && width < NarrowLayoutThreshold;
+        if (narrow == _isNarrowLayout)
+            return;
+
+        _isNarrowLayout = narrow;
+        var columns = CredInputGrid.ColumnDefinitions;
+        if (narrow)
+        {
+            columns[0].Width = new GridLength(1, GridUnitType.Star);
+            columns[1].Width = new GridLength(1, GridUnitType.Star);
+            Grid.SetRow(TxtCredToken, 1);
+            Grid.SetColumn(TxtCredToken, 0);
+            Grid.SetColumnSpan(TxtCredToken, 3);
+            TxtCredToken.Margin = new Avalonia.Thickness(0, 6, 0, 0);
+        }
+        else
+        {
+            columns[0].Width = new GridLength(150);
+            columns[1].Width = new GridLength(110);
+            Grid.SetRow(TxtCredToken, 0);
+            Grid.SetColumn(TxtCredToken, 2);
+            Grid.SetColumnSpan(TxtCredToken, 1);
+            TxtCredToken.Margin = new Avalonia.Thickness(6, 0, 0, 0);
+        }
     }
 }
