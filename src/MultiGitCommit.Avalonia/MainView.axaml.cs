@@ -386,6 +386,13 @@ public partial class MainView : UserControl
             return;
 
         _isNarrowLayout = narrow;
+
+        // 日志换行随窄屏切换：
+        // 窄屏（手机竖屏）自动折行——长行（git 报错、路径、URL）不用横向滚动就能看全；
+        // 宽屏（桌面窗口 / 手机横屏）保持不折行，保留 git 输出（status/log 表格）的列对齐。
+        // TextBox 折行时内部滚动器的横向滚动自动禁用，无需额外处理。
+        TxtLog.TextWrapping = narrow ? TextWrapping.Wrap : TextWrapping.NoWrap;
+
         if (narrow)
         {
             foreach (var button in _repoHeaderButtonColumns.Keys)
