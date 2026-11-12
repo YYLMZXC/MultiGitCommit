@@ -1,5 +1,6 @@
 using Android.App;
 using Android.Content.PM;
+using Android.Views;
 using Avalonia;
 using Avalonia.Android;
 using Avalonia.Media;
@@ -15,6 +16,10 @@ namespace MultiGitCommit;
     Theme = "@style/MyTheme.NoActionBar",
     Icon = "@drawable/icon",
     MainLauncher = true,
+    // AdjustResize：弹出软键盘时压缩窗口而不是平移。全屏对话框覆盖层（DialogOverlay）没有
+    // 可滚动宿主供系统平移，默认 adjustUnspecified 会直接用键盘盖住输入框 / 底部按钮；
+    // 压缩后 Avalonia InsetsManager 报告安全区变化，DialogOverlay.ApplySize 会收缩卡片让输入区可见。
+    WindowSoftInputMode = SoftInput.AdjustResize,
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
 public class MainActivity : AvaloniaMainActivity<App>
 {

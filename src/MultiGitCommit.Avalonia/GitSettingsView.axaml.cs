@@ -1012,6 +1012,20 @@ public partial class GitSettingsView : DialogView<bool>
             TxtIdentityScopeHint.MaxWidth = small ? System.Math.Max(120, width - 60) : 330;
         }
 
+        // 窄屏紧凑化：滚动区 / 卡片 / 子卡片三层内边距每侧合计 48px，手机 ~395px 宽的卡片里
+        // 内容只剩 ~300px，高级设置里的平台行 / 凭据输入 / 按钮组被挤到溢出或难以点按。
+        // 窄屏切 compact 类压缩内边距，把宽度还给内容；宽屏（桌面）保持原布局不受影响。
+        // 该块幂等且须在 narrow 早退之前执行（宽度在两个阈值间抖动时也要恢复原状）。
+        bool compact = width > 0 && width < NarrowLayoutThreshold;
+        ContentScroll.Padding = compact
+            ? new Avalonia.Thickness(10, 12, 10, 10)
+            : new Avalonia.Thickness(18, 16, 18, 12);
+        SetCompact(IdentityCard, compact);
+        SetCompact(StageCard, compact);
+        SetCompact(SrcCard, compact);
+        SetCompact(StartupCard, compact);
+        SetCompact(CredCard, compact);
+
         bool narrow = width > 0 && width < NarrowLayoutThreshold;
         if (narrow == _isNarrowLayout)
             return;
@@ -1071,5 +1085,12 @@ public partial class GitSettingsView : DialogView<bool>
             Grid.SetColumnSpan(TxtCredToken, 1);
             TxtCredToken.Margin = new Avalonia.Thickness(6, 0, 0, 0);
         }
+    }
+
+    /// <summary>切换容器的 compact 类（窄屏紧凑样式，见 axaml 中 Border.card.compact 等样式）。</summary>
+    private static void SetCompact(Avalonia.Controls.Border border, bool compact)
+    {
+        if (compact) border.Classes.Add("compact");
+        else border.Classes.Remove("compact");
     }
 }

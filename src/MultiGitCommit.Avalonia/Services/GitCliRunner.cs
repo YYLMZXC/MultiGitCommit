@@ -185,9 +185,15 @@ public sealed class GitCliRunner : IGitCliRunner
             string.Join(Path.PathSeparator, entries) + Path.PathSeparator + oldPath;
     }
 
-    /// <summary>按文件名判定是否为 git（含无扩展名的 macOS / Linux 版与自定义完整路径）。</summary>
+    /// <summary>
+    /// 按文件名判定是否为 git（含无扩展名的 macOS / Linux 版与自定义完整路径）。
+    /// Android 内嵌 git 为通过原生库打包的 libgit.so（见 AndroidGitPlatform），必须同样识别，
+    /// 否则 isGit=false 会跳过 LD_LIBRARY_PATH / GIT_EXEC_PATH 注入，动态链接直接失败。
+    /// </summary>
     private static bool IsGitExecutable(string fileName)
-        => string.Equals(Path.GetFileNameWithoutExtension(fileName), "git", StringComparison.OrdinalIgnoreCase);
+        => string.Equals(Path.GetFileNameWithoutExtension(fileName), "git", StringComparison.OrdinalIgnoreCase)
+           || (OperatingSystem.IsAndroid()
+               && string.Equals(Path.GetFileName(fileName), "libgit.so", StringComparison.OrdinalIgnoreCase));
 
     // ==================== 输入输出 ====================
 
