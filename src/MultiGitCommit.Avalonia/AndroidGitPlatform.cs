@@ -1,3 +1,4 @@
+using System;
 using System.Diagnostics;
 using System.IO;
 
@@ -90,8 +91,7 @@ public static class AndroidGitPlatform
     }
 
     /// <summary>
-    /// 建议的仓库父目录：安卓没有可用的本地文件夹选择器（SAF 只给 content:// URI），
-    /// 需要用户手填真实 POSIX 路径，这里给一个开箱可用的默认值。
+    /// 建议的仓库父目录（系统选择器不可用时手输路径的默认值）。
     /// 已授予「所有文件访问」时优先共享存储（其他文件管理器可见），否则退回应用专属外部目录
     /// （/storage/emulated/0/Android/data/&lt;包名&gt;/files，无需特殊权限即可读写）。
     /// 非 Android 返回用户主目录，供桌面端沿用原来的行为。
@@ -117,6 +117,116 @@ public static class AndroidGitPlatform
         return "/storage/emulated/0/GitRepos";
 #else
         return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+#endif
+    }
+
+    /// <summary>
+    /// 是否已拿到读写共享存储所需的权限：Android 11+ 为「所有文件访问」（MANAGE_EXTERNAL_STORAGE），
+    /// Android 10 及以下为 WRITE_EXTERNAL_STORAGE 运行时权限。非 Android 恒为 true。
+    /// </summary>
+    public static bool IsAllFilesAccessGranted
+    {
+        get
+        {
+#if ANDROID
+            try
+            {
+                if (OperatingSystem.IsAndroidVersionAtLeast(30))
+                    return global::Android.OS.Environment.IsExternalStorageManager;
+
+                return global::Android.App.Application.Context?
+                           .CheckSelfPermission(global::Android.Manifest.Permission.WriteExternalStorage)
+                       == global::Android.Content.PM.Permission.Granted;
+            }
+            catch
+            {
+                return false;
+            }
+#else
+            return true;
+#endif
+        }
+    }
+
+    /// <summary>打开系统设置页让用户授予存储权限（Android 11+ 为「所有文件访问」，旧版为应用详情页）。</summary>
+    public static void OpenStoragePermissionSettings()
+    {
+#if ANDROID
+        try
+        {
+            var context = global::Android.App.Application.Context;
+            string package = "package:" + context?.PackageName;
+            var intent = OperatingSystem.IsAndroidVersionAtLeast(30)
+                ? new global::Android.Content.Intent(
+                    global::Android.Provider.Settings.ActionManageAllFilesAccessPermission,
+                    global::Android.Net.Uri.Parse(package))
+                : new global::Android.Content.Intent(
+                    global::Android.Provider.Settings.ActionApplicationDetailsSettings,
+                    global::Android.Net.Uri.Parse(package));
+            intent.AddFlags(global::Android.Content.ActivityFlags.NewTask);
+            context?.StartActivity(intent);
+        }
+        catch
+        {
+            // 个别 ROM 没有对应设置页：用户仍可手动到系统设置里授权
+        }
+#endif
+    }
+
+    /// <summary>
+    /// 把系统文件夹选择器（SAF ACTION_OPEN_DOCUMENT_TREE）返回的 content:// URI 映射成内嵌 git 能用的真实路径。
+    /// 仅支持「内部存储 / SD 卡」这类 ExternalStorageProvider（authority = com.android.externalstorage.documents）：
+    /// tree/&lt;volumeId&gt;:&lt;相对路径&gt; → /storage/emulated/0/&lt;相对路径&gt; 或 /storage/&lt;volumeId&gt;/&lt;相对路径&gt;。
+    /// 「下载内容」、云端盘等 provider 不给真实文件系统路径，返回 null，由调用方回退到手输路径。
+    /// 非 Android 恒为 null。
+    /// </summary>
+    public static string? ResolveSafTreeUri(Uri? uri)
+    {
+#if ANDROID
+        if (uri == null) return null;
+        if (uri.IsFile) return uri.LocalPath;
+        if (!string.Equals(uri.Scheme, "content", StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(uri.Authority, "com.android.externalstorage.documents", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        // 先在「未解码」的串上找 /tree/ 与 /document/ 分界：documentId 内部的 / 是 %2F，
+        // 直接整体 UnescapeDataString 后再按 / 截断会把 Download/Sub 这类相对路径切坏。
+        string raw = uri.ToString();
+        const string treeMarker = "/tree/";
+        int tree = raw.IndexOf(treeMarker, StringComparison.OrdinalIgnoreCase);
+        if (tree < 0) return null;
+
+        string docPart = raw.Substring(tree + treeMarker.Length);
+        int document = docPart.IndexOf("/document/", StringComparison.OrdinalIgnoreCase);
+        if (document >= 0) docPart = docPart.Substring(0, document);
+
+        string docId = Uri.UnescapeDataString(docPart);
+        int colon = docId.IndexOf(':');
+        if (colon <= 0) return null;
+
+        string volume = docId.Substring(0, colon);
+        string relative = docId.Substring(colon + 1).Trim('/');
+
+        string? root = null;
+        if (string.Equals(volume, "primary", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (string candidate in new[] { "/storage/emulated/0", "/sdcard" })
+            {
+                if (Directory.Exists(candidate)) { root = candidate; break; }
+            }
+        }
+        else
+        {
+            string candidate = Path.Combine("/storage", volume);
+            if (Directory.Exists(candidate)) root = candidate;
+        }
+        if (root == null) return null;
+
+        return string.IsNullOrEmpty(relative)
+            ? root
+            : Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
+#else
+        return null;
 #endif
     }
 

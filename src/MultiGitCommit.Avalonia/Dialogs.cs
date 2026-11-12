@@ -49,10 +49,11 @@ internal static class Dialogs
         => UiDialogs.ShowAsync<string?>(anchor, new PromptBoxView(message, initialValue), title);
 
     /// <summary>
-    /// 移动端「输入 / 新建目录」替代系统文件夹选择器。
-    /// 安卓的 StorageProvider 走 SAF 文档树，返回 content:// URI，TryGetLocalPath() 恒为 null；
-    /// 而内嵌 git 是原生进程，工作目录必须是真实 POSIX 路径，所以这里让用户直接填绝对路径，
-    /// 目录不存在时询问并新建，最后写临时文件确认可写（顺带提示「所有文件访问」权限）。
+    /// 移动端「输入 / 新建目录」：系统文件夹选择器的兜底方案。
+    /// 安卓的 StorageProvider 走 SAF 文档树，返回 content:// URI（TryGetLocalPath 恒为 null），
+    /// 内嵌 git 又必须用真实 POSIX 路径；能由 AndroidGitPlatform.ResolveSafTreeUri 映射时走选择器，
+    /// 映射不了（云端盘 / 下载内容等 provider）或选择器不可用时，这里让用户直接填绝对路径，
+    /// 目录不存在则询问并新建，最后写临时文件确认可写（顺带提示「所有文件访问」权限）。
     /// 返回 null 表示取消 / 多次输入都无效。
     /// </summary>
     public static async Task<string?> PickFolderAsync(Visual anchor, string title, string message, string suggestedPath)
@@ -114,7 +115,7 @@ internal static class Dialogs
     }
 
     /// <summary>写一个临时文件再删除，确认目录真的可写（目录存在不代表有写权限）。</summary>
-    private static bool TryEnsureWritable(string path, out string error)
+    public static bool TryEnsureWritable(string path, out string error)
     {
         string probe = Path.Combine(path, ".mgc-write-" + Guid.NewGuid().ToString("N") + ".tmp");
         try

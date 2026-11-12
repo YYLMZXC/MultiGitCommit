@@ -53,11 +53,7 @@ public partial class CloneView : DialogView<bool>
         _suppress = false;
 
         ChkAddRemote.IsChecked = true;
-        // 安卓端预填一个确实可写的仓库父目录（用户主目录在安卓上不是常规存储位置），
-        // 同时把「浏览」按钮改成「输入目录」：SAF 选择器无法给出内嵌 git 需要的真实路径
-        if (OperatingSystem.IsAndroid())
-            BtnBrowseParent.Content = "输入目录";
-
+        // 安卓端预填一个确实可写的仓库父目录（用户主目录在安卓上不是常规存储位置）
         TxtParentDir.Text = !string.IsNullOrWhiteSpace(initialDir) && Directory.Exists(initialDir)
             ? initialDir
             : AndroidGitPlatform.SuggestRepoParent();
@@ -89,42 +85,59 @@ public partial class CloneView : DialogView<bool>
         UpdatePreview();
     }
 
-    /// <summary>浏览选择本地父目录（桌面为系统文件夹选择器，移动端为 SAF / 文档选择器）。</summary>
+    /// <summary>浏览选择本地父目录（桌面与安卓均为系统文件夹选择器；无法映射的位置回退手输）。</summary>
     private async void BtnBrowseParent_Click(object? sender, RoutedEventArgs e)
     {
-        // 安卓：SAF 返回的 content:// URI 无法作为 git clone 的目标路径，改走输入 / 新建目录
-        if (OperatingSystem.IsAndroid())
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.StorageProvider != null)
         {
-            string? picked = await Dialogs.PickFolderAsync(this, "输入克隆父目录",
-                "请输入要把仓库克隆到的父目录绝对路径，例如：" + Environment.NewLine +
-                "/storage/emulated/0/GitRepos" + Environment.NewLine +
-                "目录不存在时会询问是否新建；仓库目录名在下方单独填写。" + Environment.NewLine +
-                "使用共享存储需先在系统设置中授予本应用「所有文件访问」。",
-                string.IsNullOrWhiteSpace(TxtParentDir.Text)
-                    ? AndroidGitPlatform.SuggestRepoParent()
-                    : TxtParentDir.Text!.Trim());
-            if (picked == null) return;
+            try
+            {
+                var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = "请选择要把仓库克隆到的父目录",
+                    AllowMultiple = false
+                });
 
-            TxtParentDir.Text = picked;
-            UpdatePreview();
-            return;
+                if (folders.Count == 0) return;
+
+                // 安卓 SAF 给的是 content:// 树 URI，需映射成内嵌 git 能用的本地路径
+                string? path = folders[0].TryGetLocalPath()
+                               ?? AndroidGitPlatform.ResolveSafTreeUri(folders[0].Path);
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    if (OperatingSystem.IsAndroid() && !Dialogs.TryEnsureWritable(path, out string error))
+                    {
+                        await Warn($"该目录不可写：{path}{Environment.NewLine}{error}{Environment.NewLine}" +
+                                   "请先在系统设置中授予本应用「所有文件访问」权限。");
+                        return;
+                    }
+
+                    TxtParentDir.Text = path.TrimEnd(Path.DirectorySeparatorChar);
+                    UpdatePreview();
+                    return;
+                }
+
+                await Warn("该位置无法转换为本地目录（仅支持「内部存储 / SD 卡」中的文件夹），请手动输入父目录路径。");
+            }
+            catch (Exception ex)
+            {
+                // 个别 ROM 的 SAF 实现会抛异常：不能让 async void 事件处理器把应用带崩
+                await Warn($"系统文件夹选择器不可用：{ex.Message}，请手动输入父目录路径。");
+            }
         }
 
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel?.StorageProvider == null) return;
+        // 兜底：手输绝对路径，可自动新建
+        string? picked = await Dialogs.PickFolderAsync(this, "输入克隆父目录",
+            "请输入要把仓库克隆到的父目录绝对路径，例如：" + Environment.NewLine +
+            "/storage/emulated/0/GitRepos" + Environment.NewLine +
+            "目录不存在时会询问是否新建；仓库目录名在下方单独填写。",
+            string.IsNullOrWhiteSpace(TxtParentDir.Text)
+                ? AndroidGitPlatform.SuggestRepoParent()
+                : TxtParentDir.Text!.Trim());
+        if (picked == null) return;
 
-        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
-        {
-            Title = "请选择要把仓库克隆到的父目录",
-            AllowMultiple = false
-        });
-
-        if (folders.Count == 0) return;
-
-        string? path = folders[0].TryGetLocalPath();
-        if (string.IsNullOrWhiteSpace(path)) return;
-
-        TxtParentDir.Text = path.TrimEnd(Path.DirectorySeparatorChar);
+        TxtParentDir.Text = picked;
         UpdatePreview();
     }
 

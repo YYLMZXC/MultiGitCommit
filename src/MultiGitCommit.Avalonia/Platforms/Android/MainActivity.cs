@@ -1,5 +1,4 @@
 using Android.App;
-using Android.Content;
 using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
@@ -19,8 +18,10 @@ namespace MultiGitCommit;
     ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.UiMode)]
 public class MainActivity : AvaloniaMainActivity<App>
 {
-    /// <summary>是否已尝试引导「所有文件访问」授权（每个进程只提示一次，避免反复跳出设置页）。</summary>
-    private static bool _storageAccessRequested;
+    private const int StoragePermissionRequestCode = 1001;
+
+    /// <summary>旧版运行时权限只申请一次，避免用户拒绝后每次回到应用都反复弹框。</summary>
+    private static bool _legacyPermissionRequested;
 
     protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
     {
@@ -35,39 +36,45 @@ public class MainActivity : AvaloniaMainActivity<App>
             })
             .AfterSetup(_ =>
             {
-                // 移动端暂时不需要额外的平台服务注册；
-                // 后续需要 Android 特有能力（如 SAF 封装）时在这里挂接。
+                // 移动端暂无额外平台服务注册；SAF 目录 URI → 本地路径、
+                // 存储权限状态与设置页跳转统一放在 AndroidGitPlatform（全 TFM 可调用）。
             });
     }
 
     protected override void OnResume()
     {
         base.OnResume();
-        TryRequestAllFilesAccess();
+        RequestStoragePermissionsIfNeeded();
     }
 
     /// <summary>
-    /// Android 11+ 读写共享存储（/storage/emulated/0 下的仓库目录）需要
-    /// 「所有文件访问」特殊权限（MANAGE_EXTERNAL_STORAGE），普通权限申请无效，
-    /// 只能跳转系统设置页由用户手动授权。未授权时打开仓库会得到权限错误。
+    /// 启动时申请存储权限（git 需要直接读写仓库目录的本地文件）：
+    /// - Android 10 及以下（API ≤ 29）：READ/WRITE_EXTERNAL_STORAGE 是普通运行时权限，这里直接弹系统授权框；
+    /// - Android 11+（API ≥ 30）：「所有文件访问」（MANAGE_EXTERNAL_STORAGE）没有运行时弹框，
+    ///   只能在应用内说明后引导到系统设置页（见 MainView 的启动引导与
+    ///   AndroidGitPlatform.OpenStoragePermissionSettings），避免一启动就把用户踢出应用。
+    /// 从设置页返回会再次 OnResume，权限状态由 AndroidGitPlatform.IsAllFilesAccessGranted 实时复查。
     /// </summary>
-    private void TryRequestAllFilesAccess()
+    private void RequestStoragePermissionsIfNeeded()
     {
-        if (_storageAccessRequested) return;
-        if (!OperatingSystem.IsAndroidVersionAtLeast(30)) return;
-        if (Android.OS.Environment.IsExternalStorageManager) return;
+        if (OperatingSystem.IsAndroidVersionAtLeast(30)) return;
+        if (_legacyPermissionRequested) return;
 
-        _storageAccessRequested = true;
-        try
-        {
-            var intent = new Intent(
-                Android.Provider.Settings.ActionManageAllFilesAccessPermission,
-                Android.Net.Uri.Parse("package:" + PackageName));
-            StartActivity(intent);
-        }
-        catch (Exception)
-        {
-            // 部分定制 ROM 没有该设置页，忽略（用户也可手动到设置里授权）
-        }
+        bool readGranted = CheckSelfPermission(global::Android.Manifest.Permission.ReadExternalStorage)
+                           == Permission.Granted;
+        bool writeGranted = CheckSelfPermission(global::Android.Manifest.Permission.WriteExternalStorage)
+                            == Permission.Granted;
+        if (readGranted && writeGranted) return;
+
+        _legacyPermissionRequested = true;
+        RequestPermissions(
+            new[] { global::Android.Manifest.Permission.ReadExternalStorage, global::Android.Manifest.Permission.WriteExternalStorage },
+            StoragePermissionRequestCode);
+    }
+
+    public override void OnRequestPermissionsResult(int requestCode, string[] permissions, Permission[] grantResults)
+    {
+        base.OnRequestPermissionsResult(requestCode, permissions, grantResults);
+        // 不缓存结果：用户可能在系统设置里改过权限，UI 侧一律以实时检查为准
     }
 }

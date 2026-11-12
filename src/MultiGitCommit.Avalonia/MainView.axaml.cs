@@ -115,10 +115,6 @@ public partial class MainView : UserControl
             UiDialogs.OverlayHost = Overlay;
             RootScroll.VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
             LogFrame.MinHeight = 160;
-
-            // 安卓没有可用的本地文件夹选择器：按钮改成直接输入路径（可自动新建目录）
-            if (OperatingSystem.IsAndroid())
-                BtnBrowse.Content = "输入目录";
         }
 
         ListRemotes.ItemsSource = _remotes;
@@ -150,8 +146,15 @@ public partial class MainView : UserControl
         {
             Log("提示：Android 已内嵌 git（APK 原生库目录），提交推送默认开箱即用；");
             Log("      远端请使用 https 协议（APK 未内置 ssh 客户端，ssh 协议远端不可用）。");
-            Log("      安卓无系统文件夹选择器：请点【输入目录】填写仓库绝对路径（可自动新建）；");
-            Log("      使用 /storage/emulated/0 需先授予本应用「所有文件访问」权限。");
+            Log("      点【选择文件夹】可选内部存储 / SD 卡目录；使用 /storage/emulated/0 需「所有文件访问」权限。");
+
+            if (AndroidGitPlatform.IsAllFilesAccessGranted)
+                Log("      已获得存储权限，可直接选择共享存储中的仓库目录。");
+            else
+            {
+                Log("      当前未获得存储权限：共享存储目录会不可写，稍后引导授权。");
+                PromptStoragePermissionOnStartup();
+            }
         }
 
         // 解析 git 来源（内嵌 / 自动检测 / 系统 PATH / 指定路径），不依赖系统安装 git
@@ -161,6 +164,44 @@ public partial class MainView : UserControl
         string? startup = ResolveStartupRepoPath(out string startupMessage);
         TxtRepoPath.Text = startup ?? string.Empty;
         if (startupMessage.Length > 0) Log(startupMessage);
+    }
+
+    /// <summary>
+    /// 启动时引导「所有文件访问」授权：Android 11+ 该权限没有系统运行时弹框，只能跳设置页，
+    /// 因此在应用内先说明用途再让用户决定；不授权仍可用应用专属目录，所以允许取消。
+    /// 延后到 Loaded 执行，保证覆盖层宿主与 UI 已完成首次布局。
+    /// </summary>
+    private void PromptStoragePermissionOnStartup()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            async void Prompt()
+            {
+                try
+                {
+                    bool go = await Dialogs.ConfirmAsync(this, "存储权限",
+                        "MultiGitCommit 需要「所有文件访问」权限，才能读写共享存储（/storage/emulated/0）中的 Git 仓库。" +
+                        Environment.NewLine + Environment.NewLine +
+                        "不授权也能使用应用专属目录（输入框已预填），但系统文件夹选择器中选到的共享目录会不可写。" +
+                        Environment.NewLine + Environment.NewLine + "是否前往系统设置授权？");
+                    if (go)
+                    {
+                        AndroidGitPlatform.OpenStoragePermissionSettings();
+                        Log("已打开系统设置；授权后返回应用即可选择共享存储中的仓库目录。");
+                    }
+                    else
+                    {
+                        Log("已跳过授权：请使用应用专属目录，或稍后在系统设置中开启「所有文件访问」。");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log("权限引导失败：" + ex.Message);
+                }
+            }
+
+            Prompt();
+        }, DispatcherPriority.Loaded);
     }
 
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => ApplyResponsiveLayout();
@@ -380,42 +421,68 @@ public partial class MainView : UserControl
     /// <summary>选择文件夹：浏览选择 git 仓库根目录，选择后自动读取该项目配置。</summary>
     private async void BtnBrowse_Click(object? sender, RoutedEventArgs e)
     {
-        // 安卓：StorageProvider 走 SAF 文档树，返回 content:// URI（TryGetLocalPath 恒为 null），
-        // 而内嵌 git 必须用真实 POSIX 路径，故改走「输入 / 新建目录」对话框。
-        if (OperatingSystem.IsAndroid())
-        {
-            string? picked = await Dialogs.PickFolderAsync(this, "输入仓库目录",
-                "请输入 Git 仓库根目录的绝对路径（与 .git 同级），例如：" + Environment.NewLine +
-                "/storage/emulated/0/GitRepos/MyRepo" + Environment.NewLine +
-                "目录不存在时会询问是否新建；新建的空目录请再点【初始化仓库】。" + Environment.NewLine +
-                "使用共享存储需先在系统设置中授予本应用「所有文件访问」。",
-                AndroidGitPlatform.SuggestRepoParent());
-            if (picked == null) return;
-
-            TxtRepoPath.Text = picked;
-            _pathDebounce.Stop();
-            LoadConfigFromPath();
-            return;
-        }
-
         var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel?.StorageProvider == null) return;
-
-        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        if (topLevel?.StorageProvider != null)
         {
-            Title = "请选择 Git 仓库根目录（与 .git 文件夹同级）",
-            AllowMultiple = false
-        });
+            try
+            {
+                var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+                {
+                    Title = "请选择 Git 仓库根目录（与 .git 文件夹同级）",
+                    AllowMultiple = false
+                });
 
-        if (folders.Count == 0) return;
+                if (folders.Count == 0) return;
 
-        string? path = folders[0].TryGetLocalPath();
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            Log("所选位置不是本地文件系统路径（移动端 SAF 目录无法直接当作仓库目录使用），请直接粘贴本地路径。");
-            return;
+                // 桌面直接给本地路径；安卓 SAF 只给 content:// 树 URI，
+                // 由 AndroidGitPlatform 把「内部存储 / SD 卡」映射成内嵌 git 可用的真实路径。
+                string? path = folders[0].TryGetLocalPath()
+                               ?? AndroidGitPlatform.ResolveSafTreeUri(folders[0].Path);
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    if (!await IsUsableRepoFolderAsync(path)) return;
+                    ApplyPickedFolder(path);
+                    return;
+                }
+
+                Log("该位置无法转换为本地目录（仅支持「内部存储 / SD 卡」中的文件夹），已改为手动输入路径。");
+            }
+            catch (Exception ex)
+            {
+                // 个别 ROM 的 SAF 实现会抛异常：不能让 async void 事件处理器把应用带崩
+                Log($"系统文件夹选择器不可用：{ex.Message}，已改为手动输入路径。");
+            }
         }
 
+        await PickFolderManuallyAsync();
+    }
+
+    /// <summary>系统选择器不可用 / 该位置无真实路径时的兜底：手输绝对路径，可自动新建。</summary>
+    private async Task PickFolderManuallyAsync()
+    {
+        string? picked = await Dialogs.PickFolderAsync(this, "输入仓库目录",
+            "请输入 Git 仓库根目录的绝对路径（与 .git 同级），例如：" + Environment.NewLine +
+            "/storage/emulated/0/GitRepos/MyRepo" + Environment.NewLine +
+            "目录不存在时会询问是否新建；新建的空目录请再点【初始化仓库】。",
+            AndroidGitPlatform.SuggestRepoParent());
+        if (picked == null) return;
+        ApplyPickedFolder(picked);
+    }
+
+    /// <summary>安卓共享存储目录可能「存在但不可写」（未授予所有文件访问），先做写入探测。</summary>
+    private async Task<bool> IsUsableRepoFolderAsync(string path)
+    {
+        if (!OperatingSystem.IsAndroid()) return true;
+        if (Dialogs.TryEnsureWritable(path, out string error)) return true;
+
+        await Dialogs.ShowMessageAsync(this, "目录不可写",
+            $"无法写入该目录：{path}{Environment.NewLine}{error}{Environment.NewLine}{Environment.NewLine}" +
+            "若这是 /storage/emulated/0 下的目录，请先在系统设置中为 MultiGitCommit 授予「所有文件访问」权限。");
+        return false;
+    }
+
+    private void ApplyPickedFolder(string path)
+    {
         TxtRepoPath.Text = path.TrimEnd(Path.DirectorySeparatorChar);
         // 赋值会触发 TextChanged 并重新开启防抖计时器，须在赋值后再次停止，避免 400ms 后重复加载一次
         _pathDebounce.Stop();
@@ -1166,7 +1233,7 @@ public partial class MainView : UserControl
         }
 
         string hint = OperatingSystem.IsAndroid()
-            ? "安卓无系统文件夹选择器：请点【输入目录】填写仓库绝对路径（可自动新建），" +
+            ? "请点【选择文件夹】选取 Git 仓库根目录（需授予「所有文件访问」才能读写共享存储），" +
               "或先用【克隆项目】/【初始化仓库】创建仓库；如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。"
             : "请点击【浏览…】选择 Git 仓库根目录；" +
               "如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。";

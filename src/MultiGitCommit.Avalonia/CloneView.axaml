@@ -39,7 +39,7 @@
                          Margin="0,0,0,8" TextChanged="Input_Changed"
                          ToolTip.Tip="本地父目录，仓库将被克隆到该目录下的【目录名】子文件夹"/>
                 <Button x:Name="BtnBrowseParent" Grid.Row="1" Grid.Column="2" Content="浏览..." Margin="6,0,0,8" Padding="10,2"
-                        Click="BtnBrowseParent_Click" ToolTip.Tip="输入或选择本地父目录"/>
+                        Click="BtnBrowseParent_Click" ToolTip.Tip="选择本地父目录"/>
 
                 <TextBlock Grid.Row="2" Grid.Column="0" Text="目录名：" VerticalAlignment="Center" Margin="0,0,6,8"/>
                 <TextBox x:Name="TxtFolderName" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" VerticalContentAlignment="Center"
