@@ -40,7 +40,7 @@ public partial class MainView : UserControl
     private bool _isNarrowLayout;
 
     /// <summary>仓库目录行的按钮 → 原始 Grid 列号（窄屏搬移出去后，宽屏恢复列位用）。</summary>
-    private readonly Dictionary<Button, int> _repoHeaderButtonColumns = new();
+    private readonly Dictionary<AvaloniaButton, int> _repoHeaderButtonColumns = new();
 
     /// <summary>仓库路径输入防抖计时器：停止输入 400ms 后再加载，避免每敲一个字符都执行 git 校验。</summary>
     private readonly DispatcherTimer _pathDebounce;
