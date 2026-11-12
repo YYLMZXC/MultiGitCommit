@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 
 namespace MultiGitCommit;
 
@@ -86,6 +87,37 @@ public static class AndroidGitPlatform
             return null;
 #endif
         }
+    }
+
+    /// <summary>
+    /// 建议的仓库父目录：安卓没有可用的本地文件夹选择器（SAF 只给 content:// URI），
+    /// 需要用户手填真实 POSIX 路径，这里给一个开箱可用的默认值。
+    /// 已授予「所有文件访问」时优先共享存储（其他文件管理器可见），否则退回应用专属外部目录
+    /// （/storage/emulated/0/Android/data/&lt;包名&gt;/files，无需特殊权限即可读写）。
+    /// 非 Android 返回用户主目录，供桌面端沿用原来的行为。
+    /// </summary>
+    public static string SuggestRepoParent()
+    {
+#if ANDROID
+        try
+        {
+            if (OperatingSystem.IsAndroidVersionAtLeast(30)
+                && global::Android.OS.Environment.IsExternalStorageManager
+                && Directory.Exists("/storage/emulated/0"))
+                return "/storage/emulated/0/GitRepos";
+
+            string? own = global::Android.App.Application.Context?.GetExternalFilesDir(null)?.AbsolutePath;
+            if (!string.IsNullOrWhiteSpace(own))
+                return Path.Combine(own, "GitRepos");
+        }
+        catch
+        {
+            // 平台目录探测失败时走兜底值，不阻断界面
+        }
+        return "/storage/emulated/0/GitRepos";
+#else
+        return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+#endif
     }
 
     /// <summary>应用私有 Files 目录（HOME 与符号链接目录的宿主）；非 Android 为 null。</summary>

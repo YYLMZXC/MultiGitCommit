@@ -103,6 +103,10 @@ public partial class GitSettingsView : DialogView<bool>
         InitializeComponent();
         _suppress = false;
 
+        // 安卓 SAF 文件选择器拿不到本地路径，按钮改为直接输入 git 路径
+        if (OperatingSystem.IsAndroid())
+            BtnBrowse.Content = "输入路径";
+
         // 窄屏响应式：宽度变化时切换身份输入与凭据输入的行列布局
         SizeChanged += (_, _) => ApplyResponsiveLayout();
 
@@ -574,6 +578,20 @@ public partial class GitSettingsView : DialogView<bool>
     /// <summary>浏览选择 git 可执行文件。</summary>
     private async void BtnBrowse_Click(object? sender, RoutedEventArgs e)
     {
+        // 安卓：SAF 返回 content:// URI，TryGetLocalPath 为 null，改为手输绝对路径
+        if (OperatingSystem.IsAndroid())
+        {
+            string? typed = await Dialogs.PromptAsync(this, "输入 git 路径",
+                "请输入 git 可执行文件（或 Git 根目录）的绝对路径。" + Environment.NewLine +
+                "Android 已内嵌 git，一般保持默认的「自动检测」即可，无需在此指定。",
+                TxtCustomPath.Text?.Trim() ?? string.Empty);
+            if (string.IsNullOrWhiteSpace(typed)) return;
+
+            TxtCustomPath.Text = typed.Trim();
+            await TestAsync();
+            return;
+        }
+
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel?.StorageProvider == null) return;
 

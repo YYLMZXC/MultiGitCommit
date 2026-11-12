@@ -115,6 +115,10 @@ public partial class MainView : UserControl
             UiDialogs.OverlayHost = Overlay;
             RootScroll.VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
             LogFrame.MinHeight = 160;
+
+            // 安卓没有可用的本地文件夹选择器：按钮改成直接输入路径（可自动新建目录）
+            if (OperatingSystem.IsAndroid())
+                BtnBrowse.Content = "输入目录";
         }
 
         ListRemotes.ItemsSource = _remotes;
@@ -146,6 +150,8 @@ public partial class MainView : UserControl
         {
             Log("提示：Android 已内嵌 git（APK 原生库目录），提交推送默认开箱即用；");
             Log("      远端请使用 https 协议（APK 未内置 ssh 客户端，ssh 协议远端不可用）。");
+            Log("      安卓无系统文件夹选择器：请点【输入目录】填写仓库绝对路径（可自动新建）；");
+            Log("      使用 /storage/emulated/0 需先授予本应用「所有文件访问」权限。");
         }
 
         // 解析 git 来源（内嵌 / 自动检测 / 系统 PATH / 指定路径），不依赖系统安装 git
@@ -374,6 +380,24 @@ public partial class MainView : UserControl
     /// <summary>选择文件夹：浏览选择 git 仓库根目录，选择后自动读取该项目配置。</summary>
     private async void BtnBrowse_Click(object? sender, RoutedEventArgs e)
     {
+        // 安卓：StorageProvider 走 SAF 文档树，返回 content:// URI（TryGetLocalPath 恒为 null），
+        // 而内嵌 git 必须用真实 POSIX 路径，故改走「输入 / 新建目录」对话框。
+        if (OperatingSystem.IsAndroid())
+        {
+            string? picked = await Dialogs.PickFolderAsync(this, "输入仓库目录",
+                "请输入 Git 仓库根目录的绝对路径（与 .git 同级），例如：" + Environment.NewLine +
+                "/storage/emulated/0/GitRepos/MyRepo" + Environment.NewLine +
+                "目录不存在时会询问是否新建；新建的空目录请再点【初始化仓库】。" + Environment.NewLine +
+                "使用共享存储需先在系统设置中授予本应用「所有文件访问」。",
+                AndroidGitPlatform.SuggestRepoParent());
+            if (picked == null) return;
+
+            TxtRepoPath.Text = picked;
+            _pathDebounce.Stop();
+            LoadConfigFromPath();
+            return;
+        }
+
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel?.StorageProvider == null) return;
 
@@ -1141,8 +1165,11 @@ public partial class MainView : UserControl
             return last;
         }
 
-        string hint = "请点击【浏览…】选择 Git 仓库根目录；" +
-                      "如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。";
+        string hint = OperatingSystem.IsAndroid()
+            ? "安卓无系统文件夹选择器：请点【输入目录】填写仓库绝对路径（可自动新建），" +
+              "或先用【克隆项目】/【初始化仓库】创建仓库；如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。"
+            : "请点击【浏览…】选择 Git 仓库根目录；" +
+              "如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。";
 
         message = $"当前目录及上级目录中未找到 Git 仓库，按设置不自动加载上次项目，已留空仓库目录：{hint}";
         return null;

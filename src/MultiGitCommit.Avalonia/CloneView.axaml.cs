@@ -53,9 +53,14 @@ public partial class CloneView : DialogView<bool>
         _suppress = false;
 
         ChkAddRemote.IsChecked = true;
+        // 安卓端预填一个确实可写的仓库父目录（用户主目录在安卓上不是常规存储位置），
+        // 同时把「浏览」按钮改成「输入目录」：SAF 选择器无法给出内嵌 git 需要的真实路径
+        if (OperatingSystem.IsAndroid())
+            BtnBrowseParent.Content = "输入目录";
+
         TxtParentDir.Text = !string.IsNullOrWhiteSpace(initialDir) && Directory.Exists(initialDir)
             ? initialDir
-            : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            : AndroidGitPlatform.SuggestRepoParent();
 
         UpdatePreview();
     }
@@ -87,6 +92,24 @@ public partial class CloneView : DialogView<bool>
     /// <summary>浏览选择本地父目录（桌面为系统文件夹选择器，移动端为 SAF / 文档选择器）。</summary>
     private async void BtnBrowseParent_Click(object? sender, RoutedEventArgs e)
     {
+        // 安卓：SAF 返回的 content:// URI 无法作为 git clone 的目标路径，改走输入 / 新建目录
+        if (OperatingSystem.IsAndroid())
+        {
+            string? picked = await Dialogs.PickFolderAsync(this, "输入克隆父目录",
+                "请输入要把仓库克隆到的父目录绝对路径，例如：" + Environment.NewLine +
+                "/storage/emulated/0/GitRepos" + Environment.NewLine +
+                "目录不存在时会询问是否新建；仓库目录名在下方单独填写。" + Environment.NewLine +
+                "使用共享存储需先在系统设置中授予本应用「所有文件访问」。",
+                string.IsNullOrWhiteSpace(TxtParentDir.Text)
+                    ? AndroidGitPlatform.SuggestRepoParent()
+                    : TxtParentDir.Text!.Trim());
+            if (picked == null) return;
+
+            TxtParentDir.Text = picked;
+            UpdatePreview();
+            return;
+        }
+
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel?.StorageProvider == null) return;
 

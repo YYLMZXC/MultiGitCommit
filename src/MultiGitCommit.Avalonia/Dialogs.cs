@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -46,6 +47,93 @@ internal static class Dialogs
     /// </summary>
     public static Task<string?> PromptAsync(Visual anchor, string title, string message, string initialValue)
         => UiDialogs.ShowAsync<string?>(anchor, new PromptBoxView(message, initialValue), title);
+
+    /// <summary>
+    /// 移动端「输入 / 新建目录」替代系统文件夹选择器。
+    /// 安卓的 StorageProvider 走 SAF 文档树，返回 content:// URI，TryGetLocalPath() 恒为 null；
+    /// 而内嵌 git 是原生进程，工作目录必须是真实 POSIX 路径，所以这里让用户直接填绝对路径，
+    /// 目录不存在时询问并新建，最后写临时文件确认可写（顺带提示「所有文件访问」权限）。
+    /// 返回 null 表示取消 / 多次输入都无效。
+    /// </summary>
+    public static async Task<string?> PickFolderAsync(Visual anchor, string title, string message, string suggestedPath)
+    {
+        string suggestion = suggestedPath;
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            string? input = await PromptAsync(anchor, title, message, suggestion);
+            if (input == null) return null;
+
+            string path = input.Trim();
+            if (path.Length == 0) return null;
+
+            if (!Path.IsPathRooted(path))
+            {
+                await ShowMessageAsync(anchor, title, "请输入以 / 开头的绝对路径，安卓不支持相对路径。");
+                suggestion = path;
+                continue;
+            }
+
+            path = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar);
+            if (path.Length == 0) path = Path.DirectorySeparatorChar.ToString();
+
+            if (!Directory.Exists(path))
+            {
+                bool create = await ConfirmAsync(anchor, title,
+                    $"目录不存在，是否新建？{Environment.NewLine}{path}");
+                if (!create)
+                {
+                    suggestion = path;
+                    continue;
+                }
+
+                try
+                {
+                    Directory.CreateDirectory(path);
+                }
+                catch (Exception ex)
+                {
+                    await ShowMessageAsync(anchor, title, $"新建目录失败：{ex.Message}");
+                    suggestion = path;
+                    continue;
+                }
+            }
+
+            if (!TryEnsureWritable(path, out string error))
+            {
+                await ShowMessageAsync(anchor, title,
+                    $"目录不可写：{path}{Environment.NewLine}{error}{Environment.NewLine}" +
+                    "若使用 /storage/emulated/0，请先在系统设置中为 MultiGitCommit 授予「所有文件访问」。");
+                suggestion = path;
+                continue;
+            }
+
+            return path;
+        }
+
+        return null;
+    }
+
+    /// <summary>写一个临时文件再删除，确认目录真的可写（目录存在不代表有写权限）。</summary>
+    private static bool TryEnsureWritable(string path, out string error)
+    {
+        string probe = Path.Combine(path, ".mgc-write-" + Guid.NewGuid().ToString("N") + ".tmp");
+        try
+        {
+            File.WriteAllText(probe, "ok");
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+        finally
+        {
+            // 即使校验失败也不在仓库目录里留下临时文件
+            try { File.Delete(probe); } catch { }
+        }
+    }
 
     /// <summary>提示框 / 确认框内容视图（确定，可选取消）。</summary>
     private sealed class MessageBoxView : DialogView<bool>
