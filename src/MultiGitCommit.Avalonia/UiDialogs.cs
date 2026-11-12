@@ -164,7 +164,7 @@ public class DialogOverlay : Panel
         var dim = new Rectangle { Fill = new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)) };
 
         // 视图根上的固定 Width 是给桌面端 SizeToContent 窗口撑尺寸用的（桌面路径不经过这里）；
-        // 移动端小屏下重置为自适应，宽度交给卡片收窄，避免内容横向被裁切。
+        // 移动端小屏下先重置，随后由卡片 / 视口宽度重新约束，避免整体超宽被裁切。
         view.Width = double.NaN;
 
         // 自带滚动区的大视图（如 Git 环境设置）按视口尺寸布局：
@@ -204,6 +204,9 @@ public class DialogOverlay : Panel
         {
             card.Width = initialW;
             card.Height = initialH;
+            // 显式固定视图宽度：即使 ScrollViewer 以「无限宽度」测量内容，
+            // 内部 TextWrapping 与窄屏响应式也会按视口宽度生效，不会整体撑宽
+            view.Width = initialW;
             view.Height = initialH;
         }
 
@@ -218,6 +221,7 @@ public class DialogOverlay : Panel
             {
                 card.Width = w;
                 card.Height = h;
+                view.Width = w;
                 view.Height = h;
             }
         };
