@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    MultiGitCommit 的 MCP Server（桌面端 net10.0 控制台程序，stdio transport）。
+    通过「源码链接」直接编译 GUI 项目里的纯逻辑层（Abstractions / Services / Models / Settings
+    及若干根目录辅助类），不引用 Avalonia、不复制业务逻辑，也不改 GUI 项目的任何文件。
+    因此 MCP Server 与 GUI 共用同一套实现、同一份全局 settings.json 和每个仓库的
+    multigitcommit.config.json —— 外部 AI 调用的就是软件本身的能力。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>MultiGitCommit.Mcp</RootNamespace>
+    <AssemblyName>MultiGitCommit.Mcp</AssemblyName>
+    <BuildDate>$([System.DateTime]::Now.ToString('yy.MM.dd'))</BuildDate>
+    <BuildTime>$([System.DateTime]::Now.ToString('HHmm'))</BuildTime>
+    <Version Condition="'$(Version)' == ''">$(BuildDate)-$(BuildTime)</Version>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+  </PropertyGroup>
+
+  <!-- Release 发布为单文件（依赖框架），方便作为 MCP 客户端的 command 直接指向 exe -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <SelfContained>false</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <DebugType>none</DebugType>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <!-- 与 GUI 共用的逻辑层源码（全部无 Avalonia 依赖） -->
+  <ItemGroup>
+    <Compile Include="../MultiGitCommit.Avalonia/Abstractions/**/*.cs" Link="Shared/Abstractions/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../MultiGitCommit.Avalonia/Services/**/*.cs" Link="Shared/Services/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../MultiGitCommit.Avalonia/Models/**/*.cs" Link="Shared/Models/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../MultiGitCommit.Avalonia/Settings/**/*.cs" Link="Shared/Settings/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="../MultiGitCommit.Avalonia/AppVersion.cs" Link="Shared/AppVersion.cs" />
+    <Compile Include="../MultiGitCommit.Avalonia/CredentialTester.cs" Link="Shared/CredentialTester.cs" />
+    <Compile Include="../MultiGitCommit.Avalonia/GitCredentialHelper.cs" Link="Shared/GitCredentialHelper.cs" />
+    <Compile Include="../MultiGitCommit.Avalonia/GitLocator.cs" Link="Shared/GitLocator.cs" />
+    <Compile Include="../MultiGitCommit.Avalonia/ProjectConfig.cs" Link="Shared/ProjectConfig.cs" />
+    <Compile Include="../MultiGitCommit.Avalonia/SystemCredentialProbe.cs" Link="Shared/SystemCredentialProbe.cs" />
+  </ItemGroup>
+
+</Project>
