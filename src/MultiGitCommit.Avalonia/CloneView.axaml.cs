@@ -15,6 +15,9 @@ namespace MultiGitCommit;
 /// </summary>
 public partial class CloneView : DialogView<bool>
 {
+    /// <summary>自带 ScrollViewer + 固定底部按钮栏：移动端铺满视口布局，桌面端锁定窗口尺寸。</summary>
+    public override bool FitsOverlayViewport => true;
+
     /// <summary>用户确认后的远端仓库 URL。</summary>
     public string RepoUrl { get; private set; } = string.Empty;
 

@@ -11,6 +11,9 @@ namespace MultiGitCommit;
 /// </summary>
 public partial class PullView : DialogView<bool>
 {
+    /// <summary>自带 ScrollViewer + 固定底部按钮栏：移动端铺满视口布局，桌面端锁定窗口尺寸。</summary>
+    public override bool FitsOverlayViewport => true;
+
     /// <summary>可选远端（原始 URL，不含任何改写）。</summary>
     private readonly IReadOnlyList<string> _remotes;
 

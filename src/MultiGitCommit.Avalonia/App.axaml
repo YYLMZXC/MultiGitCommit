@@ -1,6 +1,11 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             x:Class="MultiGitCommit.App">
+             x:Class="MultiGitCommit.App"
+             RequestedThemeVariant="Light">
+    <!-- 全应用锁定浅色主题：界面（含全部弹窗）里的标题蓝 / 说明灰 / 分隔线都是写死的浅色配色，
+         桌面与移动端跟随系统深色时，FluentTheme 的文字与控件会变成浅色，白底卡片上会白字白按钮。
+         Android 的 styles.xml 本来也是 AppCompat.Light，这里让 Avalonia 侧与之保持一致；
+         ComboBox 下拉、ToolTip 等由主题绘制的浮层也一并覆盖。 -->
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>

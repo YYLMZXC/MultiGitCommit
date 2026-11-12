@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 
@@ -30,6 +31,9 @@ public sealed class StageFileItem
 /// </summary>
 public partial class StageFilesView : DialogView<bool>
 {
+    /// <summary>底部按钮栏固定、中间列表内部滚动：移动端铺满视口布局，桌面端锁定窗口尺寸。</summary>
+    public override bool FitsOverlayViewport => true;
+
     private readonly List<StageFileItem> _items;
 
     /// <summary>用户勾选、需要 add 的相对路径；取消对话框时为 null（由宿主判断）。</summary>
@@ -44,6 +48,11 @@ public partial class StageFilesView : DialogView<bool>
         _items = files.Select(f => new StageFileItem { File = f, Selected = true }).ToList();
 
         InitializeComponent();
+
+        // 桌面端靠 MinHeight 撑开 SizeToContent 窗口；移动端视口高度固定，
+        // 保留最小高度会把底部按钮栏顶出可视区，这里改为由 DockPanel 按剩余空间分配
+        if (Avalonia.Application.Current?.ApplicationLifetime is ISingleViewApplicationLifetime)
+            ListFiles.MinHeight = 0;
 
         TxtRepo.Text = repoRoot;
         ListFiles.ItemsSource = _items;

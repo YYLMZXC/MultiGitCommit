@@ -110,7 +110,9 @@ public partial class MainView : UserControl
         // 输出多少行都不会改变窗口尺寸或页面布局。
         if (Avalonia.Application.Current?.ApplicationLifetime is ISingleViewApplicationLifetime)
         {
-            UiDialogs.OverlayHost ??= Overlay;
+            // 直接赋值而不是 ??=：MainView 被重建时旧覆盖层已脱离可视树，
+            // 残留的静态宿主会让弹窗推到看不见的旧层上
+            UiDialogs.OverlayHost = Overlay;
             RootScroll.VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
             LogFrame.MinHeight = 160;
         }

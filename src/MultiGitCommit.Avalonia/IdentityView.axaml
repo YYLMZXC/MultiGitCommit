@@ -4,34 +4,42 @@
              Width="540"
              FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
 
-    <StackPanel Margin="14">
-        <TextBlock Text="git 生成 commit 的前置条件：必须配置 user.name 与 user.email，否则 git 直接报错（Please tell me who you are / unable to auto-detect email address），根本生成不了提交。"
-                   TextWrapping="Wrap" Margin="0,0,0,10"/>
-
-        <Grid Margin="0,0,0,8" ColumnDefinitions="80,*" RowDefinitions="Auto,Auto">
-            <TextBlock Grid.Row="0" Grid.Column="0" Text="用户名" VerticalAlignment="Center"/>
-            <TextBox x:Name="TxtName" Grid.Row="0" Grid.Column="1" VerticalContentAlignment="Center" Margin="6,3"
-                     ToolTip.Tip="git config user.name，提交记录里显示的作者名"/>
-
-            <TextBlock Grid.Row="1" Grid.Column="0" Text="邮箱" VerticalAlignment="Center"/>
-            <TextBox x:Name="TxtEmail" Grid.Row="1" Grid.Column="1" VerticalContentAlignment="Center" Margin="6,3"
-                     ToolTip.Tip="git config user.email，提交记录里显示的作者邮箱"/>
-        </Grid>
-
-        <TextBlock Text="写入位置" FontWeight="SemiBold" Margin="0,4,0,2"/>
-        <StackPanel>
-            <RadioButton x:Name="RbLocal" Content="仅当前仓库（git config，写入该仓库的 .git/config）"
-                         IsChecked="True" Margin="0,3"/>
-            <RadioButton x:Name="RbGlobal" Content="全局（git config --global，对所有仓库生效）"
-                         Margin="0,3"/>
-        </StackPanel>
-
-        <TextBlock TextWrapping="Wrap" Margin="0,10,0,0" Foreground="#666" FontSize="11"
-                   Text="用户名与邮箱都会写入提交记录（git log 可见），邮箱建议与代码平台注册邮箱一致，便于平台关联贡献者。"/>
-
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+    <!-- 底部按钮固定，说明文字 / 单选放进 ScrollViewer：移动端窄屏下可滚动查看，按钮常驻可见。 -->
+    <DockPanel Margin="14">
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,14,0,0">
             <Button Content="确定" Width="90" IsDefault="True" Padding="8,2" Click="BtnOk_Click"/>
             <Button Content="取消" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2" Click="BtnCancel_Click"/>
         </StackPanel>
-    </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock Text="git 生成 commit 的前置条件：必须配置 user.name 与 user.email，否则 git 直接报错（Please tell me who you are / unable to auto-detect email address），根本生成不了提交。"
+                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                <Grid Margin="0,0,0,8" ColumnDefinitions="80,*" RowDefinitions="Auto,Auto">
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="用户名" VerticalAlignment="Center"/>
+                    <TextBox x:Name="TxtName" Grid.Row="0" Grid.Column="1" VerticalContentAlignment="Center" Margin="6,3"
+                             ToolTip.Tip="git config user.name，提交记录里显示的作者名"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="邮箱" VerticalAlignment="Center"/>
+                    <TextBox x:Name="TxtEmail" Grid.Row="1" Grid.Column="1" VerticalContentAlignment="Center" Margin="6,3"
+                             ToolTip.Tip="git config user.email，提交记录里显示的作者邮箱"/>
+                </Grid>
+
+                <TextBlock Text="写入位置" FontWeight="SemiBold" Margin="0,4,0,2"/>
+                <StackPanel>
+                    <RadioButton x:Name="RbLocal" Margin="0,3" IsChecked="True">
+                        <TextBlock Text="仅当前仓库（git config，写入该仓库的 .git/config）" TextWrapping="Wrap"/>
+                    </RadioButton>
+                    <RadioButton x:Name="RbGlobal" Margin="0,3">
+                        <TextBlock Text="全局（git config --global，对所有仓库生效）" TextWrapping="Wrap"/>
+                    </RadioButton>
+                </StackPanel>
+
+                <TextBlock TextWrapping="Wrap" Margin="0,10,0,0" Foreground="#666" FontSize="11"
+                           Text="用户名与邮箱都会写入提交记录（git log 可见），邮箱建议与代码平台注册邮箱一致，便于平台关联贡献者。"/>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
 </UserControl>

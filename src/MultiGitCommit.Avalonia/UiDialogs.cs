@@ -3,10 +3,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Platform;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Controls.Primitives;
+using Avalonia.Styling;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace MultiGitCommit;
@@ -35,10 +38,11 @@ public abstract class DialogViewBase : UserControl
     internal abstract void CancelIfPending();
 
     /// <summary>
-    /// 视图是否自带纵向滚动区、并希望按移动端覆盖层视口尺寸布局（桌面端 Window 路径不读此属性）。
-    /// 为 true 时：卡片宽度固定为屏幕宽度且禁用横向滚动（长文本自动换行、窄屏布局生效），
-    /// 卡片高度固定为屏幕高度并传给视图，由视图内部的 ScrollViewer 滚动，底部按钮栏始终可见。
-    /// 默认 false：沿用卡片 ScrollViewer 双向滚动（适合小视图 / 固定列宽表格）。
+    /// 视图是否自带纵向滚动区 + 固定底部按钮栏，并按移动端覆盖层可用视口铺满布局。
+    /// 为 true 时：卡片占满视口（扣除安全区），视图固定宽高，由视图内部 ScrollViewer 滚动，底部按钮常驻可见。
+    /// 为 false 时：小型提示 / 输入对话框，卡片按内容高度居中，超出视口时由卡片自带 ScrollViewer 滚动。
+    /// 两种情况都会把视图宽度约束到视口宽度、禁用横向滚动，长文本 / 比例列才会正常换行与收敛。
+    /// 桌面端 Window 路径只用它决定是否锁定窗口尺寸（内容变化不再把窗口撑到屏幕外）。
     /// </summary>
     public virtual bool FitsOverlayViewport => false;
 
@@ -197,6 +201,12 @@ public class DialogOverlay : Panel
         public required DialogViewBase View;
     }
 
+    /// <summary>卡片与安全区之间的额外留白。</summary>
+    private const double EdgeMargin = 8;
+
+    /// <summary>移动端没有窗口标题栏，卡片自带标题栏（标题 + 关闭按钮）的高度。</summary>
+    private const double TitleBarHeight = 44;
+
     private readonly List<LayerInfo> _layers = new();
 
     public DialogOverlay()
@@ -210,84 +220,152 @@ public class DialogOverlay : Panel
     /// <summary>推入一个对话框层；返回的任务在对话框关闭时完成并携带结果。</summary>
     public async Task<object?> PushAsync(DialogViewBase view, string title)
     {
-        var dim = new Rectangle { Fill = new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)) };
+        var dim = new Rectangle { Fill = new SolidColorBrush(Color.FromArgb(0x78, 0, 0, 0)) };
 
-        // 视图根上的固定 Width 是给桌面端 SizeToContent 窗口撑尺寸用的（桌面路径不经过这里）；
-        // 移动端小屏下先重置，随后由卡片 / 视口宽度重新约束，避免整体超宽被裁切。
+        // 根 UserControl 上的固定 Width / MinHeight 是给桌面 SizeToContent 窗口撑尺寸用的。
+        // 移动端全部清掉：否则 460~920 宽的内容会顶破手机视口，右侧直接被裁掉，
+        // TextWrapping 也会因「无限宽度测量」而失效。
         view.Width = double.NaN;
+        view.Height = double.NaN;
+        view.MinWidth = 0;
+        view.MinHeight = 0;
+        view.MaxWidth = double.PositiveInfinity;
+        view.MaxHeight = double.PositiveInfinity;
 
-        // 自带滚动区的大视图（如 Git 环境设置）按视口尺寸布局：
-        // 横向 Auto 会用「无限宽度」测量内容，TextWrapping 全部失效，页面整体超宽、右侧被裁切，
-        // 视图里的窄屏响应式也因 Bounds.Width 超阈值而不生效。
-        // 这类视图改为禁用横向滚动并把宽度约束到屏幕宽度；高度固定后由视图内部的
-        // ScrollViewer 滚动，底部【确定/取消】按钮栏始终可见。
+        // 铺满视口的大视图内部已有 ScrollViewer + 固定按钮栏；小对话框由卡片 ScrollViewer 承担滚动。
         bool fitViewport = view.FitsOverlayViewport;
-        if (fitViewport)
+        var contentScroll = new ScrollViewer
         {
-            // 给桌面窗口撑尺寸用的 MinHeight / MinWidth 在移动端会顶破视口，必须清掉
-            view.MinHeight = 0;
-            view.MinWidth = 0;
-        }
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = fitViewport ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto,
+            Content = view
+        };
 
-        // 首帧尺寸取覆盖层当前边界（通常已完成布局），随后由 layer.SizeChanged 跟随屏幕旋转 / 窗口变化
-        double initialW = Math.Max(240, Bounds.Width - 16);
-        double initialH = Math.Max(200, Bounds.Height - 16);
+        var titleText = new TextBlock
+        {
+            Text = string.IsNullOrWhiteSpace(title) ? "MultiGitCommit" : title,
+            FontSize = 14,
+            FontWeight = FontWeight.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Foreground = new SolidColorBrush(Color.Parse("#2B579A"))
+        };
+        // 全限定：android TFM 的隐式 using 里也有 Android.Widget.Button，简写会 CS0104 二义性
+        var closeButton = new Avalonia.Controls.Button
+        {
+            Content = "关闭",
+            MinWidth = 56,
+            Height = 30,
+            Padding = new Thickness(10, 2),
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        // 移动端没有窗口 × 按钮：这里补一个统一关闭入口，语义与桌面点 × 相同（取消 / 中止后台任务）
+        closeButton.Click += (_, _) => view.CancelIfPending();
+
+        var titleDock = new DockPanel();
+        DockPanel.SetDock(closeButton, Dock.Right);
+        titleDock.Children.Add(closeButton);
+        titleDock.Children.Add(titleText);
+
+        var titleBar = new Border
+        {
+            Height = TitleBarHeight,
+            Padding = new Thickness(14, 0, 8, 0),
+            BorderBrush = new SolidColorBrush(Color.Parse("#D8DEE6")),
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Child = titleDock
+        };
+
+        var cardBody = new DockPanel();
+        DockPanel.SetDock(titleBar, Dock.Top);
+        cardBody.Children.Add(titleBar);
+        cardBody.Children.Add(contentScroll);
+
+        // 所有弹窗视图的配色（#2B579A 标题、#666 说明、#CCCCCC 分隔线…）都是浅色主题配色。
+        // 系统深色模式下 FluentTheme 会把文字 / 控件画成浅色，白底卡片上就成了白字白按钮；
+        // 显式把整棵子树锁到 Light 变体（App.axaml 同时把应用锁到 Light，覆盖 ComboBox 下拉等浮层）。
+        var scope = new ThemeVariantScope
+        {
+            RequestedThemeVariant = ThemeVariant.Light,
+            Child = cardBody
+        };
 
         var card = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(255, 255, 255)),
-            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Colors.White),
+            CornerRadius = new CornerRadius(10),
             ClipToBounds = true,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new ScrollViewer
-            {
-                // 纵向滚动保证小视图（未声明视口布局）也能完整查看；
-                // 横向：固定列宽表格（如提交历史）仍允许横向滚动，避免静默裁切
-                HorizontalScrollBarVisibility = fitViewport ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                Content = view
-            }
+            Child = scope
         };
-        if (fitViewport)
-        {
-            card.Width = initialW;
-            card.Height = initialH;
-            // 显式固定视图宽度：即使 ScrollViewer 以「无限宽度」测量内容，
-            // 内部 TextWrapping 与窄屏响应式也会按视口宽度生效，不会整体撑宽
-            view.Width = initialW;
-            view.Height = initialH;
-        }
 
         var layer = new Grid { Children = { dim, card } };
-        layer.SizeChanged += (_, _) =>
+
+        void ApplySize()
         {
-            double w = Math.Max(240, layer.Bounds.Width - 16);
-            double h = Math.Max(200, layer.Bounds.Height - 16);
+            Thickness safe = GetSafeArea(layer);
+            double w = Math.Max(240, layer.Bounds.Width - safe.Left - safe.Right - EdgeMargin * 2);
+            double h = Math.Max(200, layer.Bounds.Height - safe.Top - safe.Bottom - EdgeMargin * 2);
+
+            card.Margin = new Thickness(safe.Left + EdgeMargin, safe.Top + EdgeMargin,
+                                        safe.Right + EdgeMargin, safe.Bottom + EdgeMargin);
+            card.Width = w;
             card.MaxWidth = w;
             card.MaxHeight = h;
+            // 关键：内容拿到的是有限宽度，长文本会换行、比例列 / 窄屏响应式才会真正生效
+            view.Width = w;
+
             if (fitViewport)
             {
-                card.Width = w;
                 card.Height = h;
-                view.Width = w;
-                view.Height = h;
+                view.Height = Math.Max(0, h - TitleBarHeight);
             }
-        };
+            else
+            {
+                card.Height = double.NaN;
+                view.Height = double.NaN;
+                contentScroll.MaxHeight = Math.Max(0, h - TitleBarHeight);
+            }
+        }
 
+        EventHandler<SizeChangedEventArgs> onSizeChanged = (_, _) => ApplySize();
+        layer.SizeChanged += onSizeChanged;
+
+        var insets = TopLevel.GetTopLevel(this)?.InsetsManager;
+        EventHandler<SafeAreaChangedArgs>? onSafeAreaChanged = null;
+        if (insets != null)
+        {
+            onSafeAreaChanged = (_, _) => ApplySize();
+            insets.SafeAreaChanged += onSafeAreaChanged;
+        }
+
+        ApplySize();
         Children.Add(layer);
         _layers.Add(new LayerInfo { LayerRoot = layer, View = view });
         IsVisible = true;
+        // 上树后再按真实视口 / 安全区算一次：有些平台首帧 SizeChanged 不触发，
+        // 否则卡片会停留在 240×200 的兜底尺寸上
+        Dispatcher.UIThread.Post(ApplySize);
 
         EventHandler? onClose = null;
-        onClose = (_, _) =>
+        void Cleanup()
         {
+            if (!_layers.Any(l => l.View == view))
+                return;
             view.CloseRequested -= onClose;
+            layer.SizeChanged -= onSizeChanged;
+            if (insets != null && onSafeAreaChanged != null)
+                insets.SafeAreaChanged -= onSafeAreaChanged;
             _layers.RemoveAll(l => l.View == view);
             Children.Remove(layer);
             if (_layers.Count == 0)
                 IsVisible = false;
-        };
+        }
+
+        onClose = (_, _) => Cleanup();
         view.CloseRequested += onClose;
 
         try
@@ -296,16 +374,17 @@ public class DialogOverlay : Panel
         }
         finally
         {
-            // 兜底：结果任务以任何方式完成（正常 Close）后确保层被移除
-            if (_layers.Any(l => l.View == view))
-            {
-                view.CloseRequested -= onClose;
-                _layers.RemoveAll(l => l.View == view);
-                Children.Remove(layer);
-                if (_layers.Count == 0)
-                    IsVisible = false;
-            }
+            // 兜底：结果任务以任何方式完成（正常 Close / 点标题栏关闭）后确保层被移除
+            Cleanup();
         }
+    }
+
+    /// <summary>取系统安全区（刘海 / 状态栏 / Home Indicator），并钳制异常值，避免卡片被压成一条。</summary>
+    private static Thickness GetSafeArea(Visual visual)
+    {
+        Thickness padding = TopLevel.GetTopLevel(visual)?.InsetsManager?.SafeAreaPadding ?? default;
+        static double Cap(double v) => double.IsNaN(v) || double.IsInfinity(v) ? 0 : Math.Max(0, Math.Min(64, v));
+        return new Thickness(Cap(padding.Left), Cap(padding.Top), Cap(padding.Right), Cap(padding.Bottom));
     }
 
     protected override Size MeasureOverride(Size availableSize)

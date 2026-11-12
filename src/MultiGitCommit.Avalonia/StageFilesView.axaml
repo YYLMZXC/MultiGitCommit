@@ -16,15 +16,17 @@
         </Style>
     </UserControl.Styles>
 
-    <DockPanel Margin="12" MinHeight="420">
+    <!-- 底部按钮固定、顶部说明不滚动，中间文件列表占满剩余空间并内部滚动；
+         不再给 DockPanel / ListBox 设固定的最小高度，窄屏视口里按钮不会被顶出可视区域。 -->
+    <DockPanel Margin="12">
 
-        <!-- 底部按钮栏：始终可见 -->
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
-                    HorizontalAlignment="Right" Margin="0,10,0,0">
-            <TextBlock x:Name="TxtCount" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#666"/>
+        <!-- 底部按钮栏：始终可见；窄屏放不下时自动换行，避免【取消】被挤到视口外 -->
+        <!-- Stretch：WrapPanel 必须先拿到可用宽度才会换行，设 Right 会按「单行期望宽度」测量而不换行 -->
+        <WrapPanel DockPanel.Dock="Bottom" HorizontalAlignment="Stretch" Margin="0,10,0,0">
+            <TextBlock x:Name="TxtCount" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#666" TextWrapping="Wrap"/>
             <Button x:Name="BtnOk" Content="添加勾选的文件" Width="130" IsDefault="True" Click="BtnOk_Click"/>
             <Button Content="取消" Width="80" IsCancel="True" Click="BtnCancel_Click"/>
-        </StackPanel>
+        </WrapPanel>
 
         <!-- 顶部说明与批量操作（不随列表滚动） -->
         <StackPanel DockPanel.Dock="Top">
@@ -36,14 +38,15 @@
             <TextBlock TextWrapping="Wrap" Margin="0,8,0,6" Foreground="#666"
                        Text="默认全部勾选（等同于 git add .）；取消勾选的文件不会被添加。已在暂存区的文件即使取消勾选也不会撤销暂存，仍会进入本次提交。"/>
 
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+            <!-- WrapPanel：手机竖屏放不下一排按钮时自动换行，状态提示不会被挤出视口 -->
+            <WrapPanel Margin="0,0,0,6">
                 <Button Content="全选" Width="70" Click="BtnSelectAll_Click"/>
                 <Button Content="全不选" Width="70" Click="BtnSelectNone_Click"/>
                 <Button Content="只选未暂存" Width="100" Click="BtnSelectUnstaged_Click"
                         ToolTip.Tip="已暂存的文件不重复 add，适合只想补齐工作区改动的场景"/>
                 <TextBlock x:Name="TxtStatus" VerticalAlignment="Center" Margin="12,0,0,0"
                            Foreground="#B00020" TextWrapping="Wrap"/>
-            </StackPanel>
+            </WrapPanel>
 
             <Grid Margin="6,0,18,4">
                 <Grid.ColumnDefinitions>
@@ -60,7 +63,8 @@
         </StackPanel>
 
         <Border BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">
-            <ListBox x:Name="ListFiles" Padding="0" BorderThickness="0" MinHeight="220" MaxHeight="420">
+            <!-- 桌面 SizeToContent 窗口需要最小高度撑出列表；移动端在构造时清掉，改由固定视口高度分配 -->
+            <ListBox x:Name="ListFiles" Padding="0" BorderThickness="0" MinHeight="220">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Grid ColumnDefinitions="34,64,*,Auto" Margin="0,1">

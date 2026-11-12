@@ -16,6 +16,9 @@ namespace MultiGitCommit;
 /// </summary>
 public partial class HistoryView : DialogView<bool>
 {
+    /// <summary>底部操作栏固定、其余内容整体滚动：移动端铺满视口布局，桌面端锁定窗口尺寸。</summary>
+    public override bool FitsOverlayViewport => true;
+
     /// <summary>最多读取的提交条数（避免超大仓库一次性拉取过多数据）。</summary>
     private const int MaxCommits = 200;
 
