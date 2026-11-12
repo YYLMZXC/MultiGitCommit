@@ -124,5 +124,15 @@
     <None Include="git\**\*" Visible="false" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
   </ItemGroup>
 
-</Project>
 
+  <!-- 安卓内置中文字体：安卓系统没有 XAML 字体链声明的字体（微软雅黑 / PingFang / Source Han），
+       且 Avalonia 11 的安卓 CJK 字形回退不可靠，中文会显示成方块。
+       打包 Noto Sans CJK SC（SIL OFL 开源许可，许可文件见 Fonts/LICENSE），
+       并在 MainActivity 的 FontManagerOptions.DefaultFamilyName 设为默认字体兜底。
+       仅安卓 TFM 打包（iOS 系统自带 PingFang SC，无需内置，避免 ipa 增大 16MB）。 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <AvaloniaResource Include="Fonts\NotoSansCJKsc-Regular.otf" />
+    <None Include="Fonts\LICENSE" Visible="false" />
+  </ItemGroup>
+
+</Project>

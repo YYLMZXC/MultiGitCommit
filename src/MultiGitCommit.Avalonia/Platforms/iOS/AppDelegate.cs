@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.iOS;
+using Avalonia.Media;
 using Foundation;
 
 namespace MultiGitCommit;
@@ -15,6 +16,9 @@ public partial class AppDelegate : AvaloniaAppDelegate<App>
     protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
     {
         return base.CustomizeAppBuilder(builder)
+            // iOS 自带 PingFang SC（XAML 字体链里已含），正常情况下可直接匹配；
+            // 这里再显式设为默认字体兜底，防止个别系统上回退失败导致中文方块。
+            .With(new FontManagerOptions { DefaultFamilyName = "PingFang SC" })
             .AfterSetup(_ =>
             {
                 // 后续需要 iOS 特有能力时在这里挂接。

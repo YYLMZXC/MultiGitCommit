@@ -3,6 +3,7 @@ using Android.Content;
 using Android.Content.PM;
 using Avalonia;
 using Avalonia.Android;
+using Avalonia.Media;
 
 namespace MultiGitCommit;
 
@@ -24,6 +25,14 @@ public class MainActivity : AvaloniaMainActivity<App>
     protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
     {
         return base.CustomizeAppBuilder(builder)
+            // 安卓系统字体里没有 XAML 字体链声明的那些字体（微软雅黑 / PingFang / Source Han），
+            // 且 Avalonia 11 的安卓字体管理器对 CJK 字形回退不可靠，中文会显示成方块。
+            // 打包了 Noto Sans CJK SC（SIL OFL 开源许可，见 Fonts/LICENSE）作为默认字体兜底：
+            // XAML 字体链全部匹配失败时最终落到这里，中文正常渲染。
+            .With(new FontManagerOptions
+            {
+                DefaultFamilyName = "avares://MultiGitCommit/Fonts/NotoSansCJKsc-Regular.otf#Noto Sans CJK SC"
+            })
             .AfterSetup(_ =>
             {
                 // 移动端暂时不需要额外的平台服务注册；
