@@ -11,6 +11,12 @@ namespace MultiGitCommit;
 /// </summary>
 public partial class GitSettingsView : DialogView<bool>
 {
+    /// <summary>
+    /// 本视图自带 ScrollViewer + 固定底部按钮栏：移动端按覆盖层视口尺寸布局，
+    /// 宽度受约束后长文案才会换行、底部按钮才不会被挤到滚动区最下方（桌面 Window 路径不受影响）。
+    /// </summary>
+    public override bool FitsOverlayViewport => true;
+
     /// <summary>用户点击确定后选定的来源模式。</summary>
     public GitSourceMode SelectedSource { get; private set; } = GitSourceMode.Auto;
 
@@ -834,6 +840,14 @@ public partial class GitSettingsView : DialogView<bool>
     private void ApplyResponsiveLayout()
     {
         double width = Bounds.Width;
+
+        // 身份信息是运行时拼出来的长文本（当前生效：xxx <xxx>（已保存：…）），
+        // 窄屏下限制最大宽度让它换行，否则会把整行连同按钮一起撑出视口、右侧被裁切。
+        if (width > 0)
+            TxtIdentityInfo.MaxWidth = width < NarrowLayoutThreshold
+                ? System.Math.Max(120, width - 60)
+                : double.NaN;
+
         bool narrow = width > 0 && width < NarrowLayoutThreshold;
         if (narrow == _isNarrowLayout)
             return;

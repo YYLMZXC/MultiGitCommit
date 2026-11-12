@@ -34,6 +34,14 @@ public abstract class DialogViewBase : UserControl
     /// <summary>宿主被直接关闭（如桌面端点窗口 × 按钮）时由宿主调用：以默认值完成结果任务，避免调用方永久等待。</summary>
     internal abstract void CancelIfPending();
 
+    /// <summary>
+    /// 视图是否自带纵向滚动区、并希望按移动端覆盖层视口尺寸布局（桌面端 Window 路径不读此属性）。
+    /// 为 true 时：卡片宽度固定为屏幕宽度且禁用横向滚动（长文本自动换行、窄屏布局生效），
+    /// 卡片高度固定为屏幕高度并传给视图，由视图内部的 ScrollViewer 滚动，底部按钮栏始终可见。
+    /// 默认 false：沿用卡片 ScrollViewer 双向滚动（适合小视图 / 固定列宽表格）。
+    /// </summary>
+    public virtual bool FitsOverlayViewport => false;
+
     /// <summary>触发关闭事件（宿主会取走结果）。</summary>
     protected void RaiseClose() => CloseRequested?.Invoke(this, EventArgs.Empty);
 }
@@ -156,8 +164,25 @@ public class DialogOverlay : Panel
         var dim = new Rectangle { Fill = new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)) };
 
         // 视图根上的固定 Width 是给桌面端 SizeToContent 窗口撑尺寸用的（桌面路径不经过这里）；
-        // 移动端小屏下重置为自适应，宽度交给卡片 MaxWidth 收窄，避免内容横向被裁切。
+        // 移动端小屏下重置为自适应，宽度交给卡片收窄，避免内容横向被裁切。
         view.Width = double.NaN;
+
+        // 自带滚动区的大视图（如 Git 环境设置）按视口尺寸布局：
+        // 横向 Auto 会用「无限宽度」测量内容，TextWrapping 全部失效，页面整体超宽、右侧被裁切，
+        // 视图里的窄屏响应式也因 Bounds.Width 超阈值而不生效。
+        // 这类视图改为禁用横向滚动并把宽度约束到屏幕宽度；高度固定后由视图内部的
+        // ScrollViewer 滚动，底部【确定/取消】按钮栏始终可见。
+        bool fitViewport = view.FitsOverlayViewport;
+        if (fitViewport)
+        {
+            // 给桌面窗口撑尺寸用的 MinHeight / MinWidth 在移动端会顶破视口，必须清掉
+            view.MinHeight = 0;
+            view.MinWidth = 0;
+        }
+
+        // 首帧尺寸取覆盖层当前边界（通常已完成布局），随后由 layer.SizeChanged 跟随屏幕旋转 / 窗口变化
+        double initialW = Math.Max(240, Bounds.Width - 16);
+        double initialH = Math.Max(200, Bounds.Height - 16);
 
         var card = new Border
         {
@@ -168,19 +193,33 @@ public class DialogOverlay : Panel
             VerticalAlignment = VerticalAlignment.Center,
             Child = new ScrollViewer
             {
-                // 纵向滚动保证大视图（如 Git 环境设置）在小屏可完整查看；
-                // 横向：视图内部仍有固定列宽的表格（如提交历史），溢出时允许横向滚动而不是静默裁切
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                // 纵向滚动保证小视图（未声明视口布局）也能完整查看；
+                // 横向：固定列宽表格（如提交历史）仍允许横向滚动，避免静默裁切
+                HorizontalScrollBarVisibility = fitViewport ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 Content = view
             }
         };
+        if (fitViewport)
+        {
+            card.Width = initialW;
+            card.Height = initialH;
+            view.Height = initialH;
+        }
 
         var layer = new Grid { Children = { dim, card } };
         layer.SizeChanged += (_, _) =>
         {
-            card.MaxWidth = Math.Max(240, layer.Bounds.Width - 16);
-            card.MaxHeight = Math.Max(200, layer.Bounds.Height - 16);
+            double w = Math.Max(240, layer.Bounds.Width - 16);
+            double h = Math.Max(200, layer.Bounds.Height - 16);
+            card.MaxWidth = w;
+            card.MaxHeight = h;
+            if (fitViewport)
+            {
+                card.Width = w;
+                card.Height = h;
+                view.Height = h;
+            }
         };
 
         Children.Add(layer);

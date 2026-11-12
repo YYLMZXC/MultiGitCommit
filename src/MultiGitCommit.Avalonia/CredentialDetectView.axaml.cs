@@ -26,6 +26,12 @@ public class HostSelectItem
 /// </summary>
 public partial class CredentialDetectView : DialogView<bool>
 {
+    /// <summary>
+    /// 与 Git 环境设置一样自带 ScrollViewer + 固定底部按钮栏：移动端按视口尺寸布局，
+    /// 列表的比例列 / 文本截断才会在窄屏生效，内容也不会横向被裁切。
+    /// </summary>
+    public override bool FitsOverlayViewport => true;
+
     /// <summary>可检测的主机列表。</summary>
     private readonly List<HostSelectItem> _hosts;
 
