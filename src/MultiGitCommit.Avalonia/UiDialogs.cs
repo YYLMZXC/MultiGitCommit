@@ -155,6 +155,10 @@ public class DialogOverlay : Panel
     {
         var dim = new Rectangle { Fill = new SolidColorBrush(Color.FromArgb(120, 0, 0, 0)) };
 
+        // 视图根上的固定 Width 是给桌面端 SizeToContent 窗口撑尺寸用的（桌面路径不经过这里）；
+        // 移动端小屏下重置为自适应，宽度交给卡片 MaxWidth 收窄，避免内容横向被裁切。
+        view.Width = double.NaN;
+
         var card = new Border
         {
             Background = new SolidColorBrush(Color.FromRgb(255, 255, 255)),
@@ -164,7 +168,9 @@ public class DialogOverlay : Panel
             VerticalAlignment = VerticalAlignment.Center,
             Child = new ScrollViewer
             {
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                // 纵向滚动保证大视图（如 Git 环境设置）在小屏可完整查看；
+                // 横向：视图内部仍有固定列宽的表格（如提交历史），溢出时允许横向滚动而不是静默裁切
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 Content = view
             }

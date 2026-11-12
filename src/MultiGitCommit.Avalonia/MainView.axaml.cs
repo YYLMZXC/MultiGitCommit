@@ -7,6 +7,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using AvaloniaButton = Avalonia.Controls.Button;
 
 namespace MultiGitCommit;
 
@@ -31,6 +32,15 @@ public partial class MainView : UserControl
 
     /// <summary>加载配置的标志位，防止加载过程中触发复选框事件导致重复保存。</summary>
     private bool _loading;
+
+    /// <summary>窄屏（移动端）布局阈值：视图宽度低于该值时启用窄屏布局（手机竖屏约 360~430）。</summary>
+    private const double NarrowLayoutThreshold = 700;
+
+    /// <summary>当前是否处于窄屏布局。</summary>
+    private bool _isNarrowLayout;
+
+    /// <summary>仓库目录行的按钮 → 原始 Grid 列号（窄屏搬移出去后，宽屏恢复列位用）。</summary>
+    private readonly Dictionary<Button, int> _repoHeaderButtonColumns = new();
 
     /// <summary>仓库路径输入防抖计时器：停止输入 400ms 后再加载，避免每敲一个字符都执行 git 校验。</summary>
     private readonly DispatcherTimer _pathDebounce;
@@ -93,6 +103,18 @@ public partial class MainView : UserControl
             UiDialogs.OverlayHost ??= Overlay;
 
         ListRemotes.ItemsSource = _remotes;
+
+        // 窄屏响应式：记录仓库目录行按钮的原始列号，按视图宽度在「单行网格」与「换行 WrapPanel」间切换
+        foreach (var (button, column) in new[]
+                 {
+                     (BtnBrowse, 2), (BtnClone, 3), (BtnInitRepo, 4), (BtnCreateBranch, 5),
+                     (BtnLoadConfig, 6), (BtnAbout, 7), (BtnGitEnv, 8)
+                 })
+        {
+            _repoHeaderButtonColumns.Add(button, column);
+        }
+
+        SizeChanged += (_, _) => ApplyResponsiveLayout();
 
         _pathDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _pathDebounce.Tick += (_, _) =>
@@ -293,6 +315,48 @@ public partial class MainView : UserControl
         finally
         {
             _loading = false;
+        }
+    }
+
+    // ==================== 窄屏（移动端）响应式布局 ====================
+
+    /// <summary>
+    /// 窄屏适配（视图宽度变化时调用）：
+    /// 1. 宽度低于阈值（手机竖屏）时，把仓库目录行的一排按钮从单行网格搬移到下方 WrapPanel
+    ///    自动换行，避免横向溢出被裁切；恢复宽屏（桌面窗口 / 手机横屏）时搬回原列位；
+    /// 2. 约束日志状态栏文本最大宽度，防止长 git 路径把页面撑出横向滚动。
+    /// </summary>
+    private void ApplyResponsiveLayout()
+    {
+        double width = Bounds.Width;
+        if (width > 0)
+            TxtGitStatus.MaxWidth = Math.Min(560, Math.Max(120, width - 40));
+
+        bool narrow = width > 0 && width < NarrowLayoutThreshold;
+        if (narrow == _isNarrowLayout)
+            return;
+
+        _isNarrowLayout = narrow;
+        if (narrow)
+        {
+            foreach (var button in _repoHeaderButtonColumns.Keys)
+            {
+                RepoHeaderGrid.Children.Remove(button);
+                RepoHeaderNarrow.Children.Add(button);
+            }
+
+            RepoHeaderNarrow.IsVisible = true;
+        }
+        else
+        {
+            foreach (var pair in _repoHeaderButtonColumns)
+            {
+                RepoHeaderNarrow.Children.Remove(pair.Key);
+                Grid.SetColumn(pair.Key, pair.Value);
+                RepoHeaderGrid.Children.Add(pair.Key);
+            }
+
+            RepoHeaderNarrow.IsVisible = false;
         }
     }
 

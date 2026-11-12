@@ -18,7 +18,11 @@
         </Style>
     </UserControl.Styles>
 
-    <Grid Margin="12">
+    <!-- 根布局：内容放进 ScrollViewer（窄屏纵向可滚动，防止显示不全）；
+         对话框覆盖层放在 ScrollViewer 外，无论页面滚到哪里都盖满视口 -->
+    <Grid>
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <Grid Margin="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>   <!-- 仓库目录 -->
             <RowDefinition Height="Auto"/>   <!-- 远端管理 -->
@@ -29,7 +33,10 @@
         </Grid.RowDefinitions>
 
         <!-- ============ 一、仓库目录区域 ============ -->
-        <Grid Grid.Row="0" Margin="0,0,0,8">
+        <!-- 宽屏（桌面）：标签 + 路径框 + 一排按钮单行布局；
+             窄屏（移动端）：按钮自动搬移到下方 WrapPanel 换行（见 ApplyResponsiveLayout） -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,8">
+            <Grid x:Name="RepoHeaderGrid">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -58,7 +65,9 @@
                     ToolTip.Tip="关于 MultiGitCommit 及项目地址"/>
             <Button x:Name="BtnGitEnv" Grid.Column="8" Content="Git 环境" Click="BtnGitEnv_Click" Margin="4,2,0,2"
                     ToolTip.Tip="配置 git 来源：自动检测 / 系统 PATH（环境 git）/ 指定路径 / 软件内嵌 Git"/>
-        </Grid>
+            </Grid>
+            <WrapPanel x:Name="RepoHeaderNarrow" IsVisible="False"/>
+        </StackPanel>
 
         <!-- ============ 二、远端地址管理区域 ============ -->
         <Border Grid.Row="1" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Margin="0,0,0,8">
@@ -68,15 +77,15 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Classes="sectionTitle"
+                <TextBlock Grid.Row="0" Classes="sectionTitle" TextWrapping="Wrap"
                            Text="推送远端地址管理（每个项目独立保存到 multigitcommit.config.json）" Margin="0,0,0,6"/>
-                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                <WrapPanel Grid.Row="1" HorizontalAlignment="Right">
                     <Button x:Name="BtnAddRemote" Content="添加远端" Click="BtnAddRemote_Click"/>
                     <Button x:Name="BtnEditRemote" Content="编辑选中" IsEnabled="False" Click="BtnEditRemote_Click"/>
                     <Button x:Name="BtnDeleteRemote" Content="删除选中" IsEnabled="False" Click="BtnDeleteRemote_Click"/>
                     <Button x:Name="BtnOpenRemote" Content="在浏览器中打开" IsEnabled="False" Click="BtnOpenRemote_Click"
                             ToolTip.Tip="使用系统默认浏览器打开选中的远端 URL"/>
-                </StackPanel>
+                </WrapPanel>
                 <ListBox x:Name="ListRemotes" Grid.Row="2" Height="120" Margin="0,4,0,0"
                          SelectionChanged="ListRemotes_SelectionChanged"
                          ToolTip.Tip="当前项目保存的全部远端 URL（ssh/https 均支持）"/>
@@ -119,7 +128,7 @@
         </Border>
 
         <!-- ============ 四、主执行按钮 ============ -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
+        <WrapPanel Grid.Row="3" Margin="0,0,0,8">
             <Button x:Name="BtnCommitPush" Content="执行提交并推送全部远端" Width="250" Height="38"
                     FontSize="15" FontWeight="Bold" Click="BtnCommitPush_Click"/>
             <Button x:Name="BtnPull" Content="拉取更新" Height="38" Padding="12,4" Margin="8,2,0,2"
@@ -136,7 +145,7 @@
                     ToolTip.Tip="设置并提交 git 的 user.name / user.email（可写入本仓库或全局）"/>
             <Button x:Name="BtnHistory" Content="历史记录…" Click="BtnHistory_Click" Padding="10,2" Margin="8,0,0,0"
                     ToolTip.Tip="浏览当前分支的历史提交记录，并可重置（soft / mixed / hard）到指定提交"/>
-        </StackPanel>
+        </WrapPanel>
 
         <!-- ============ 五、手动命令执行区 ============ -->
         <Border Grid.Row="4" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Margin="0,0,0,8">
@@ -145,7 +154,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Classes="sectionTitle"
+                <TextBlock Grid.Row="0" Classes="sectionTitle" TextWrapping="Wrap"
                            Text="手动命令执行区（在当前仓库目录执行任意 git/shell 命令）" Margin="0,0,0,6"/>
                 <Grid Grid.Row="1">
                     <Grid.ColumnDefinitions>
@@ -198,17 +207,21 @@
                         </TextBox.Styles>
                     </TextBox>
                 </Border>
-                <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,4,0,0" HorizontalAlignment="Left">
+                <WrapPanel Grid.Row="2" Margin="0,4,0,0" HorizontalAlignment="Left">
                     <Button x:Name="BtnClearLog" Content="清空日志" Click="BtnClearLog_Click" Padding="10,2"/>
                     <CheckBox x:Name="ChkAutoScroll" Content="自动滚动到底部" IsChecked="True" VerticalAlignment="Center" Margin="12,0,0,0"/>
                     <TextBlock x:Name="TxtGitStatus" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#666"
                                TextTrimming="CharacterEllipsis" MaxWidth="560"
                                ToolTip.Tip="当前生效的 git（点击上方【Git 环境】按钮可修改来源）"/>
-                </StackPanel>
+                </WrapPanel>
             </Grid>
         </Border>
 
+        </Grid>
+        </ScrollViewer>
+
         <!-- ============ 对话框覆盖层（移动端宿主；桌面端不使用） ============ -->
-        <local:DialogOverlay x:Name="Overlay" Grid.Row="0" Grid.RowSpan="6" ZIndex="100"/>
+        <!-- 放在 ScrollViewer 外：页面滚动时覆盖层始终盖满整个视口 -->
+        <local:DialogOverlay x:Name="Overlay" ZIndex="100"/>
     </Grid>
 </UserControl>
