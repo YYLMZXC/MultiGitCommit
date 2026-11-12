@@ -1,14 +1,10 @@
-<Window x:Class="MultiGitCommit.StageFilesWindow"
-        xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="选择要添加的文件"
-        Width="780" Height="580"
-        MinWidth="640" MinHeight="440"
-        WindowStartupLocation="CenterOwner"
-        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
-        ShowInTaskbar="False">
+<UserControl x:Class="MultiGitCommit.StageFilesView"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="780" MinHeight="440"
+             FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
 
-    <Window.Styles>
+    <UserControl.Styles>
         <Style Selector="Button">
             <Setter Property="Padding" Value="10,4"/>
             <Setter Property="Margin" Value="4,2"/>
@@ -18,9 +14,9 @@
             <Setter Property="Padding" Value="4,1"/>
             <Setter Property="MinHeight" Value="0"/>
         </Style>
-    </Window.Styles>
+    </UserControl.Styles>
 
-    <DockPanel Margin="12">
+    <DockPanel Margin="12" MinHeight="420">
 
         <!-- 底部按钮栏：始终可见 -->
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
@@ -64,7 +60,7 @@
         </StackPanel>
 
         <Border BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">
-            <ListBox x:Name="ListFiles" Padding="0" BorderThickness="0">
+            <ListBox x:Name="ListFiles" Padding="0" BorderThickness="0" MinHeight="220" MaxHeight="420">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <Grid ColumnDefinitions="34,64,*,Auto" Margin="0,1">
@@ -83,4 +79,4 @@
             </ListBox>
         </Border>
     </DockPanel>
-</Window>
+</UserControl>

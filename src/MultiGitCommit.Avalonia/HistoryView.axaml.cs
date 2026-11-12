@@ -6,14 +6,14 @@ using Avalonia.Media;
 namespace MultiGitCommit;
 
 /// <summary>
-/// 提交历史窗口：浏览当前分支的历史提交（git log），并可把本地分支重置到任意一条记录。
+/// 提交历史视图：浏览当前分支的历史提交（git log），并可把本地分支重置到任意一条记录。
 ///
 /// 设计要点：
 /// 1. 所有 git 调用都通过 <see cref="IGitCliRunner"/> 异步执行并带超时，绝不阻塞 UI 线程；
 /// 2. 重置是破坏性操作，执行前必须二次确认；hard 模式额外提示未提交改动的文件数量；
 /// 3. 只重置本地分支，不推送；界面提示远端可能已超前，需要强制推送。
 /// </summary>
-public partial class HistoryWindow : Window
+public partial class HistoryView : DialogView<bool>
 {
     /// <summary>最多读取的提交条数（避免超大仓库一次性拉取过多数据）。</summary>
     private const int MaxCommits = 200;
@@ -35,6 +35,9 @@ public partial class HistoryWindow : Window
     /// <summary>读取序号：快速刷新时丢弃过期的 git log 结果。</summary>
     private int _loadSeq;
 
+    /// <summary>是否已触发首次加载（只加载一次）。</summary>
+    private bool _initialLoaded;
+
     /// <summary>git reset 的三种模式。</summary>
     private enum ResetMode
     {
@@ -43,26 +46,31 @@ public partial class HistoryWindow : Window
         Hard
     }
 
-    public HistoryWindow(string repoRoot) : this(repoRoot, GitCliRunner.Default)
+    public HistoryView(string repoRoot) : this(repoRoot, GitCliRunner.Default)
     {
     }
 
     /// <summary>可注入命令执行器（单元测试时传入假实现，无需真实 git 与 UI 运行时）。</summary>
-    public HistoryWindow(string repoRoot, IGitCliRunner cli)
+    public HistoryView(string repoRoot, IGitCliRunner cli)
     {
         _repoRoot = repoRoot;
         _cli = cli;
 
         InitializeComponent();
-        Dialogs.ApplyIcon(this);
 
         TxtRepoPath.Text = repoRoot;
 
-        // 关闭窗口时中止未完成的 git 进程（读取历史 / 重置）
-        Closing += (_, _) => _lifetime.Cancel();
+        // 关闭对话框（确认关闭或宿主直接关闭）时中止未完成的 git 进程（读取历史 / 重置）
+        CloseRequested += (_, _) => _lifetime.Cancel();
+        HostClosed += (_, _) => _lifetime.Cancel();
 
-        // 打开窗口后再读取，避免构造函数里做 IO 拖慢窗口显示
-        Opened += async (_, _) => await LoadCommitsAsync();
+        // 挂到可视树后读取，避免构造函数里做 IO 拖慢显示
+        AttachedToVisualTree += (_, _) =>
+        {
+            if (_initialLoaded) return;
+            _initialLoaded = true;
+            _ = LoadCommitsAsync();
+        };
     }
 
     // ==================== 读取历史 ====================
@@ -111,7 +119,7 @@ public partial class HistoryWindow : Window
         }
         catch (OperationCanceledException)
         {
-            // 窗口已关闭：忽略
+            // 对话框已关闭：忽略
         }
         catch (Exception ex)
         {
@@ -167,7 +175,7 @@ public partial class HistoryWindow : Window
             return;
         }
 
-        // 链接窗口生命周期：关闭窗口时一并取消
+        // 链接视图生命周期：关闭时一并取消
         var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _fileCts = cts;
         TxtFilesTitle.Text = $"修改的文件 — {commit.ShortHash}（读取中…）";
@@ -201,7 +209,7 @@ public partial class HistoryWindow : Window
         }
         catch (OperationCanceledException)
         {
-            // 已切换到其他提交 / 窗口已关闭：忽略
+            // 已切换到其他提交 / 对话框已关闭：忽略
         }
         catch (Exception ex)
         {
@@ -423,7 +431,7 @@ public partial class HistoryWindow : Window
         }
         catch (OperationCanceledException)
         {
-            // 窗口已关闭
+            // 对话框已关闭
         }
         catch (Exception ex)
         {
@@ -446,8 +454,8 @@ public partial class HistoryWindow : Window
         }
     }
 
-    /// <summary>关闭窗口（Avalonia 的 IsCancel 不会自动关窗，必须显式处理 Click）。</summary>
-    private void BtnClose_Click(object? sender, RoutedEventArgs e) => Close();
+    /// <summary>关闭对话框（Avalonia 的 IsCancel 不会自动关窗，必须显式处理 Click）。</summary>
+    private void BtnClose_Click(object? sender, RoutedEventArgs e) => Close(true);
 
     /// <summary>写入状态文本（true 成功 / false 失败 / null 中性提示）。</summary>
     private void SetStatus(string message, bool? ok)

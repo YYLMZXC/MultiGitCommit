@@ -44,6 +44,11 @@ public sealed class GitCliRunner : IGitCliRunner
 
     public async Task<GitCommandResult> RunAsync(GitCommandRequest request, CancellationToken cancellationToken = default)
     {
+        // iOS 沙盒禁止创建子进程（Process.Start 在 iOS 上抛 PlatformNotSupportedException）：
+        // 直接返回失败结果，让上层（EnsureGitAvailable 等）以「未找到 git」的常规路径提示，而不是崩溃。
+        if (OperatingSystem.IsIOS())
+            return GitCommandResult.Failure("iOS 沙盒禁止执行外部进程，git 命令在本平台不可用。");
+
         Process? process = null;
         try
         {

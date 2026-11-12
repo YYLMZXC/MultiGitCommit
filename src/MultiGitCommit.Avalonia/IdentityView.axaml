@@ -1,12 +1,8 @@
-<Window x:Class="MultiGitCommit.IdentityWindow"
-        xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="提交身份（git user.name / user.email）"
-        Width="540" SizeToContent="Height"
-        CanResize="False"
-        WindowStartupLocation="CenterOwner"
-        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
-        ShowInTaskbar="False">
+<UserControl x:Class="MultiGitCommit.IdentityView"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="540"
+             FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
 
     <StackPanel Margin="14">
         <TextBlock Text="git 生成 commit 的前置条件：必须配置 user.name 与 user.email，否则 git 直接报错（Please tell me who you are / unable to auto-detect email address），根本生成不了提交。"
@@ -30,7 +26,7 @@
                          Margin="0,3"/>
         </StackPanel>
 
-        <TextBlock x:Name="TxtHint" TextWrapping="Wrap" Margin="0,10,0,0" Foreground="#666" FontSize="11"
+        <TextBlock TextWrapping="Wrap" Margin="0,10,0,0" Foreground="#666" FontSize="11"
                    Text="用户名与邮箱都会写入提交记录（git log 可见），邮箱建议与代码平台注册邮箱一致，便于平台关联贡献者。"/>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
@@ -38,4 +34,4 @@
             <Button Content="取消" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2" Click="BtnCancel_Click"/>
         </StackPanel>
     </StackPanel>
-</Window>
+</UserControl>

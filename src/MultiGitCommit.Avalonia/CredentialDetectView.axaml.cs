@@ -18,13 +18,13 @@ public class HostSelectItem
 }
 
 /// <summary>
-/// 系统凭据检测窗口：先让用户【选择要检测的主机】→ 再执行检测（可随时停止、有进度）→ 最后勾选导入。
+/// 系统凭据检测视图：先让用户【选择要检测的主机】→ 再执行检测（可随时停止、有进度）→ 最后勾选导入。
 ///
 /// 这样设计的目的是避免"点一下就全量扫描所有平台"导致长时间无响应：
 /// 默认只勾选有明确线索的主机（当前项目远端 / 凭据管理器 / 凭据文件），
 /// 常用平台列表默认不勾选，由用户自己决定要不要检测。
 /// </summary>
-public partial class CredentialDetectWindow : Window
+public partial class CredentialDetectView : DialogView<bool>
 {
     /// <summary>可检测的主机列表。</summary>
     private readonly List<HostSelectItem> _hosts;
@@ -40,14 +40,13 @@ public partial class CredentialDetectWindow : Window
         _results.Where(i => i.Selected).Select(i => i.Credential).ToList();
 
     /// <param name="remoteUrls">当前项目的推送远端 URL（作为最优先的检测线索）。</param>
-    public CredentialDetectWindow(IEnumerable<string>? remoteUrls)
+    public CredentialDetectView(IEnumerable<string>? remoteUrls)
     {
         _hosts = SystemCredentialProbe.CandidateHosts(remoteUrls)
             .Select(c => new HostSelectItem { Host = c.Host, Origin = c.Origin, Selected = c.Preselected })
             .ToList();
 
         InitializeComponent();
-        Dialogs.ApplyIcon(this);
         ListHosts.ItemsSource = _hosts;
         ListResult.ItemsSource = _results;
     }
@@ -221,7 +220,7 @@ public partial class CredentialDetectWindow : Window
     }
 
     /// <summary>
-    /// 【关闭】：先中止可能仍在进行的检测，再关闭窗口（返回 false，不导入账号）。
+    /// 【关闭】：先中止可能仍在进行的检测，再关闭对话框（返回 false，不导入账号）。
     /// Avalonia 的 IsCancel 只是把 Esc 键映射成"点击该按钮"，按钮本身不关窗，必须显式处理 Click。
     /// </summary>
     private void BtnCancel_Click(object? sender, RoutedEventArgs e)

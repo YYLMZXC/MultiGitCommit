@@ -23,28 +23,27 @@ public sealed class StageFileItem
 }
 
 /// <summary>
-/// 「执行 git add」前的文件勾选窗口：列出工作区全部变更，让用户勾选要添加的文件。
+/// 「执行 git add」前的文件勾选视图：列出工作区全部变更，让用户勾选要添加的文件。
 ///
-/// 只做选择，不执行任何 git 命令——add 由 <see cref="CommitPushService"/> 统一执行并写主窗口日志，
+/// 只做选择，不执行任何 git 命令——add 由 <see cref="CommitPushService"/> 统一执行并写日志，
 /// 这样 add 的命令拼接、分批与失败提示只有一份实现。
 /// </summary>
-public partial class StageFilesWindow : Window
+public partial class StageFilesView : DialogView<bool>
 {
     private readonly List<StageFileItem> _items;
 
-    /// <summary>用户勾选、需要 add 的相对路径；取消窗口时为 null（由宿主判断）。</summary>
+    /// <summary>用户勾选、需要 add 的相对路径；取消对话框时为 null（由宿主判断）。</summary>
     public IReadOnlyList<string> SelectedPaths =>
         _items.Where(i => i.Selected).Select(i => i.Path).ToList();
 
     /// <param name="repoRoot">仓库根目录（仅展示）。</param>
     /// <param name="files">工作区变更文件列表。</param>
-    public StageFilesWindow(string repoRoot, IReadOnlyList<WorkingTreeFile> files)
+    public StageFilesView(string repoRoot, IReadOnlyList<WorkingTreeFile> files)
     {
         // 默认全选：与「勾选执行 git add .」的既有语义一致，用户只需取消不想要的
         _items = files.Select(f => new StageFileItem { File = f, Selected = true }).ToList();
 
         InitializeComponent();
-        Dialogs.ApplyIcon(this);
 
         TxtRepo.Text = repoRoot;
         ListFiles.ItemsSource = _items;
@@ -105,7 +104,7 @@ public partial class StageFilesWindow : Window
         Close(true);
     }
 
-    /// <summary>【取消】：关闭窗口并返回 false（Avalonia 的 IsCancel 不会自动关窗）。</summary>
+    /// <summary>【取消】：关闭对话框并返回 false（Avalonia 的 IsCancel 不会自动关窗）。</summary>
     private void BtnCancel_Click(object? sender, RoutedEventArgs e) => Close(false);
 
     private void ShowStatus(string message)

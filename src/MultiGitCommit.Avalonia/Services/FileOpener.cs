@@ -59,6 +59,12 @@ public static class FileOpener
     /// <summary>用系统默认关联程序打开文件；文件不存在时返回 false。</summary>
     public static bool TryOpen(string path, out string error)
     {
+        if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
+        {
+            error = "移动端不支持用系统默认程序打开本地文件。";
+            return false;
+        }
+
         if (!File.Exists(path))
         {
             error = $"文件不存在：{path}";
@@ -87,6 +93,12 @@ public static class FileOpener
     /// </summary>
     public static bool TryReveal(string path, out string error)
     {
+        if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
+        {
+            error = "移动端不支持在系统文件管理器中定位文件。";
+            return false;
+        }
+
         string target = path;
         if (!File.Exists(target) && !Directory.Exists(target))
         {

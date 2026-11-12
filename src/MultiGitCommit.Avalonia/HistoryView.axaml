@@ -1,14 +1,10 @@
-<Window x:Class="MultiGitCommit.HistoryWindow"
-        xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="提交历史"
-        Width="920" Height="680"
-        MinWidth="760" MinHeight="540"
-        WindowStartupLocation="CenterOwner"
-        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
-        ShowInTaskbar="False">
+<UserControl x:Class="MultiGitCommit.HistoryView"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="920" MinHeight="540"
+             FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
 
-    <Window.Styles>
+    <UserControl.Styles>
         <Style Selector="Button">
             <Setter Property="Padding" Value="10,4"/>
             <Setter Property="Margin" Value="4,2"/>
@@ -18,7 +14,7 @@
             <Setter Property="Padding" Value="4,1"/>
             <Setter Property="MinHeight" Value="0"/>
         </Style>
-    </Window.Styles>
+    </UserControl.Styles>
 
     <DockPanel Margin="12">
 
@@ -121,7 +117,7 @@
         </Border>
 
         <!-- 提交列表（占满剩余空间） -->
-        <ListBox x:Name="ListCommits" SelectionChanged="ListCommits_SelectionChanged"
+        <ListBox x:Name="ListCommits" SelectionChanged="ListCommits_SelectionChanged" MinHeight="180" MaxHeight="380"
                  BorderBrush="#CCCCCC" BorderThickness="1" Padding="0">
             <ListBox.ItemTemplate>
                 <DataTemplate>
@@ -144,4 +140,4 @@
             </ListBox.ItemTemplate>
         </ListBox>
     </DockPanel>
-</Window>
+</UserControl>

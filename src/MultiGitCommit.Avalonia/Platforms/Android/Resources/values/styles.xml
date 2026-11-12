@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Avalonia.Android 要求启动主题为 AppCompat 派生且无 ActionBar -->
+  <style name="MyTheme" parent="Theme.AppCompat.Light">
+  </style>
+  <style name="MyTheme.NoActionBar">
+    <item name="windowActionBar">false</item>
+    <item name="windowNoTitle">true</item>
+  </style>
+</resources>

@@ -2,8 +2,10 @@ using Avalonia;
 
 namespace MultiGitCommit;
 
+#if !ANDROID && !IOS
 /// <summary>
 /// 桌面版程序入口（Avalonia 11 跨平台桌面应用，Windows / macOS / Linux 共用）。
+/// 移动端（Android / iOS）不使用本入口：Android 由 MainActivity、iOS 由 AppDelegate 启动。
 /// </summary>
 internal static class Program
 {
@@ -17,3 +19,4 @@ internal static class Program
             .UsePlatformDetect()
             .LogToTrace();
 }
+#endif

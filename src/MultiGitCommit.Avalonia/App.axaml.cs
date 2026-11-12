@@ -7,8 +7,10 @@ namespace MultiGitCommit;
 /// <summary>
 /// 应用程序入口。Avalonia 无 WPF 的 DispatcherUnhandledException，
 /// 这里统一兜底捕获未处理异常，避免程序直接崩溃退出。
+/// 桌面端（Windows / macOS / Linux）走经典窗口生命周期；
+/// 移动端（Android / iOS）走单视图生命周期，直接以 MainView 为根。
 /// </summary>
-public partial class App : Application
+public partial class App : Avalonia.Application
 {
     public override void Initialize()
     {
@@ -25,6 +27,10 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             desktop.MainWindow = new MainWindow();
+        }
+        else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
+        {
+            single.MainView = new MainView();
         }
 
         base.OnFrameworkInitializationCompleted();

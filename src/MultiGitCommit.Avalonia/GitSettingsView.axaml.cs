@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -7,10 +6,10 @@ using Avalonia.Platform.Storage;
 namespace MultiGitCommit;
 
 /// <summary>
-/// Git 环境设置窗口：选择 git 来源（自动检测 / 系统 PATH / 指定路径 / 软件内嵌），
+/// Git 环境设置视图：选择 git 来源（自动检测 / 系统 PATH / 指定路径 / 软件内嵌），
 /// 让工具不依赖系统安装的 git，可使用软件自带或便携版 Git。
 /// </summary>
-public partial class GitSettingsWindow : Window
+public partial class GitSettingsView : DialogView<bool>
 {
     /// <summary>用户点击确定后选定的来源模式。</summary>
     public GitSourceMode SelectedSource { get; private set; } = GitSourceMode.Auto;
@@ -39,19 +38,22 @@ public partial class GitSettingsWindow : Window
     /// <summary>当前项目的远端 URL（验证账号时优先用同主机的真实远端做探测）。</summary>
     private readonly IReadOnlyList<string>? _remoteUrls;
 
-    /// <summary>账号验证的取消令牌（【取消验证】按钮 / 关闭窗口时使用）。</summary>
+    /// <summary>账号验证的取消令牌（【取消验证】按钮 / 关闭对话框时使用）。</summary>
     private CancellationTokenSource? _credTestCts;
 
     /// <summary>git 配置检测序号：快速切换选项时丢弃过期的检测结果。</summary>
     private int _testSeq;
 
-    /// <summary>提交身份读写服务（与主窗口共用同一套实现，不再各自拼 git config 命令）。</summary>
+    /// <summary>提交身份读写服务（与主视图共用同一套实现，不再各自拼 git config 命令）。</summary>
     private readonly GitIdentityService _identityService = new();
+
+    /// <summary>是否已触发打开后的自动检测（只执行一次）。</summary>
+    private bool _initialTested;
 
     /// <param name="current">全局设置。</param>
     /// <param name="remoteUrls">当前项目的推送远端 URL（可选，验证账号时用同主机远端做真实探测）。</param>
     /// <param name="repoPath">当前仓库根目录（可选，用于读取/写入仓库级提交身份）。</param>
-    public GitSettingsWindow(AppSettings current, IEnumerable<string>? remoteUrls = null, string? repoPath = null)
+    public GitSettingsView(AppSettings current, IEnumerable<string>? remoteUrls = null, string? repoPath = null)
     {
         _remoteUrls = remoteUrls?.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
         _repoPath = string.IsNullOrWhiteSpace(repoPath) ? null : repoPath;
@@ -68,7 +70,6 @@ public partial class GitSettingsWindow : Window
 
         _suppress = true;
         InitializeComponent();
-        Dialogs.ApplyIcon(this);
         _suppress = false;
 
         RbAuto.IsChecked = current.GitSource == GitSourceMode.Auto;
@@ -77,8 +78,9 @@ public partial class GitSettingsWindow : Window
         RbCustom.IsChecked = current.GitSource == GitSourceMode.Custom;
         TxtCustomPath.Text = current.CustomGitPath ?? string.Empty;
 
-        // 关闭窗口时中止未完成的账号验证，避免后台 git 进程继续空跑
-        Closing += (_, _) => _credTestCts?.Cancel();
+        // 关闭对话框（确认关闭或宿主直接关闭）时中止未完成的账号验证，避免后台 git 进程继续空跑
+        CloseRequested += (_, _) => _credTestCts?.Cancel();
+        HostClosed += (_, _) => _credTestCts?.Cancel();
 
         // 凭据（账号）来源：与 git 来源一样可由用户选择
         RbCredAuto.IsChecked = current.CredentialSource == CredentialSourceMode.Auto;
@@ -114,9 +116,11 @@ public partial class GitSettingsWindow : Window
         // 默认“自定义”：只显示说明，不改变用户已填内容
         ApplyPlatform(string.Empty);
 
-        // 打开窗口后再执行检测：git 调用全部放到线程池，窗口（含【取消】按钮）始终可响应
-        Opened += async (_, _) =>
+        // 挂到可视树后再执行检测：git 调用全部放到线程池，界面（含【取消】按钮）始终可响应
+        AttachedToVisualTree += async (_, _) =>
         {
+            if (_initialTested) return;
+            _initialTested = true;
             try
             {
                 await RefreshIdentityInfoAsync();
@@ -200,8 +204,8 @@ public partial class GitSettingsWindow : Window
         ApplyPlatform(string.Empty);
     }
 
-    /// <summary>打开当前平台的访问令牌创建页面（交给系统默认浏览器）。</summary>
-    private void BtnPlatformToken_Click(object? sender, RoutedEventArgs e)
+    /// <summary>打开当前平台的访问令牌创建页面（TopLevel.Launcher 跨平台，移动端也可用）。</summary>
+    private async void BtnPlatformToken_Click(object? sender, RoutedEventArgs e)
     {
         if (!Platforms.TryGetValue(SelectedPlatformHost, out PlatformPreset? preset))
         {
@@ -211,8 +215,16 @@ public partial class GitSettingsWindow : Window
 
         try
         {
-            Process.Start(new ProcessStartInfo(preset.TokenUrl) { UseShellExecute = true });
-            ShowCredResult($"已在浏览器中打开 {preset.Host} 的访问令牌页面。", null);
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel != null &&
+                await topLevel.Launcher.LaunchUriAsync(new Uri(preset.TokenUrl)))
+            {
+                ShowCredResult($"已在浏览器中打开 {preset.Host} 的访问令牌页面。", null);
+            }
+            else
+            {
+                ShowCredResult($"× 未能打开浏览器，请手动访问：{preset.TokenUrl}", false);
+            }
         }
         catch (Exception ex)
         {
@@ -363,7 +375,7 @@ public partial class GitSettingsWindow : Window
     /// </summary>
     private async Task<CredentialTestResult?> VerifyCredentialAsync(string host, string user, string token)
     {
-        // 按窗口里当前选择的 git 来源实时解析，未点【确定】也能用刚选的 git 验证
+        // 按对话框里当前选择的 git 来源实时解析，未点【确定】也能用刚选的 git 验证
         string? exe = GitLocator.ResolvePreview(CurrentMode, TxtCustomPath.Text?.Trim() ?? string.Empty, out _);
         if (exe == null)
         {
@@ -487,7 +499,10 @@ public partial class GitSettingsWindow : Window
     /// <summary>浏览选择 git 可执行文件。</summary>
     private async void BtnBrowse_Click(object? sender, RoutedEventArgs e)
     {
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.StorageProvider == null) return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "选择 git 可执行文件（macOS 常在 /opt/homebrew/bin/git，Linux 常在 /usr/bin/git）",
             AllowMultiple = false
@@ -509,7 +524,7 @@ public partial class GitSettingsWindow : Window
     }
 
     /// <summary>
-    /// 按当前窗口选择实时解析并显示结果。
+    /// 按当前对话框选择实时解析并显示结果。
     /// git --version 是外部进程调用，放到线程池执行，避免界面卡住（点【取消】无响应）。
     /// </summary>
     private async Task TestAsync()
@@ -617,7 +632,7 @@ public partial class GitSettingsWindow : Window
     }
 
     /// <summary>
-    /// 打开【检测系统凭据】窗口：由用户自行选择要检测的主机后再执行检测（可随时停止、有进度），
+    /// 打开【检测系统凭据】对话框：由用户自行选择要检测的主机后再执行检测（可随时停止、有进度），
     /// 勾选结果导入后与自定义填写的凭据一样保存在凭据列表中。
     /// </summary>
     private async void BtnCredDetect_Click(object? sender, RoutedEventArgs e)
@@ -630,14 +645,14 @@ public partial class GitSettingsWindow : Window
                 return;
             }
 
-            var win = new CredentialDetectWindow(_remoteUrls);
-            if (await win.ShowDialog<bool?>(this) != true)
+            var detectView = new CredentialDetectView(_remoteUrls);
+            if (await UiDialogs.ShowAsync<bool?>(this, detectView, "检测系统 git 凭据") != true)
             {
                 ShowCredResult("已取消，未导入任何系统账号。", null);
                 return;
             }
 
-            var found = win.SelectedCredentials;
+            var found = detectView.SelectedCredentials;
             if (found.Count == 0)
             {
                 ShowCredResult("未勾选任何账号，未导入。", null);
@@ -686,7 +701,7 @@ public partial class GitSettingsWindow : Window
     /// <summary>
     /// 显示当前 git 的凭据助手状态：配置值是否可用，不可用时会自动改用哪个助手。
     /// 这是"推送时取不到系统账号"最常见的根因（精简便携版 git 缺少 git-credential-manager）。
-    /// 扫描目录与读取 git config 都放到线程池，避免打开窗口时界面卡住。
+    /// 扫描目录与读取 git config 都放到线程池，避免打开对话框时界面卡住。
     /// </summary>
     private async Task RefreshHelperInfoAsync()
     {
@@ -725,7 +740,7 @@ public partial class GitSettingsWindow : Window
             : Brush.Parse("#B00020");
     }
 
-    /// <summary>打开【提交身份】窗口并写入 git config（仓库级或全局）。</summary>
+    /// <summary>打开【提交身份】对话框并写入 git config（仓库级或全局）。</summary>
     private async void BtnIdentity_Click(object? sender, RoutedEventArgs e)
     {
         var (name, email) = _identityService.Read(_repoPath);
@@ -736,10 +751,10 @@ public partial class GitSettingsWindow : Window
             Scope = _settings.CommitIdentity?.Scope ?? IdentityScope.Local
         };
 
-        var win = new IdentityWindow(current);
-        if (await win.ShowDialog<bool?>(this) != true) return;
+        var identityView = new IdentityView(current);
+        if (await UiDialogs.ShowAsync<bool?>(this, identityView, "提交身份（git user.name / user.email）") != true) return;
 
-        var identity = win.Result;
+        var identity = identityView.SelectedIdentity;
         if (!_identityService.TryApply(identity, _repoPath, out string error))
         {
             string detail = error.Length > 0 ? $"{Environment.NewLine}{error}" : string.Empty;
@@ -754,7 +769,7 @@ public partial class GitSettingsWindow : Window
     }
 
     /// <summary>
-    /// 【取消】：中止可能仍在进行的验证，然后关闭窗口（返回 false，调用方不会保存设置）。
+    /// 【取消】：中止可能仍在进行的验证，然后关闭对话框（返回 false，调用方不会保存设置）。
     /// Avalonia 的 IsCancel 只是把 Esc 键映射成"点击该按钮"，按钮本身不关窗，必须显式处理 Click。
     /// </summary>
     private void BtnCancel_Click(object? sender, RoutedEventArgs e)

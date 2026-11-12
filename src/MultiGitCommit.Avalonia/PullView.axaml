@@ -1,19 +1,15 @@
-<Window x:Class="MultiGitCommit.PullWindow"
-        xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="拉取更新"
-        Width="640" Height="520"
-        MinWidth="560" MinHeight="460"
-        WindowStartupLocation="CenterOwner"
-        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
-        ShowInTaskbar="False">
+<UserControl x:Class="MultiGitCommit.PullView"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="640" MinHeight="460"
+             FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
 
-    <Window.Styles>
+    <UserControl.Styles>
         <Style Selector="Button">
             <Setter Property="Padding" Value="10,4"/>
             <Setter Property="Margin" Value="4,2"/>
         </Style>
-    </Window.Styles>
+    </UserControl.Styles>
 
     <DockPanel Margin="14">
 
@@ -53,4 +49,4 @@
             </StackPanel>
         </ScrollViewer>
     </DockPanel>
-</Window>
+</UserControl>

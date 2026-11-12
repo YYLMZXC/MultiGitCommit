@@ -4,12 +4,12 @@ using Avalonia.Interactivity;
 namespace MultiGitCommit;
 
 /// <summary>
-/// 拉取更新设置窗口：选择要拉取的远端与分叉处理策略，再把参数交回主窗口执行。
+/// 拉取更新设置视图：选择要拉取的远端与分叉处理策略，再把参数交回主视图执行。
 ///
-/// 只做参数收集，不执行 git 命令——拉取过程需要实时写主窗口日志、可取消，
-/// 由主窗口统一调用 <see cref="GitPullService"/>。
+/// 只做参数收集，不执行 git 命令——拉取过程需要实时写日志、可取消，
+/// 由主视图统一调用 <see cref="GitPullService"/>。
 /// </summary>
-public partial class PullWindow : Window
+public partial class PullView : DialogView<bool>
 {
     /// <summary>可选远端（原始 URL，不含任何改写）。</summary>
     private readonly IReadOnlyList<string> _remotes;
@@ -23,12 +23,11 @@ public partial class PullWindow : Window
     /// <param name="repoRoot">仓库根目录（仅展示）。</param>
     /// <param name="remotes">项目配置的远端 URL 列表。</param>
     /// <param name="branch">当前分支。</param>
-    public PullWindow(string repoRoot, IEnumerable<string> remotes, string branch)
+    public PullView(string repoRoot, IEnumerable<string> remotes, string branch)
     {
         _remotes = remotes.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
 
         InitializeComponent();
-        Dialogs.ApplyIcon(this);
 
         TxtRepo.Text = repoRoot;
         TxtBranch.Text = branch;
@@ -37,7 +36,7 @@ public partial class PullWindow : Window
         {
             BtnStart.IsEnabled = false;
             CmbRemote.IsEnabled = false;
-            TxtError.Text = "当前项目没有配置远端地址，请先在主窗口的【推送远端地址管理】中添加。";
+            TxtError.Text = "当前项目没有配置远端地址，请先在【推送远端地址管理】中添加。";
             return;
         }
 
@@ -64,6 +63,6 @@ public partial class PullWindow : Window
         Close(true);
     }
 
-    /// <summary>【取消】：关闭窗口，返回 false（Avalonia 的 IsCancel 不会自动关窗）。</summary>
+    /// <summary>【取消】：关闭对话框，返回 false（Avalonia 的 IsCancel 不会自动关窗）。</summary>
     private void BtnCancel_Click(object? sender, RoutedEventArgs e) => Close(false);
 }

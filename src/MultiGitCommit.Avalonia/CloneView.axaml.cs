@@ -6,14 +6,14 @@ using Avalonia.Platform.Storage;
 namespace MultiGitCommit;
 
 /// <summary>
-/// 克隆项目窗口：填写远端 URL 与本地目录，执行 git clone。
+/// 克隆项目视图：填写远端 URL 与本地目录，执行 git clone。
 ///
 /// 说明：
-/// 1. 仅负责收集参数并做前置校验，真正的 git 调用由 <see cref="MainWindow"/> 复用统一的进程调用逻辑完成；
+/// 1. 仅负责收集参数并做前置校验，真正的 git 调用由 <see cref="MainView"/> 复用统一的进程调用逻辑完成；
 /// 2. 目标目录名默认根据 URL 自动推导，用户手动修改后不再被自动覆盖；
 /// 3. 可选项：指定分支、递归子模块、浅克隆、克隆后写入推送远端列表。
 /// </summary>
-public partial class CloneWindow : Window
+public partial class CloneView : DialogView<bool>
 {
     /// <summary>用户确认后的远端仓库 URL。</summary>
     public string RepoUrl { get; private set; } = string.Empty;
@@ -43,11 +43,10 @@ public partial class CloneWindow : Window
     private bool _suppress;
 
     /// <param name="initialDir">父目录初始值（一般传入当前仓库目录或程序工作目录）。</param>
-    public CloneWindow(string? initialDir = null)
+    public CloneView(string? initialDir = null)
     {
         _suppress = true;
         InitializeComponent();
-        Dialogs.ApplyIcon(this);
         _suppress = false;
 
         ChkAddRemote.IsChecked = true;
@@ -82,10 +81,13 @@ public partial class CloneWindow : Window
         UpdatePreview();
     }
 
-    /// <summary>浏览选择本地父目录。</summary>
+    /// <summary>浏览选择本地父目录（桌面为系统文件夹选择器，移动端为 SAF / 文档选择器）。</summary>
     private async void BtnBrowseParent_Click(object? sender, RoutedEventArgs e)
     {
-        var folders = await StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel?.StorageProvider == null) return;
+
+        var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
         {
             Title = "请选择要把仓库克隆到的父目录",
             AllowMultiple = false
@@ -243,7 +245,7 @@ public partial class CloneWindow : Window
         }
 
         string branch = TxtBranch.Text?.Trim() ?? string.Empty;
-        if (branch.Length > 0 && !MainWindow.IsValidBranchName(branch))
+        if (branch.Length > 0 && !MainView.IsValidBranchName(branch))
         {
             await Warn("分支名不合法：不能包含空格或 ~ ^ : ? * [ \\ .. // 等字符，且不能以 - / . 开头或结尾。");
             TxtBranch.Focus();
@@ -262,7 +264,7 @@ public partial class CloneWindow : Window
     }
 
     /// <summary>
-    /// 【取消】：关闭窗口，返回 false（调用方不会执行克隆）。
+    /// 【取消】：关闭对话框，返回 false（调用方不会执行克隆）。
     /// Avalonia 的 IsCancel 只是把 Esc 键映射成"点击该按钮"，按钮本身不关窗，必须显式处理 Click。
     /// </summary>
     private void BtnCancel_Click(object? sender, RoutedEventArgs e) => Close(false);

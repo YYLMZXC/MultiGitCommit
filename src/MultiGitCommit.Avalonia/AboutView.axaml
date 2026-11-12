@@ -1,12 +1,8 @@
-<Window x:Class="MultiGitCommit.AboutWindow"
-        xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="关于 MultiGitCommit"
-        Width="500" Height="380"
-        CanResize="False"
-        WindowStartupLocation="CenterOwner"
-        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
-        ShowInTaskbar="False">
+<UserControl x:Class="MultiGitCommit.AboutView"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="500" MinHeight="380"
+             FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
 
     <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -20,10 +16,10 @@
         <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
             <TextBlock Text="MultiGitCommit" FontSize="20" FontWeight="Bold" Foreground="#2B579A"/>
             <!-- 版本号运行时从程序集读取（csproj 构建时自动生成），这里不再硬编码 -->
-            <TextBlock x:Name="TxtVersion" Text="  v（Windows / macOS / Linux）" FontSize="13" Foreground="#888888" VerticalAlignment="Bottom" Margin="4,0,0,3"/>
+            <TextBlock x:Name="TxtVersion" Text="  v（Windows / macOS / Linux / Android / iOS）" FontSize="13" Foreground="#888888" VerticalAlignment="Bottom" Margin="4,0,0,3"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="1" Text="个人自用的 Git 一键提交推送工具（Avalonia 跨平台版，支持 Windows、macOS 与 Linux）。"
+        <TextBlock Grid.Row="1" Text="个人自用的 Git 一键提交推送工具（Avalonia 跨平台版，支持 Windows、macOS、Linux、Android 与 iOS）。"
                    TextAlignment="Center" TextWrapping="Wrap" Foreground="#555555" Margin="0,0,0,14"/>
 
         <Border Grid.Row="2" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">
@@ -49,4 +45,4 @@
             <Button Content="确定" Width="90" IsDefault="True" Click="BtnOk_Click"/>
         </StackPanel>
     </Grid>
-</Window>
+</UserControl>

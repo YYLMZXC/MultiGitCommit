@@ -1,12 +1,8 @@
-<Window x:Class="MultiGitCommit.GitSettingsWindow"
-        xmlns="https://github.com/avaloniaui"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Git 环境设置"
-        Width="700" Height="780"
-        MinWidth="620" MinHeight="560"
-        WindowStartupLocation="CenterOwner"
-        FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13"
-        ShowInTaskbar="False">
+<UserControl x:Class="MultiGitCommit.GitSettingsView"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="700" MinHeight="560"
+             FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
 
     <!-- DockPanel：底部按钮栏固定，中间内容区可滚动。
          顺序重要：最后一个子元素（ScrollViewer）会占满剩余空间。 -->
@@ -203,4 +199,4 @@
             </StackPanel>
         </ScrollViewer>
     </DockPanel>
-</Window>
+</UserControl>

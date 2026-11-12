@@ -55,12 +55,17 @@ public class AppSettings
     /// <summary>
     /// 设置目录，按各平台惯例：
     /// Windows 用 %APPDATA%；macOS 用 ~/Library/Application Support；
-    /// Linux 遵循 XDG 规范用 $XDG_CONFIG_HOME（未设置时回退 ~/.config）。
+    /// Linux 遵循 XDG 规范用 $XDG_CONFIG_HOME（未设置时回退 ~/.config）；
+    /// Android / iOS 用应用沙盒内的应用数据目录（LocalApplicationData 在移动端映射到沙盒）。
     /// </summary>
     private static string SettingsDir
     {
         get
         {
+            if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MultiGitCommit");
+
             if (OperatingSystem.IsWindows())
                 return Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MultiGitCommit");
