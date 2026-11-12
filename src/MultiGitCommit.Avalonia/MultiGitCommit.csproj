@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <!-- 跨平台统一项目：一套代码同时支持 Windows / macOS / Linux（桌面）与 Android / iOS（移动）。
@@ -11,10 +11,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MultiGitCommit</RootNamespace>
     <AssemblyName>MultiGitCommit</AssemblyName>
-    <!-- 版本号自动生成：yy.MM.dd-HHmm（构建机本地时间），无需手改。
+    <!-- 版本号自动生成：yy.MM.dd-dHHmm（构建机本地时间），无需手改。注意不能用 HHmm：00:00~00:59 之间有前导零（如 0009），SemVer 规定纯数字预发布号不得有前导零，NuGet 还原会报 NU1105「不是有效的版本字符串」；前缀日号（d 不含前导零）保证整串无前导零。
          需要固定版本时用命令行覆盖：dotnet build -p:Version=26.11.03-1119 -->
     <BuildDate>$([System.DateTime]::Now.ToString('yy.MM.dd'))</BuildDate>
-    <BuildTime>$([System.DateTime]::Now.ToString('HHmm'))</BuildTime>
+    <BuildTime>$([System.DateTime]::Now.ToString('dHHmm'))</BuildTime>
     <Version Condition="'$(Version)' == ''">$(BuildDate)-$(BuildTime)</Version>
     <!-- 文件属性里的产品版本只保留版本号本身，不追加 git 提交哈希 -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
