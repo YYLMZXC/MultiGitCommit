@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 
 namespace MultiGitCommit;
 
@@ -119,7 +120,11 @@ public partial class GitSettingsView : DialogView<bool>
         AdvancedExpander.PropertyChanged += (_, e) =>
         {
             if (e.Property == Expander.IsExpandedProperty && AdvancedExpander.IsExpanded)
+            {
                 _ = EnsureAdvancedChecksAsync();
+                // 窗口尺寸固定后，新展开的内容都在滚动区下方；把高级区滚到视口内，避免看起来「点了没反应」
+                Dispatcher.UIThread.Post(() => AdvancedExpander.BringIntoView(), DispatcherPriority.Loaded);
+            }
         };
 
         RbAuto.IsChecked = current.GitSource == GitSourceMode.Auto;
