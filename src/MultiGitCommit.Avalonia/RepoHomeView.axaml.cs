@@ -243,6 +243,12 @@ public partial class RepoHomeView : UserControl
         _ = _host.BrowseForRepoFromHomeAsync();
     }
 
+    /// <summary>「返回项目页」按钮：关闭首页覆盖层，回到当前载入仓库的项目页。</summary>
+    private void BtnBackToRepoPage_Click(object? sender, RoutedEventArgs e)
+    {
+        _host?.HideHomePage();
+    }
+
     // ==================== 启动默认页面设置 ====================
 
     private void RefreshStartPageRadios()

@@ -233,6 +233,8 @@ L.RepoHomeView.BranchLabel.Text	Branch:
 L.RepoHomeView.BranchLabel.ToolTip_Tip	Current branch is read from the repository's .git/HEAD; an em dash means no .git or unreadable, and the HEAD@ prefix means a detached HEAD
 L.RepoHomeView.OpenFolder.Content	Open folder
 L.RepoHomeView.OpenFolder.ToolTip_Tip	Open this project's folder in the system file manager (Windows Explorer / macOS Finder / Linux file manager; on Android opens an external file manager)
+L.RepoHomeView.BackToRepoPage.Content	Back to project page
+L.RepoHomeView.BackToRepoPage.ToolTip_Tip	Close the repository home page and return to the commit & push page of the currently loaded repository
 L.StageFilesView.L027.Content	Add selected files
 L.StageFilesView.L028.Content	Cancel
 L.StageFilesView.L033.Text	Select files to run git add on

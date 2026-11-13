@@ -673,7 +673,7 @@ public partial class MainView : UserControl
     }
 
     /// <summary>关闭仓库管理首页覆盖层，回到项目页。</summary>
-    private void HideHomePage()
+    public void HideHomePage()
     {
         HomeView.IsVisible = false;
         RootScroll.IsVisible = true;

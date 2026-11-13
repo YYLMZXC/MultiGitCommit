@@ -27,11 +27,16 @@
         <Grid Margin="16,14,16,12" RowDefinitions="Auto,Auto,*,Auto">
 
             <!-- ============ 标题 ============ -->
-            <StackPanel Grid.Row="0" Margin="0,0,0,10">
-                <TextBlock Text="{DynamicResource L.RepoHomeView.L031.Text}" FontSize="20" FontWeight="Bold"/>
-                <TextBlock Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,0"
-                           Text="{DynamicResource L.RepoHomeView.L033.Text}"/>
-            </StackPanel>
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="{DynamicResource L.RepoHomeView.L031.Text}" FontSize="20" FontWeight="Bold"/>
+                    <TextBlock Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="{DynamicResource L.RepoHomeView.L033.Text}"/>
+                </StackPanel>
+                <Button x:Name="BtnBackToRepoPage" Grid.Column="1" VerticalAlignment="Top" Height="34"
+                        Content="{DynamicResource L.RepoHomeView.BackToRepoPage.Content}" Click="BtnBackToRepoPage_Click"
+                        ToolTip.Tip="{DynamicResource L.RepoHomeView.BackToRepoPage.ToolTip_Tip}"/>
+            </Grid>
 
             <!-- ============ 一、最近打开的项目 ============ -->
             <Border Grid.Row="1" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
