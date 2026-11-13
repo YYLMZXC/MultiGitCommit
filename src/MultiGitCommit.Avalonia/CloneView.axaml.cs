@@ -130,7 +130,7 @@ public partial class CloneView : DialogView<bool>
         // 兜底：手输绝对路径，可自动新建
         string? picked = await Dialogs.PickFolderAsync(this, Loc.T("输入克隆父目录"),
             Loc.T("请输入要把仓库克隆到的父目录绝对路径，例如：") + Environment.NewLine +
-            "/storage/emulated/0/GitRepos" + Environment.NewLine +
+            "/storage/emulated/0/MultiGitCommit" + Environment.NewLine +
             Loc.T("目录不存在时会询问是否新建；仓库目录名在下方单独填写。"),
             string.IsNullOrWhiteSpace(TxtParentDir.Text)
                 ? AndroidGitPlatform.SuggestRepoParent()

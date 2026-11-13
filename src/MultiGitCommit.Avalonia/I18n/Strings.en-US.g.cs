@@ -439,6 +439,7 @@ internal static class LocStringsEn
             { "      当前未获得存储权限：共享存储目录会不可写，稍后引导授权。", "      Storage permission not granted: shared storage directories will be read-only; permission guidance will appear later." },
             { "      当前未获得存储权限：请在系统权限弹框中允许存储权限，否则共享存储目录会不可写。", "      Storage permission not granted: allow it in the system permission dialog, otherwise shared-storage directories will be read-only." },
             { "警告：Android 内嵌 Git 辅助程序不可用（{0}），https 克隆 / 推送会失败；请重装应用。", "Warning: bundled Git helpers are unavailable on Android ({0}); https clone / push will fail. Please reinstall the app." },
+            { "已准备默认仓库文件夹：{0}（克隆 / 初始化仓库默认放在此目录下）", "Default repository folder ready: {0} (clone / init repositories are placed under it by default)" },
             { "已打开仓库管理首页：可从最近项目或自动发现的仓库中快速进入项目页。", "Repository home opened: jump into a project page from recent or auto-discovered repositories." },
             { "存储权限", "Storage permission" },
             { "MultiGitCommit 需要「所有文件访问」权限，才能读写共享存储（/storage/emulated/0）中的 Git 仓库。", "MultiGitCommit needs \"All files access\" to read and write Git repositories in shared storage (/storage/emulated/0)." },

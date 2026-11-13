@@ -163,6 +163,12 @@ public partial class MainView : UserControl
             IReadOnlyList<string> brokenHelpers = AndroidGitPlatform.GetBrokenHelpers();
             if (brokenHelpers.Count > 0)
                 Log(Loc.F($"警告：Android 内嵌 Git 辅助程序不可用（{string.Join("、", brokenHelpers)}），https 克隆 / 推送会失败；请重装应用。"));
+
+            // 独立的默认仓库文件夹：只作父目录，本身不是 Git 仓库，因此不预填到 TxtRepoPath
+            // （否则启动就会被当成仓库校验而报「不是合法的 git 仓库目录」），用水印提示位置
+            string defaultParent = AndroidGitPlatform.EnsureDefaultRepoParent();
+            Log(Loc.F($"已准备默认仓库文件夹：{defaultParent}（克隆 / 初始化仓库默认放在此目录下）"));
+            TxtRepoPath.Watermark = defaultParent;
         }
 
         // 解析 git 来源（内嵌 / 自动检测 / 系统 PATH / 指定路径），不依赖系统安装 git
@@ -518,7 +524,7 @@ public partial class MainView : UserControl
     {
         string? picked = await Dialogs.PickFolderAsync(this, Loc.T("输入仓库目录"),
             Loc.T("请输入 Git 仓库根目录的绝对路径（与 .git 同级），例如：") + Environment.NewLine +
-            "/storage/emulated/0/GitRepos/MyRepo" + Environment.NewLine +
+            "/storage/emulated/0/MultiGitCommit/MyRepo" + Environment.NewLine +
             Loc.T("目录不存在时会询问是否新建；新建的空目录请再点【初始化仓库】。"),
             AndroidGitPlatform.SuggestRepoParent());
         if (picked == null) return null;
@@ -616,9 +622,12 @@ public partial class MainView : UserControl
     {
         if (!EnsureGitAvailable()) return;
 
-        string initialDir = Directory.Exists(TxtRepoPath.Text?.Trim() ?? string.Empty)
-            ? TxtRepoPath.Text!.Trim()
-            : Environment.CurrentDirectory;
+        string? currentRepo = TxtRepoPath.Text?.Trim();
+        string initialDir = !string.IsNullOrEmpty(currentRepo) && Directory.Exists(currentRepo)
+            ? currentRepo
+            : OperatingSystem.IsAndroid()
+                ? AndroidGitPlatform.SuggestRepoParent()
+                : Environment.CurrentDirectory;
 
         var cloneView = new CloneView(initialDir);
         if (await UiDialogs.ShowAsync<bool?>(this, cloneView, Loc.T("克隆项目")) != true) return;

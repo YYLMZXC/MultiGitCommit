@@ -98,35 +98,71 @@ public static class AndroidGitPlatform
         }
     }
 
+    /// <summary>共享存储根目录。</summary>
+    private const string SharedStorageRoot = "/storage/emulated/0";
+
+    /// <summary>安卓版独立工作文件夹名：单独占一个目录，不与其他仓库 / 应用混放。</summary>
+    private const string DefaultRepoFolderName = "MultiGitCommit";
+
     /// <summary>
-    /// 建议的仓库父目录（系统选择器不可用时手输路径的默认值）。
-    /// 已授予「所有文件访问」时优先共享存储（其他文件管理器可见），否则退回应用专属外部目录
-    /// （/storage/emulated/0/Android/data/&lt;包名&gt;/files，无需特殊权限即可读写）。
+    /// 默认仓库父目录：安卓版在共享存储下使用一个独立的 MultiGitCommit 文件夹，
+    /// 文件管理器可见、方便传文件；首次访问时自动创建，但它本身 **不是** Git 仓库，
+    /// 克隆 / 初始化的仓库都作为它的子目录存在。
+    /// 未授予「所有文件访问」时退回应用专属外部目录（无需权限即可读写）。
     /// 非 Android 返回用户主目录，供桌面端沿用原来的行为。
     /// </summary>
-    public static string SuggestRepoParent()
+    public static string EnsureDefaultRepoParent()
     {
 #if ANDROID
+        if (IsAllFilesAccessGranted && Directory.Exists(SharedStorageRoot))
+        {
+            string shared = Path.Combine(SharedStorageRoot, DefaultRepoFolderName);
+            if (TryCreateDirectory(shared)) return shared;
+        }
+
         try
         {
-            if (OperatingSystem.IsAndroidVersionAtLeast(30)
-                && global::Android.OS.Environment.IsExternalStorageManager
-                && Directory.Exists("/storage/emulated/0"))
-                return "/storage/emulated/0/GitRepos";
-
             string? own = global::Android.App.Application.Context?.GetExternalFilesDir(null)?.AbsolutePath;
             if (!string.IsNullOrWhiteSpace(own))
-                return Path.Combine(own, "GitRepos");
+            {
+                string fallback = Path.Combine(own, DefaultRepoFolderName);
+                if (TryCreateDirectory(fallback)) return fallback;
+            }
         }
         catch
         {
-            // 平台目录探测失败时走兜底值，不阻断界面
+            // 平台目录探测失败时继续走共享存储兜底值
         }
-        return "/storage/emulated/0/GitRepos";
+        return Path.Combine(SharedStorageRoot, DefaultRepoFolderName);
 #else
         return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 #endif
     }
+
+    /// <summary>创建目录并确认存在；FUSE 未授权 / 只读时按不可用处理，不抛给 UI。</summary>
+    private static bool TryCreateDirectory(string path)
+    {
+#if ANDROID
+        try
+        {
+            Directory.CreateDirectory(path);
+            return Directory.Exists(path);
+        }
+        catch
+        {
+            return false;
+        }
+#else
+        return false;
+#endif
+    }
+
+    /// <summary>
+    /// 建议的仓库父目录（克隆 / 选择文件夹等手输路径的默认值）。
+    /// 每次都重新解析并顺便确保目录存在：用户中途去系统设置授权「所有文件访问」后，
+    /// 返回应用即可自动切回共享存储的独立文件夹，无需重启。
+    /// </summary>
+    public static string SuggestRepoParent() => EnsureDefaultRepoParent();
 
     /// <summary>
     /// 是否已拿到读写共享存储所需的权限：Android 11+ 为「所有文件访问」（MANAGE_EXTERNAL_STORAGE），
