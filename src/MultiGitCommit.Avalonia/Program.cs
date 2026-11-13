@@ -6,14 +6,17 @@ namespace MultiGitCommit;
 /// <summary>
 /// 桌面版程序入口（Avalonia 11 跨平台桌面应用，Windows / macOS / Linux 共用）。
 /// 移动端（Android / iOS）不使用本入口：Android 由 MainActivity、iOS 由 AppDelegate 启动。
-/// 命令行带参数时进入 MCP Server 模式（--stdio / --self-test / --list-tools / --help），
-/// 不带参数启动图形界面。
+/// 三种模式：命令行已知命令 = CLI；带 -- 开头参数 = MCP Server（--stdio 等）；
+/// 不带参数 = 图形界面。
 /// </summary>
 internal static class Program
 {
     [STAThread]
     internal static async Task<int> Main(string[] args)
     {
+        if (Cli.CliProgram.IsCliCommand(args))
+            return await Cli.CliProgram.RunAsync(args).ConfigureAwait(false);
+
         if (Mcp.McpProgram.IsMcpArgs(args))
             return await Mcp.McpProgram.RunAsync(args).ConfigureAwait(false);
 
