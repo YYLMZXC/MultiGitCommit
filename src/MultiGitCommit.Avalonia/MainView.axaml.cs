@@ -157,7 +157,18 @@ public partial class MainView : UserControl
         Log(Loc.T("提示：每个 git 仓库拥有独立配置，切换仓库会自动加载对应项目的远端列表。"));
 
         if (OperatingSystem.IsIOS())
+        {
             Log(Loc.T("注意：iOS 沙盒禁止执行子进程，git 相关功能在本平台不可用；界面与设置仅供浏览。"));
+
+            // iOS 沙盒只能读写 App 自己的目录，系统文件选择器也拿不到可用真实路径：
+            // 预置 Documents/MultiGitCommit 作为默认仓库父目录（克隆 / 手输路径都以它为父目录），
+            // 配合 Info.plist 的文件共享开关，可在「文件」App →「我的 iPhone」→ MultiGitCommit 里管理。
+            // 与 Android 一样只做父目录、不预填进 TxtRepoPath（父目录本身不是 Git 仓库，预填会立刻校验失败）。
+            string iosDefaultParent = DefaultFolders.RepoParent();
+            Log(Loc.F($"已准备默认仓库文件夹：{iosDefaultParent}（克隆 / 初始化仓库默认放在此目录下）"));
+            Log(Loc.T("提示：该目录可在系统「文件」App →「我的 iPhone」→ MultiGitCommit 中查看，可拷入现成仓库。"));
+            TxtRepoPath.Watermark = iosDefaultParent;
+        }
         else if (OperatingSystem.IsAndroid())
         {
             Log(Loc.T("提示：Android 已内嵌 git（APK 原生库目录），提交推送默认开箱即用；"));
@@ -595,11 +606,14 @@ public partial class MainView : UserControl
     /// <summary>系统选择器不可用 / 该位置无真实路径时的兜底：手输绝对路径，可自动新建。</summary>
     private async Task<string?> PickFolderManuallyAsync()
     {
+        // 示例路径按平台默认父目录生成：Android 是共享存储、iOS 是沙盒 Documents，桌面是用户主目录，
+        // 避免在 iOS 上给出 /storage/emulated/0 这种本机根本不存在的示例。
+        string example = Path.Combine(DefaultFolders.RepoParent(), "MyRepo");
         string? picked = await Dialogs.PickFolderAsync(this, Loc.T("输入仓库目录"),
             Loc.T("请输入 Git 仓库根目录的绝对路径（与 .git 同级），例如：") + Environment.NewLine +
-            "/storage/emulated/0/MultiGitCommit/MyRepo" + Environment.NewLine +
+            example + Environment.NewLine +
             Loc.T("目录不存在时会询问是否新建；新建的空目录请再点【初始化仓库】。"),
-            AndroidGitPlatform.SuggestRepoParent());
+            DefaultFolders.RepoParent());
         if (picked == null) return null;
         ApplyPickedFolder(picked);
         return picked;
@@ -698,8 +712,8 @@ public partial class MainView : UserControl
         string? currentRepo = TxtRepoPath.Text?.Trim();
         string initialDir = !string.IsNullOrEmpty(currentRepo) && Directory.Exists(currentRepo)
             ? currentRepo
-            : OperatingSystem.IsAndroid()
-                ? AndroidGitPlatform.SuggestRepoParent()
+            : OperatingSystem.IsAndroid() || OperatingSystem.IsIOS()
+                ? DefaultFolders.RepoParent()
                 : Environment.CurrentDirectory;
 
         var cloneView = new CloneView(initialDir);

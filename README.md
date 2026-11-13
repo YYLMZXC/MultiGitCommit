@@ -241,6 +241,8 @@ dotnet build MultiGitCommit.csproj -c Release -p:IncludeMobile=true
 > 【选择文件夹】/【浏览...】在安卓走系统 SAF 文档选择器，应用会把「内部存储 / SD 卡」返回的 `content://` 树 URI 映射成 git 可用的真实路径（如 `/storage/emulated/0/MultiGitCommit`），并做可写校验；未授权共享存储或选到云端盘 / 下载内容等无真实路径的位置时，会提示并回退到手输绝对路径（可自动新建目录）。远端请用 https。
 >
 > **安卓默认仓库文件夹**：启动时在共享存储创建一个独立目录 `/storage/emulated/0/MultiGitCommit`（文件管理器可见、方便传文件，需「所有文件访问」权限；未授权时自动回退到应用专属外部目录 `Android/data/<包名>/files/MultiGitCommit`）。该目录只作**父目录**，本身不是 Git 仓库、不会自动 `git init`；【克隆项目】【选择文件夹】【初始化仓库】默认都以它为起点，克隆 / 初始化的仓库是它的子目录，仓库管理首页也会自动扫描到其中的仓库。主界面仓库输入框为空时以水印显示该路径，不会把它误当成仓库去校验。
+>
+> **iOS 默认仓库文件夹**：iOS 沙盒不允许访问外部目录，系统文件选择器也拿不到可用真实路径，所以启动时在应用沙盒内创建 `Documents/MultiGitCommit` 作为唯一默认仓库父目录（行为与安卓一致：只作父目录、克隆 / 手输路径 / 仓库管理首页扫描都以它为起点，输入框空时以水印显示）。plist 声明了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace`，可在系统「文件」App →「我的 iPhone」→ MultiGitCommit 里查看该目录并拷入 / 拷出现成仓库。相关实现统一收在 `DefaultFolders.cs`（安卓仍走 `AndroidGitPlatform`，iOS 走沙盒 Documents）。
 
 ## 非交互执行与超时保护
 

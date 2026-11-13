@@ -53,10 +53,10 @@ public partial class CloneView : DialogView<bool>
         _suppress = false;
 
         ChkAddRemote.IsChecked = true;
-        // 安卓端预填一个确实可写的仓库父目录（用户主目录在安卓上不是常规存储位置）
+        // 移动端预填一个确实可写的仓库父目录（安卓共享存储 / iOS 沙盒 Documents，用户主目录不是常规位置）
         TxtParentDir.Text = !string.IsNullOrWhiteSpace(initialDir) && Directory.Exists(initialDir)
             ? initialDir
-            : AndroidGitPlatform.SuggestRepoParent();
+            : DefaultFolders.RepoParent();
 
         UpdatePreview();
     }
@@ -128,12 +128,13 @@ public partial class CloneView : DialogView<bool>
         }
 
         // 兜底：手输绝对路径，可自动新建
+        string defaultParent = DefaultFolders.RepoParent();
         string? picked = await Dialogs.PickFolderAsync(this, Loc.T("输入克隆父目录"),
             Loc.T("请输入要把仓库克隆到的父目录绝对路径，例如：") + Environment.NewLine +
-            "/storage/emulated/0/MultiGitCommit" + Environment.NewLine +
+            defaultParent + Environment.NewLine +
             Loc.T("目录不存在时会询问是否新建；仓库目录名在下方单独填写。"),
             string.IsNullOrWhiteSpace(TxtParentDir.Text)
-                ? AndroidGitPlatform.SuggestRepoParent()
+                ? defaultParent
                 : TxtParentDir.Text!.Trim());
         if (picked == null) return;
 

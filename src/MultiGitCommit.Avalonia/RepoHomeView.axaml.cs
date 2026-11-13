@@ -208,6 +208,13 @@ public partial class RepoHomeView : UserControl
             if (Directory.Exists(sharedStorage)) roots.Add(sharedStorage);
         }
 
+        if (OperatingSystem.IsIOS())
+        {
+            // iOS 沙盒内唯一可用的仓库位置：从「文件」App 拷入的仓库都放在这里
+            string iosRoot = DefaultFolders.RepoParent();
+            if (Directory.Exists(iosRoot) && !roots.Contains(iosRoot)) roots.Add(iosRoot);
+        }
+
         return roots;
     }
 

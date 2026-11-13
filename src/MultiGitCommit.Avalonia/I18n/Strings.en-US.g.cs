@@ -710,5 +710,6 @@ internal static class LocStringsEn
             { "切换后立即生效；已输出的日志与提示保持原语言，重新打开窗口后完全更新。", "Applies immediately; existing log output and hints keep their original language and refresh fully when the window is reopened." },
             { "界面语言已保存为：", "Language saved as:" },
             { "！ 部分账号或令牌无法解密（密钥文件丢失或被更换），请重新填写后点【确定】保存。", "! Some accounts or tokens could not be decrypted (the key file is missing or has changed). Re-enter them and click OK to save." },
+            { "提示：该目录可在系统「文件」App →「我的 iPhone」→ MultiGitCommit 中查看，可拷入现成仓库。", "Hint: this folder is visible in the system Files app under \"On My iPhone\" -> MultiGitCommit, where you can copy existing repositories in." },
         };
 }

@@ -18,6 +18,12 @@
         <key>UIColorName</key>
         <string></string>
     </dict>
+    <!-- 把沙盒 Documents 暴露给系统「文件」App（我的 iPhone → MultiGitCommit）：
+         iOS 沙盒不允许访问外部目录，默认仓库文件夹只有这样才能拷入 / 拷出现成仓库。 -->
+    <key>UIFileSharingEnabled</key>
+    <true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
     <key>MinimumOSVersion</key>
     <string>15.0</string>
     <key>UIDeviceFamily</key>
