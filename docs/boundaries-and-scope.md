@@ -44,7 +44,7 @@
 
 | 层 | 代表文件 | 职责 | 禁止 |
 | --- | --- | --- | --- |
-| 视图 | `MainView`、`GitSettingsView`、`RepoHomeView` 等 `*.axaml(.cs)` | 参数收集、确认、控件状态、本地化文案 | 不拼 git 命令、不读写配置文件、不直接改 `AppSettings` 字段、不拼业务规则 |
+| 视图 | `MainView`、`GitSettingsView`、`RepoHomeView` 等 `*.axaml(.cs)` | 参数收集、确认、控件状态、本地化文案 | 不拼 git 命令、不读写配置文件、不直接改 `AppSettings` 字段、不拼业务规则、不在 UI 线程跑 git 子进程 / 文件 IO |
 | UI 基础设施 | `UiDialogs.cs`、`Dialogs.cs` | 桌面 Window / 移动 Overlay 双宿主、提示框 | 不含业务逻辑 |
 | 组合根 | `Settings/AppServices.cs`（`AppServices` + `AppSession`） | 唯一对象装配点；`CreateSession(cli, settings, log)` 是测试替身入口 | 不含业务流程 |
 | 会话策略服务（新增） | `Settings/AppSettingsService.cs` | 设置字段写回、落盘与失败处理；最近项目去重/置顶/上限、默认启动页、提交身份 | 不引用 Avalonia |
@@ -101,4 +101,5 @@
 | 4 个策略服务 + 组合根装配 | 启动仓库定位、配置加载、最近项目、设置保存、远端 URL 规则、环境快照 | git 命令内容、提交消息格式、远端推送协议、配置文件格式 |
 | 静态执行器收口 | 凭据探测 / 凭据助手扫描取的 `IGitCliRunner` 实例 | 执行器行为本身（仍是同一实例） |
 | 高级设置 UI 优化 | 对话框滚动位置、卡片间距、入口外观、底部留白 | 设置字段、保存逻辑、git 检测触发时机 |
+| 移动端 UI 流畅性优化 | 远端列表滚动层与项模板、日志刷新时机与视口高度、配置加载所在线程 | 远端数据内容、选中 / 编辑 / 删除语义、日志文案与脱敏规则、CLI / MCP 行为 |
 | `README.md` 分层约定 / 新增文档与脚本 | 文档与回归手段 | 运行时代码 |

@@ -29,7 +29,7 @@ Program.Main / MainActivity / AppDelegate
 | # | 场景 | 调用链 | 结构化结果 |
 | --- | --- | --- | --- |
 | 1 | 启动仓库定位 | `MainView` 构造 → `AppSession.StartupRepo.Resolve()` → `RepoLocator.FindRepoAncestor` / `AppSettings.StartupRepo` | `StartupRepoDecision(Path, Reason)`；视图用 `FormatStartupMessage` 把 `Reason` 翻成本地化文案 |
-| 2 | 加载仓库 | `MainView.LoadConfigFromPath` → `AppSession.RepoSession.Load(path)` → `IGitEnvironmentService.IsAvailable` → `RepoLocator.TryResolve` → `AppSettingsService.RememberRepo` → `IProjectConfigStore.Load` | `RepoLoadResult(RepoRoot, Config, Failure, GitError, InputPath)`；视图按 `Failure` 输出提示并回填控件 |
+| 2 | 加载仓库 | `MainView.LoadConfigFromPathAsync` → `Task.Run(AppSession.RepoSession.Load)` → `IGitEnvironmentService.IsAvailable` → `RepoLocator.TryResolve` → `AppSettingsService.RememberRepo` → `IProjectConfigStore.Load` → 回 UI 线程 | `RepoLoadResult(RepoRoot, Config, Failure, GitError, InputPath)`；`_loadSeq` 丢弃过期结果，视图按 `Failure` 输出提示并回填控件 |
 | 3 | 设置变更 | `MainView` / `RepoHomeView` → `AppSettingsService.TryApplyEnvironmentSettings` / `TrySetCommitIdentity` / `TryRemoveRecent` / `TryClearRecent` / `TrySetDefaultStartPage` → `ISettingsProvider.Save()` | `bool` + `out error`；视图只展示结果 |
 | 4 | 远端 URL | GUI「添加/编辑/克隆」→ `RemoteUrlPolicy.Add/Replace/Normalize`；MCP `set_config` / `commit_and_push` / `clone_repo` → `RemoteUrlPolicy.NormalizeAll/Normalize` | `RemoteUrlChange(Changed, Url, PreviousUrl, Message)` 或清洗后的列表 + `error`；MCP 把 `error` 包装成 `ToolUsageException` |
 | 5 | 环境快照 | `GitEnvironmentService.Refresh()` / `Describe()` → `GitEnvironmentSnapshot` | 状态栏、主界面日志、MCP `get_git_environment` 共用一份数据，MCP 不再直读 `GitLocator.Current` |
@@ -42,6 +42,8 @@ Program.Main / MainActivity / AppDelegate
 3. **执行器来源唯一**：`CredentialTester` / `SystemCredentialProbe` / `GitCredentialHelper` 从 `AppServices.Current.Cli` 取执行器，消除与 `GitCliRunner.Default` 并存的两套来源。
 4. **UI 展开定位不依赖 `BringIntoView`**：`GitSettingsView.ScrollAdvancedIntoViewAsync()` 等展开动画稳定后，用 `TransformToVisual(ContentScroll)` 的矩阵平移量 `M32` 计算内容纵坐标，把「高级设置」标题对齐到滚动区顶部并留 16px；定位失败时保持原滚动位置。
 5. **留白与视觉分区**：`ScrollViewer` 底部留白 28（窄屏 24）、Expander 底部 20、入口改为带底色/边框的整行卡片；首屏卡片内边距与间距压缩约 20px，使收起状态的入口完整露出。
+6. **移动端远端列表不嵌套滚动**：窄屏（单视图 / 宽度 < 700）时 `ListRemotes` 禁用内部纵向滚动并自适应高度，由 `RootScroll` 统一滚动；项模板把长 ssh/https URL 单行省略（`TextTrimming`），避免逐项测量撑宽整页；宽屏恢复固定高度 + 内部滚动。
+7. **日志缓冲 + 固定视口 + 后台加载**：`Log` 写入 `StringBuilder`，60ms 内的输出合并成一次 `TxtLog.Text` 赋值并限制 64KB；移动端 `LogFrame.Height = 240`，避免 `*` 行随日志增长撑高整页；仓库校验 / 配置读取 / 设置落盘放进 `Task.Run`，`_loadSeq` 保证只有最后一次结果写 UI。
 
 ### 1.4 文件清单
 
@@ -55,7 +57,8 @@ Program.Main / MainActivity / AppDelegate
 **修改**
 - `Settings/AppServices.cs`（组合根 + `AppSession` 新增 4 个服务属性）
 - `Services/GitEnvironmentService.cs`（`IGitEnvironmentService.Describe()`、`GitEnvironmentSnapshot.SshExe`）
-- `MainView.axaml.cs`（启动定位、配置加载、远端 CRUD、环境设置 / 身份保存、首页 `Attach(this, AppSession)`）
+- `MainView.axaml.cs`（启动定位、异步配置加载、远端 CRUD、环境设置 / 身份保存、首页 `Attach(this, AppSession)`、日志缓冲、移动端列表与日志视口）
+- `MainView.axaml`（远端列表项模板：长 URL 单行省略 + 禁用横向滚动）
 - `RepoHomeView.axaml.cs`（注入 `AppSession`，最近项目与启动页走设置服务）
 - `Mcp/McpToolHandlers.cs`（复用 `RemoteUrlPolicy` 与 `Describe()`，删除本地 URL 规则副本）
 - `CredentialTester.cs` / `SystemCredentialProbe.cs` / `GitCredentialHelper.cs`（执行器来源）
@@ -116,6 +119,7 @@ pwsh scripts/TestSmoke.ps1 -Configuration Release
 - MCP 实测：脱敏占位符 URL 与内嵌凭据 URL 均被 `set_config` 拒绝，`multigitcommit.config.json` 未被改写。
 - UI 实跑：收起时高级设置入口矩形由 `948,1094,664,57` 上移到 `948,1074,664,57`，底部不再越过固定按钮栏；展开后标题完整置顶，前两块高级内容可见，第三块需正常滚动。
 - GUI 启动冒烟：进程存活、stderr 无未处理异常输出。
+- 移动端卡顿优化复验（2026-11-13）：UIA 实跑 GUI 5 秒后远端列表 3 项全部加载、日志 673 字符可见，截图确认「远端共 3 个」分行日志与列表显示正常；`pwsh scripts/TestSmoke.ps1 -IncludeAndroid` → **14 passed, 0 failed**；桌面窗口 `Resize` 到 900（受 `MinWidth` 限制，未达 700 阈值）无异常。
 
 ### 2.5 未覆盖 / 待补
 
@@ -139,6 +143,9 @@ pwsh scripts/TestSmoke.ps1 -Configuration Release
 | 设置写回与最近项目规则散在视图 | 视图直接改 `AppSettings` 并各自 `try/catch` | 收敛到 `AppSettingsService.TryXxx` |
 | 测试替身被共享单例绕过 | `shared` 判断只看 `cli` | `SettingsEditor` 按 `ReferenceEquals(settings, Settings)` 单独判断 |
 | 凭据探测类自建第二套执行器 | 直接取 `GitCliRunner.Default` | 统一从 `AppServices.Current.Cli` 取 |
+| 移动端远端列表滑动掉帧 | `ListBox` 嵌在整页 `ScrollViewer` 中两层抢手势；长 URL 项参与整页测量 | 窄屏禁用列表内部滚动、自适应高度由外层统一滚动；项模板单行省略 + 禁用横向滚动 |
+| 日志越多越卡 | 每次 `TxtLog.Text +=` 全量重设文本，窄屏折行后整页重排；`*` 行还会随日志撑高整页 | `StringBuilder` + 60ms 合并刷新 + 64KB 上限；移动端 `LogFrame.Height = 240` 固定视口 |
+| 打开 / 切换仓库时卡住 | `RepoLocator.TryResolve` 同步启动 git 子进程（Android 内嵌 git 更慢）阻塞 UI 线程 | `LoadConfigFromPathAsync` 把服务调用放进 `Task.Run`，`_loadSeq` 防重入 |
 
 ### 3.2 残留风险（按优先级）
 
@@ -153,6 +160,9 @@ pwsh scripts/TestSmoke.ps1 -Configuration Release
 9. **中文与编码**：PowerShell 5.1 读取含中文注释的 `.ps1` 需要 UTF-8 BOM（因此 `TestSmoke.ps1` 注释与输出全用英文）；git 子进程输出按 UTF-8 解码，否则 Windows 中文日志乱码。
 10. **`ConsoleAttach` 与输出捕获**：CLI / MCP 人类可读模式在 stdout 未重定向时会附加父控制台，脚本中直接用 `& $exe ...` 赋给变量可能拿不到输出。必须用 `Start-Process -RedirectStandardOutput` 或真实 stdio 管道（`TestSmoke.ps1` 已处理）。
 11. **文档与代码漂移**：本文的边界与用例基于 2026-11-13 的版本；新增服务、改动工具清单数量或平台策略时，需同步更新两份文档与脚本中的断言（如「14 个工具」）。
+12. **窄屏分支未实机验证**：桌面 `MainWindow` 最小宽度 900，无法缩到 700 阈值触发窄屏布局；Android 仅编译通过。列表自适应高度、外层统一滚动与 240px 日志视口需在真机 / 模拟器复验。
+13. **日志 60ms 合并窗口**：刚写日志立即读 `TxtLog.Text` 可能少几行，复制与关闭已显式 `FlushLog()`；超过 64KB 会裁掉旧日志，复制全文不包含更早内容。
+14. **后台加载的跨线程访问**：`Task.Run` 内服务读取 git 环境快照并写设置文件，与 UI 线程的设置写回理论上可能并发；多实例同时运行仍应错开写操作。
 
 ### 3.3 排查顺序建议
 
@@ -169,4 +179,5 @@ pwsh scripts/TestSmoke.ps1 -Configuration Release
 | 修改启动仓库 / 最近项目规则 | `StartupRepoResolver` / `AppSettingsService`、`docs` 两份文档、UI 截图验证 |
 | 修改远端 URL 规则 | `RemoteUrlPolicy`、MCP 与 GUI 两侧用例、`scripts/TestSmoke.ps1` 的 URL 断言 |
 | 修改对话框尺寸 / 响应式阈值 | `GitSettingsView`、`UiDialogs.ConfigureDesktopWindowSize`、`DialogOverlay.PushAsync`、UI 实跑截图 |
+| 改日志输出 / 仓库加载 / 远端列表布局 | `MainView.axaml(.cs)`、冒烟脚本、UIA 实跑截图（远端项数 + 日志长度）、本文 1.2 / 3.1 章节 |
 | 升级 .NET / Avalonia | 逐 TFM 构建 + 冒烟脚本 + 移动端真机；核对 `Matrix` / `Offset` / `Expander` 动画行为 |

@@ -20,7 +20,7 @@
 
     <!-- 根布局：桌面端由 Window 提供有限高度，纵向滚动关闭，日志区（* 行）占满剩余空间、
          日志只在 TxtLog 内部滚动，避免日志文本撑高内容导致窗口 / 布局随输出变化；
-         移动端（单视图生命周期，无 Window）在代码中改为 Auto 纵向滚动 + 日志区最小高度。
+         移动端（单视图生命周期，无 Window）在代码中改为 Auto 纵向滚动 + 日志区固定高度（只在 TxtLog 内部滚动）。
          对话框覆盖层放在 ScrollViewer 外，无论页面滚到哪里都盖满视口 -->
     <Grid>
         <ScrollViewer x:Name="RootScroll" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Disabled">
@@ -92,8 +92,20 @@
                             ToolTip.Tip="{DynamicResource L.MainView.L092.ToolTip_Tip}"/>
                 </WrapPanel>
                 <ListBox x:Name="ListRemotes" Grid.Row="2" Height="120" Margin="0,4,0,0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          SelectionChanged="ListRemotes_SelectionChanged"
-                         ToolTip.Tip="{DynamicResource L.MainView.L096.ToolTip_Tip}"/>
+                         ToolTip.Tip="{DynamicResource L.MainView.L096.ToolTip_Tip}">
+                    <!-- 长 ssh/https URL 单行省略，避免窄屏下逐项反复测量撑宽整页 -->
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       TextTrimming="CharacterEllipsis"
+                                       TextWrapping="NoWrap"
+                                       VerticalAlignment="Center"
+                                       ToolTip.Tip="{Binding}"/>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
             </Grid>
         </Border>
 

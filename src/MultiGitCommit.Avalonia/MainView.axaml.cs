@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
@@ -47,6 +48,15 @@ public partial class MainView : UserControl
 
     /// <summary>远端 URL 列表（绑定到 ListBox）。</summary>
     private readonly ObservableCollection<string> _remotes = new();
+
+    /// <summary>日志缓冲：高频输出合并成一次 TextBox 赋值，避免移动端全量重设 Text 触发整页重排。</summary>
+    private readonly StringBuilder _logBuffer = new();
+    private readonly DispatcherTimer _logFlushTimer;
+    private bool _logDirty;
+    private const int MaxLogChars = 64 * 1024;
+
+    /// <summary>配置加载序号：只应用最后一次结果，防止连续切换仓库时旧结果覆盖新状态。</summary>
+    private int _loadSeq;
 
     /// <summary>本视图生命周期内共享的服务集合（由组合根 <see cref="AppServices"/> 统一装配）。</summary>
     private readonly AppSession _app;
@@ -114,6 +124,9 @@ public partial class MainView : UserControl
             // 残留的静态宿主会让弹窗推到看不见的旧层上
             UiDialogs.OverlayHost = Overlay;
             RootScroll.VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto;
+            // 整页 ScrollViewer 给的是无限高度，`*` 行会随日志文本一起长高，
+            // 每次刷新日志都要重排整页。固定日志区高度后只在 TxtLog 内部滚动（与桌面一致）。
+            LogFrame.Height = 240;
             LogFrame.MinHeight = 160;
         }
 
@@ -135,6 +148,9 @@ public partial class MainView : UserControl
 
         _pathDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _pathDebounce.Tick += OnPathDebounceTick;
+
+        _logFlushTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(60) };
+        _logFlushTimer.Tick += (_, _) => FlushLog();
 
         Log(Loc.T("MultiGitCommit 已启动（跨平台版：Windows / macOS / Linux / Android / iOS）。"));
         Log(Loc.T("提示：本工具不会修改 git 原生 .git/config；远端地址保存在每个项目目录下的 multigitcommit.config.json。"));
@@ -255,7 +271,7 @@ public partial class MainView : UserControl
     private void OnPathDebounceTick(object? sender, EventArgs e)
     {
         _pathDebounce.Stop();
-        LoadConfigFromPath();
+        _ = LoadConfigFromPathAsync();
     }
 
     /// <summary>主窗口关闭 / 视图销毁时中止仍在进行的拉取，避免 git 进程残留。</summary>
@@ -265,11 +281,13 @@ public partial class MainView : UserControl
         _pathDebounce.Stop();
         SizeChanged -= OnSizeChanged;
         _pathDebounce.Tick -= OnPathDebounceTick;
+        _logFlushTimer.Stop();
+        FlushLog();
     }
 
     // ==================== 日志输出 ====================
 
-    /// <summary>向日志区追加一行（带时间戳），并自动滚动到底部。</summary>
+    /// <summary>向日志区追加一行（带时间戳）；合并 60ms 内的输出后统一刷新，并限制日志长度。</summary>
     private void Log(string message)
     {
         if (!Dispatcher.UIThread.CheckAccess())
@@ -278,12 +296,40 @@ public partial class MainView : UserControl
             return;
         }
 
-        // 统一脱敏：git 输出中可能回显带凭据的 URL，令牌绝不落日志
-        TxtLog.Text += $"[{DateTime.Now:HH:mm:ss}] {GitCredentials.MaskText(message)}{Environment.NewLine}";
-        if (ChkAutoScroll.IsChecked == true)
+        // 统一脱敏：git 输出中可能回显带凭据的 URL，令牌绝不落日志。
+        // 先写缓冲而不是直接 Text +=：移动端每次全量重设 TextBox.Text 都会让整页重新测量。
+        _logBuffer.Append('[').Append(DateTime.Now.ToString("HH:mm:ss")).Append("] ")
+            .Append(GitCredentials.MaskText(message)).AppendLine();
+        TrimLogBuffer();
+
+        if (!_logDirty)
         {
-            TxtLog.CaretIndex = TxtLog.Text?.Length ?? 0;
+            _logDirty = true;
+            _logFlushTimer.Start();
         }
+    }
+
+    /// <summary>把缓冲一次性写入 TextBox，把 N 次全量重排合并为 1 次。</summary>
+    private void FlushLog()
+    {
+        _logFlushTimer.Stop();
+        if (!_logDirty) return;
+
+        _logDirty = false;
+        TxtLog.Text = _logBuffer.ToString();
+        if (ChkAutoScroll.IsChecked == true)
+            TxtLog.CaretIndex = TxtLog.Text?.Length ?? 0;
+    }
+
+    /// <summary>超过上限时从完整行边界裁掉旧日志，避免文本无限增长拖慢窄屏折行布局。</summary>
+    private void TrimLogBuffer()
+    {
+        if (_logBuffer.Length <= MaxLogChars) return;
+
+        int cut = _logBuffer.Length - MaxLogChars;
+        int newline = _logBuffer.ToString(cut, _logBuffer.Length - cut).IndexOf('\n');
+        if (newline >= 0) cut += newline + 1;
+        _logBuffer.Remove(0, cut);
     }
 
     // ==================== 配置加载与保存 ====================
@@ -291,7 +337,7 @@ public partial class MainView : UserControl
     /// <summary>
     /// 根据当前仓库路径文本框内容加载项目配置；切换不同仓库自动加载对应项目自己的远端列表。
     /// </summary>
-    private void LoadConfigFromPath(bool force = false)
+    private async Task LoadConfigFromPathAsync(bool force = false)
     {
         string path = TxtRepoPath.Text?.Trim() ?? string.Empty;
 
@@ -300,25 +346,45 @@ public partial class MainView : UserControl
             string.Equals(path, _loadedInputPath, StringComparison.Ordinal))
             return;
 
+        int seq = ++_loadSeq;
         _repoRoot = null;
         _loadedInputPath = null;
         _config = null;
 
         _loading = true;
+        _remotes.Clear();
+        ChkAddAll.IsChecked = false;
+        ChkPushTags.IsChecked = false;
+        ChkForceCommit.IsChecked = false;
+        ChkForcePush.IsChecked = false;
+        TxtBranchInfo.Text = string.Empty;
+        BtnEditRemote.IsEnabled = false;
+        BtnDeleteRemote.IsEnabled = false;
+        BtnOpenRemote.IsEnabled = false;
+
+        RepoLoadResult result;
         try
         {
-            _remotes.Clear();
-            ChkAddAll.IsChecked = false;
-            ChkPushTags.IsChecked = false;
-            ChkForceCommit.IsChecked = false;
-            ChkForcePush.IsChecked = false;
-            TxtBranchInfo.Text = string.Empty;
-            BtnEditRemote.IsEnabled = false;
-            BtnDeleteRemote.IsEnabled = false;
-            BtnOpenRemote.IsEnabled = false;
+            // git 校验、配置读取、设置落盘都涉及子进程与文件 IO：放到后台线程，
+            // 否则移动端（内嵌 git 启动较慢）会直接阻塞 UI 线程造成掉帧
+            result = await Task.Run(() => _app.RepoSession.Load(path));
+        }
+        catch (Exception ex)
+        {
+            if (seq == _loadSeq)
+            {
+                Log(Loc.F($"加载项目配置失败：{ex.Message}"));
+                _loading = false;
+                RefreshIdentityStatus();
+            }
+            return;
+        }
 
-            // 校验、根目录解析、配置读取、最近项目记忆统一在 RepoSessionService
-            RepoLoadResult result = _app.RepoSession.Load(path);
+        // 路径又变了：丢弃过期结果，由最新一次加载负责收尾
+        if (seq != _loadSeq) return;
+
+        try
+        {
             switch (result.Failure)
             {
                 case RepoLoadFailure.EmptyPath:
@@ -359,11 +425,11 @@ public partial class MainView : UserControl
             ChkForceCommit.IsChecked = _config.CheckForceCommit;
             ChkForcePush.IsChecked = _config.CheckForcePush;
 
-            string urlSummary = _config.RemoteUrls.Count == 0
-                ? Loc.T("（空）")
-                : string.Join("、", _config.RemoteUrls);
             Log(Loc.F($"已加载项目配置：{ProjectConfig.ConfigFileName}（目录：{repoRoot}）"));
-            Log(Loc.F($"当前项目远端共 {_config.RemoteUrls.Count} 个：{urlSummary}"));
+            Log(Loc.F($"当前项目远端共 {_config.RemoteUrls.Count} 个："));
+            // 每个 URL 单独一行：窄屏不再需要折行整段超长文本（合并刷新保证不会因此卡顿）
+            foreach (string remote in _config.RemoteUrls)
+                Log(Loc.F($"       {remote}"));
         }
         finally
         {
@@ -444,6 +510,12 @@ public partial class MainView : UserControl
             }
 
             RepoHeaderNarrow.IsVisible = true;
+
+            // 远端列表交回外层 RootScroll 统一滚动：移动端两层 ScrollViewer 抢手势会明显掉帧。
+            // 自适应高度展开全部远端（配置上限 20 条），长地址由项模板单行省略，选中/编辑不受影响。
+            ScrollViewer.SetVerticalScrollBarVisibility(
+                ListRemotes, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
+            ListRemotes.Height = double.NaN;
         }
         else
         {
@@ -455,6 +527,11 @@ public partial class MainView : UserControl
             }
 
             RepoHeaderNarrow.IsVisible = false;
+
+            // 恢复桌面/横屏：列表自身固定高度并内部滚动，避免远端多时整页过长
+            ScrollViewer.SetVerticalScrollBarVisibility(
+                ListRemotes, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
+            ListRemotes.Height = 120;
         }
     }
 
@@ -550,14 +627,14 @@ public partial class MainView : UserControl
         TxtRepoPath.Text = path.TrimEnd(Path.DirectorySeparatorChar);
         // 赋值会触发 TextChanged 并重新开启防抖计时器，须在赋值后再次停止，避免 400ms 后重复加载一次
         _pathDebounce.Stop();
-        LoadConfigFromPath();
+        _ = LoadConfigFromPathAsync();
     }
 
     /// <summary>手动重新读取当前目录下的 multigitcommit.config.json。</summary>
     private void BtnLoadConfig_Click(object? sender, RoutedEventArgs e)
     {
         _pathDebounce.Stop();
-        LoadConfigFromPath(force: true);
+        _ = LoadConfigFromPathAsync(force: true);
     }
 
     /// <summary>打开“关于”对话框。</summary>
@@ -666,9 +743,9 @@ public partial class MainView : UserControl
 
             Log(Loc.F($"克隆成功：{targetDir}"));
 
-            // 克隆完成后切换到该仓库并加载其独立配置
+            // 克隆完成后切换到该仓库并加载其独立配置（后续写远端依赖 _config，必须等待加载完成）
             TxtRepoPath.Text = targetDir;
-            LoadConfigFromPath();
+            await LoadConfigFromPathAsync();
             _pathDebounce.Stop();
 
             // 按需把克隆来源 URL 写入本项目推送远端列表（工具独立配置，不动 .git/config）
@@ -839,7 +916,7 @@ public partial class MainView : UserControl
             await SetDefaultBranchAsync(path, branch);
 
             _pathDebounce.Stop();
-            LoadConfigFromPath();
+            await LoadConfigFromPathAsync();
             Log(Loc.T("========== 仓库初始化完成 =========="));
         }
         catch (Exception ex)
@@ -881,7 +958,7 @@ public partial class MainView : UserControl
             await SetDefaultBranchAsync(path, branch);
 
             _pathDebounce.Stop();
-            LoadConfigFromPath();
+            await LoadConfigFromPathAsync();
             _repoRoot ??= path;
             await GetCurrentBranchAsync(_repoRoot);
             Log(Loc.T("========== 默认分支处理完成 =========="));
@@ -1078,7 +1155,8 @@ public partial class MainView : UserControl
                 !string.Equals(TxtRepoPath.Text?.Trim(), _loadedInputPath, StringComparison.Ordinal))
             {
                 _pathDebounce.Stop();
-                LoadConfigFromPath(force: true);
+                // 后续提交推送依赖 _config，必须等加载完成
+                await LoadConfigFromPathAsync(force: true);
             }
 
             if (_repoRoot == null || _config == null)
@@ -1309,12 +1387,17 @@ public partial class MainView : UserControl
     /// <summary>清空日志区。</summary>
     private void BtnClearLog_Click(object? sender, RoutedEventArgs e)
     {
+        _logFlushTimer.Stop();
+        _logDirty = false;
+        _logBuffer.Clear();
         TxtLog.Text = string.Empty;
     }
 
     /// <summary>把日志区当前全部内容复制到系统剪贴板。</summary>
     private async void BtnCopyLog_Click(object? sender, RoutedEventArgs e)
     {
+        // 先刷出尚未合并的日志，避免复制到的内容比界面少几行
+        FlushLog();
         string text = TxtLog.Text ?? string.Empty;
         if (text.Length == 0)
         {
