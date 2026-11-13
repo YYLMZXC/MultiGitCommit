@@ -148,29 +148,65 @@ public static class AndroidGitPlatform
         }
     }
 
-    /// <summary>打开系统设置页让用户授予存储权限（Android 11+ 为「所有文件访问」，旧版为应用详情页）。</summary>
-    public static void OpenStoragePermissionSettings()
+    /// <summary>
+    /// 打开系统设置页让用户授予存储权限，返回是否成功拉起；失败时 error 为最后一次异常信息，
+    /// 调用方必须给出「手动进入设置」的提示，不能像以前那样静默吞掉。
+    ///
+    /// Android 11+ 按优先级尝试三级候选（部分 ROM 只实现其中一种）：
+    /// ① ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION：直达本应用的开关页，必须带 package: data；
+    /// ② ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION：全局「所有文件访问」应用列表，不接收 data；
+    /// ③ ACTION_APPLICATION_DETAILS_SETTINGS：应用详情页，旧版系统的主路径，也是兜底手动入口。
+    /// 旧实现把 ② 的 action 和 ① 的 package: data 混在一起，AOSP Settings 的 intent-filter
+    /// 不匹配 data，StartActivity 抛 ActivityNotFoundException 后被空 catch 吞掉，
+    /// 表现就是点「前往设置」毫无反应。
+    /// </summary>
+    public static bool OpenStoragePermissionSettings(out string? error)
     {
+        error = null;
 #if ANDROID
-        try
+        // 优先用前台 Activity 作 Context：部分 ROM 不接受从 Application Context 启动设置页；
+        // 退回 Application Context 时必须带 NEW_TASK 才能启动 Activity。
+        global::Android.Content.Context? context = MainActivity.Current
+                                                   ?? global::Android.App.Application.Context;
+        string? packageName = context?.PackageName;
+        if (context == null || string.IsNullOrEmpty(packageName))
         {
-            var context = global::Android.App.Application.Context;
-            string package = "package:" + context?.PackageName;
-            var intent = OperatingSystem.IsAndroidVersionAtLeast(30)
-                ? new global::Android.Content.Intent(
-                    global::Android.Provider.Settings.ActionManageAllFilesAccessPermission,
-                    global::Android.Net.Uri.Parse(package))
-                : new global::Android.Content.Intent(
-                    global::Android.Provider.Settings.ActionApplicationDetailsSettings,
-                    global::Android.Net.Uri.Parse(package));
-            intent.AddFlags(global::Android.Content.ActivityFlags.NewTask);
-            context?.StartActivity(intent);
+            error = "无法获取应用上下文或包名";
+            return false;
         }
-        catch
+
+        var packageUri = global::Android.Net.Uri.Parse("package:" + packageName);
+        var candidates = new List<global::Android.Content.Intent>();
+
+        if (OperatingSystem.IsAndroidVersionAtLeast(30))
         {
-            // 个别 ROM 没有对应设置页：用户仍可手动到系统设置里授权
+            var appPage = new global::Android.Content.Intent(
+                global::Android.Provider.Settings.ActionManageAppAllFilesAccessPermission, packageUri);
+            appPage.AddCategory(global::Android.Content.Intent.CategoryDefault);
+            candidates.Add(appPage);
+            candidates.Add(new global::Android.Content.Intent(
+                global::Android.Provider.Settings.ActionManageAllFilesAccessPermission));
+        }
+        candidates.Add(new global::Android.Content.Intent(
+            global::Android.Provider.Settings.ActionApplicationDetailsSettings, packageUri));
+
+        foreach (var intent in candidates)
+        {
+            try
+            {
+                if (context is not global::Android.App.Activity)
+                    intent.AddFlags(global::Android.Content.ActivityFlags.NewTask);
+                context.StartActivity(intent);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                // 该 ROM 没有这一级设置页：换下一个候选，全部失败才把最后的异常交给 UI 提示
+                error = ex.Message;
+            }
         }
 #endif
+        return false;
     }
 
     /// <summary>

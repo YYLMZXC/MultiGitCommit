@@ -150,11 +150,13 @@ public partial class MainView : UserControl
 
             if (AndroidGitPlatform.IsAllFilesAccessGranted)
                 Log(Loc.T("      已获得存储权限，可直接选择共享存储中的仓库目录。"));
-            else
+            else if (OperatingSystem.IsAndroidVersionAtLeast(30))
             {
                 Log(Loc.T("      当前未获得存储权限：共享存储目录会不可写，稍后引导授权。"));
                 PromptStoragePermissionOnStartup();
             }
+            else
+                Log(Loc.T("      当前未获得存储权限：请在系统权限弹框中允许存储权限，否则共享存储目录会不可写。"));
         }
 
         // 解析 git 来源（内嵌 / 自动检测 / 系统 PATH / 指定路径），不依赖系统安装 git
@@ -178,38 +180,62 @@ public partial class MainView : UserControl
     /// 启动时引导「所有文件访问」授权：Android 11+ 该权限没有系统运行时弹框，只能跳设置页，
     /// 因此在应用内先说明用途再让用户决定；不授权仍可用应用专属目录，所以允许取消。
     /// 延后到 Loaded 执行，保证覆盖层宿主与 UI 已完成首次布局。
+    /// Android 10 及以下由 MainActivity 弹系统 READ/WRITE 权限框，系统里也不存在这个特殊权限，
+    /// 再弹一次会与系统框重叠并跳到错误页面，故只在 API ≥ 30 引导。
     /// </summary>
     private void PromptStoragePermissionOnStartup()
     {
+        if (!OperatingSystem.IsAndroidVersionAtLeast(30)) return;
+
         Dispatcher.UIThread.Post(() =>
         {
             async void Prompt()
             {
-                try
-                {
-                    bool go = await Dialogs.ConfirmAsync(this, Loc.T("存储权限"),
-                        Loc.T("MultiGitCommit 需要「所有文件访问」权限，才能读写共享存储（/storage/emulated/0）中的 Git 仓库。") +
-                        Environment.NewLine + Environment.NewLine +
-                        Loc.T("不授权也能使用应用专属目录（输入框已预填），但系统文件夹选择器中选到的共享目录会不可写。") +
-                        Environment.NewLine + Environment.NewLine + Loc.T("是否前往系统设置授权？"));
-                    if (go)
-                    {
-                        AndroidGitPlatform.OpenStoragePermissionSettings();
-                        Log(Loc.T("已打开系统设置；授权后返回应用即可选择共享存储中的仓库目录。"));
-                    }
-                    else
-                    {
-                        Log(Loc.T("已跳过授权：请使用应用专属目录，或稍后在系统设置中开启「所有文件访问」。"));
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Log(Loc.T("权限引导失败：") + ex.Message);
-                }
+                await PromptStoragePermissionAsync(Loc.T("存储权限"),
+                    Loc.T("MultiGitCommit 需要「所有文件访问」权限，才能读写共享存储（/storage/emulated/0）中的 Git 仓库。") +
+                    Environment.NewLine + Environment.NewLine +
+                    Loc.T("不授权也能使用应用专属目录（输入框已预填），但系统文件夹选择器中选到的共享目录会不可写。") +
+                    Environment.NewLine + Environment.NewLine + Loc.T("是否前往系统设置授权？"));
             }
 
             Prompt();
         }, DispatcherPriority.Loaded);
+    }
+
+    /// <summary>弹确认框 → 跳设置页 → 明确反馈成功 / 失败（失败时给出手动路径）。</summary>
+    private async Task PromptStoragePermissionAsync(string title, string message)
+    {
+        try
+        {
+            if (!await Dialogs.ConfirmAsync(this, title, message))
+            {
+                Log(Loc.T("已跳过授权：请使用应用专属目录，或稍后在系统设置中开启「所有文件访问」。"));
+                return;
+            }
+
+            await OpenPermissionSettingsAsync();
+        }
+        catch (Exception ex)
+        {
+            Log(Loc.T("权限引导失败：") + ex.Message);
+        }
+    }
+
+    /// <summary>拉起系统设置页；任何失败都要让用户看到原因与手动路径，不能静默吞异常。</summary>
+    private async Task OpenPermissionSettingsAsync()
+    {
+        if (AndroidGitPlatform.OpenStoragePermissionSettings(out string? error))
+        {
+            Log(Loc.T("已打开系统设置；授权后返回应用即可选择共享存储中的仓库目录。"));
+            Log(Loc.T("若设置页未直接显示「所有文件访问」开关，请手动进入：设置 → 应用 → MultiGitCommit → 权限 → 所有文件访问。"));
+            return;
+        }
+
+        Log(Loc.F($"无法打开系统设置页：{error}"));
+        await Dialogs.ShowMessageAsync(this, Loc.T("无法打开系统设置"),
+            Loc.T("本设备未能自动打开「所有文件访问」设置页，请手动进入：") + Environment.NewLine +
+            Loc.T("设置 → 应用 → MultiGitCommit → 权限 → 所有文件访问") + Environment.NewLine + Environment.NewLine +
+            Loc.F($"系统返回：{error}"));
     }
 
     private void OnSizeChanged(object? sender, SizeChangedEventArgs e) => ApplyResponsiveLayout();
@@ -500,9 +526,14 @@ public partial class MainView : UserControl
         if (!OperatingSystem.IsAndroid()) return true;
         if (Dialogs.TryEnsureWritable(path, out string error)) return true;
 
-        await Dialogs.ShowMessageAsync(this, Loc.T("目录不可写"),
-            Loc.F($"无法写入该目录：{path}{Environment.NewLine}{error}{Environment.NewLine}{Environment.NewLine}") +
-            Loc.T("若这是 /storage/emulated/0 下的目录，请先在系统设置中为 MultiGitCommit 授予「所有文件访问」权限。"));
+        string message = Loc.F($"无法写入该目录：{path}{Environment.NewLine}{error}{Environment.NewLine}{Environment.NewLine}") +
+                         Loc.T("若这是 /storage/emulated/0 下的目录，请先在系统设置中为 MultiGitCommit 授予「所有文件访问」权限。");
+        if (OperatingSystem.IsAndroidVersionAtLeast(30))
+            // 启动引导被跳过 / 设置页跳转失败时，这里再给一次直达设置页的入口
+            await PromptStoragePermissionAsync(Loc.T("目录不可写"),
+                message + Environment.NewLine + Environment.NewLine + Loc.T("是否前往系统设置授权？"));
+        else
+            await Dialogs.ShowMessageAsync(this, Loc.T("目录不可写"), message);
         return false;
     }
 

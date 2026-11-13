@@ -46,10 +46,23 @@ public class MainActivity : AvaloniaMainActivity<App>
             });
     }
 
+    /// <summary>
+    /// 当前前台 Activity：部分 ROM 要求用 Activity（而不是 Application Context）拉起系统设置页，
+    /// 由 AndroidGitPlatform.OpenStoragePermissionSettings 优先使用；销毁时清空避免悬挂引用。
+    /// </summary>
+    public static MainActivity? Current { get; private set; }
+
     protected override void OnResume()
     {
         base.OnResume();
+        Current = this;
         RequestStoragePermissionsIfNeeded();
+    }
+
+    protected override void OnDestroy()
+    {
+        if (ReferenceEquals(Current, this)) Current = null;
+        base.OnDestroy();
     }
 
     /// <summary>
@@ -58,7 +71,8 @@ public class MainActivity : AvaloniaMainActivity<App>
     /// - Android 11+（API ≥ 30）：「所有文件访问」（MANAGE_EXTERNAL_STORAGE）没有运行时弹框，
     ///   只能在应用内说明后引导到系统设置页（见 MainView 的启动引导与
     ///   AndroidGitPlatform.OpenStoragePermissionSettings），避免一启动就把用户踢出应用。
-    /// 从设置页返回会再次 OnResume，权限状态由 AndroidGitPlatform.IsAllFilesAccessGranted 实时复查。
+    /// 从设置页返回会再次 OnResume；本方法只管旧版运行时权限，
+    /// 「所有文件访问」由 UI 侧调用 AndroidGitPlatform.IsAllFilesAccessGranted 实时查询。
     /// </summary>
     private void RequestStoragePermissionsIfNeeded()
     {
