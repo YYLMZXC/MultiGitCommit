@@ -243,6 +243,16 @@ dotnet build MultiGitCommit.csproj -c Release -p:IncludeMobile=true
 > **安卓默认仓库文件夹**：启动时在共享存储创建一个独立目录 `/storage/emulated/0/MultiGitCommit`（文件管理器可见、方便传文件，需「所有文件访问」权限；未授权时自动回退到应用专属外部目录 `Android/data/<包名>/files/MultiGitCommit`）。该目录只作**父目录**，本身不是 Git 仓库、不会自动 `git init`；【克隆项目】【选择文件夹】【初始化仓库】默认都以它为起点，克隆 / 初始化的仓库是它的子目录，仓库管理首页也会自动扫描到其中的仓库。主界面仓库输入框为空时以水印显示该路径，不会把它误当成仓库去校验。
 >
 > **iOS 默认仓库文件夹**：iOS 沙盒不允许访问外部目录，系统文件选择器也拿不到可用真实路径，所以启动时在应用沙盒内创建 `Documents/MultiGitCommit` 作为唯一默认仓库父目录（行为与安卓一致：只作父目录、克隆 / 手输路径 / 仓库管理首页扫描都以它为起点，输入框空时以水印显示）。plist 声明了 `UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace`，可在系统「文件」App →「我的 iPhone」→ MultiGitCommit 里查看该目录并拷入 / 拷出现成仓库。相关实现统一收在 `DefaultFolders.cs`（安卓仍走 `AndroidGitPlatform`，iOS 走沙盒 Documents）。
+>
+> **iOS 内嵌 git（libgit2）**：iOS 沙盒禁止 fork/exec 子进程，安卓那套「打包 git 可执行文件」在 iOS 不可行。
+> git 能力改为**进程内实现**：libgit2 1.9.1 编成静态库链接进 App（`native-git/ios/`，复现脚本 `scripts/BuildIosLibgit2.sh`），
+> C# 侧 `Services/IosLibgit2/IosGitRunner.cs` 实现 `IGitCliRunner`，把 git 命令行字符串逐条翻译成
+> libgit2 调用（经 `native-git/ios/mgc_shim.c` 适配层，输出格式与退出码严格对齐 git CLI，上层解析逻辑零改动）。
+> 限制与约定：
+> - 只支持 **https** 远端（SecureTransport 走系统信任链；未编译 libssh2，ssh 不可用），凭据沿用「注入 URL」方案；
+> - iOS 无系统 git 凭据助手，`credential fill` 恒失败，请直接在【Git 环境】配置账号；
+> - `pull --rebase` 暂不支持（会明确报错），请用合并策略；`--depth` 浅克隆被忽略（libgit2 不支持）；
+> - 设置页的 git 路径显示伪路径 `__libgit2__`（`GitLocator` 在 iOS 固定返回），Git 来源模式选择对 iOS 无效。
 
 ## 非交互执行与超时保护
 
@@ -491,7 +501,7 @@ MultiGitCommit.exe --help          # 全部参数与环境变量
 - 仓库路径统一经 `RepoLocator`（`git rev-parse --show-toplevel`）校验，`files` 只能传仓库内相对路径。
 - GUI 与 MCP 共用设置文件，二者同时写可能互相覆盖（`settings.json` / 配置文件都是整文件覆盖），建议错开写操作。
 - 请求串行处理，避免进程内静态单例的并发冲突；clone 上限 30 分钟，部分 MCP 客户端可能提前超时。
-- 仅桌面 `net10.0`；Android / iOS 无法执行 git 子进程，不适用 MCP。
+- 仅桌面 `net10.0`；Android 走 APK 内嵌 git 可执行文件、iOS 走进程内 libgit2（无独立 git 程序），MCP 场景不适用移动端。
 
 ## CLI 命令行（人机直接调用）
 

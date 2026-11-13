@@ -240,6 +240,14 @@ public static class GitLocator
     /// <summary>按指定模式解析 git（不修改当前快照），供设置窗口实时预览/测试。</summary>
     public static string? ResolvePreview(GitSourceMode mode, string? customPath, out string description)
     {
+        // iOS：沙盒禁止 fork/exec 子进程，任何来源（内嵌 / 系统 / 自定义）都拿不到可执行文件。
+        // git 能力来自链接进 App 的 libgit2（IosGitRunner），这里返回伪路径并跳过 Validate。
+        if (OperatingSystem.IsIOS())
+        {
+            description = Loc.F($"iOS 内嵌 libgit2 {IosLibgit2.IosGitRunner.Libgit2Version}（进程内实现；仅支持 https 远端）");
+            return IosLibgit2.IosGitRunner.PseudoGitPath;
+        }
+
         string? found;
         switch (mode)
         {

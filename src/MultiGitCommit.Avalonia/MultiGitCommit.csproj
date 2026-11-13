@@ -14,6 +14,8 @@
     <OutputType Condition="'$(TargetFramework)' == 'net10.0'">WinExe</OutputType>
     <OutputType Condition="'$(TargetFramework)' != 'net10.0'">Exe</OutputType>
     <Nullable>enable</Nullable>
+    <!-- iOS 内嵌 git 的 shim 绑定使用函数指针（UnmanagedCallersOnly / delegate*），必须允许 unsafe -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MultiGitCommit</RootNamespace>
     <AssemblyName>MultiGitCommit</AssemblyName>
@@ -162,6 +164,25 @@
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
     <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
   </PropertyGroup>
+
+  <!-- iOS 内嵌 libgit2（静态库，源码见 scripts/BuildIosLibgit2.sh，版本 1.9.1）：
+       iOS 沙盒禁止 fork/exec 子进程，安卓那套「打包 git 可执行文件」在 iOS 不可行，
+       git 能力必须在进程内实现 —— 链接 libgit2，C# 侧用 [DllImport("__Internal")] 直连（Services/IosLibgit2/）。
+       静态库按平台分开链接（arm64 设备 / arm64 模拟器无法 lipo 合并，平台不同）：
+       判据取 RuntimeIdentifier（IDE / 命令行 -r 传入）与 RuntimeIdentifiers（csproj 默认值）里是否含 simulator。
+       ForceLoad：主程序只引用部分符号，不加 -force_load 时归档里的其它目标文件不会被拉入，运行期会缺符号。
+       Frameworks / LinkerFlags：SecureTransport 走 Security + CoreFoundation + CFNetwork，压缩依赖系统 zlib。
+       目录缺失时直接报错而不是静默降级：iOS 不加这个库，git 功能就无法工作。 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
+    <NativeReference Include="..\..\native-git\ios\libgit2-iossimulator-arm64.a" Kind="Static" ForceLoad="true"
+                     Condition="$([System.String]::Copy('$(RuntimeIdentifier);$(RuntimeIdentifiers)').Contains('simulator'))">
+      <LinkerFlags>-lz -framework Security -framework CoreFoundation</LinkerFlags>
+    </NativeReference>
+    <NativeReference Include="..\..\native-git\ios\libgit2-iphoneos-arm64.a" Kind="Static" ForceLoad="true"
+                     Condition="!$([System.String]::Copy('$(RuntimeIdentifier);$(RuntimeIdentifiers)').Contains('simulator'))">
+      <LinkerFlags>-lz -framework Security -framework CoreFoundation</LinkerFlags>
+    </NativeReference>
+  </ItemGroup>
 
   <!-- 内嵌便携版 Git（随桌面版分发，开箱即用）：
        Windows：把 git 发行包放在 src/MultiGitCommit.Avalonia/git/（cmd\git.exe、mingw64\ 等）；

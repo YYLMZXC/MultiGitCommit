@@ -158,7 +158,8 @@ public partial class MainView : UserControl
 
         if (OperatingSystem.IsIOS())
         {
-            Log(Loc.T("注意：iOS 沙盒禁止执行子进程，git 相关功能在本平台不可用；界面与设置仅供浏览。"));
+            Log(Loc.F($"iOS 已内嵌 git（libgit2 {IosLibgit2.IosGitRunner.Libgit2Version}，进程内实现）："));
+            Log(Loc.T("      提交 / 推送 / 拉取 / 克隆开箱即用，远端请使用 https 协议（不支持 ssh）。"));
 
             // iOS 沙盒只能读写 App 自己的目录，系统文件选择器也拿不到可用真实路径：
             // 预置 Documents/MultiGitCommit 作为默认仓库父目录（克隆 / 手输路径都以它为父目录），

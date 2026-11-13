@@ -33,7 +33,9 @@ public sealed class AppServices
 
     private AppServices()
     {
-        Cli = GitCliRunner.Default;
+        // iOS：沙盒禁止 fork/exec 子进程，桌面 / Android 的 CLI 执行器跑不起来；
+        // git 能力走链接进 App 的 libgit2（IosGitRunner 把 git 命令行字符串翻译成 libgit2 调用）。
+        Cli = OperatingSystem.IsIOS() ? IosLibgit2.IosGitRunner.Instance : GitCliRunner.Default;
         Settings = SettingsProvider.Instance;
         SettingsEditor = new AppSettingsService(Settings);
         ProjectConfigs = new ProjectConfigStore();

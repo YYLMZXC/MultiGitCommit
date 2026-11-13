@@ -711,5 +711,7 @@ internal static class LocStringsEn
             { "界面语言已保存为：", "Language saved as:" },
             { "！ 部分账号或令牌无法解密（密钥文件丢失或被更换），请重新填写后点【确定】保存。", "! Some accounts or tokens could not be decrypted (the key file is missing or has changed). Re-enter them and click OK to save." },
             { "提示：该目录可在系统「文件」App →「我的 iPhone」→ MultiGitCommit 中查看，可拷入现成仓库。", "Hint: this folder is visible in the system Files app under \"On My iPhone\" -> MultiGitCommit, where you can copy existing repositories in." },
+            { "iOS 沙盒禁止执行子进程：仅支持 git 子命令，shell / 其他程序不可用。", "iOS sandbox forbids child processes: only git subcommands are supported; shell and other programs are unavailable." },
+            { "      提交 / 推送 / 拉取 / 克隆开箱即用，远端请使用 https 协议（不支持 ssh）。", "      Commit / push / pull / clone work out of the box; use https remotes (ssh is not supported)." },
         };
 }
