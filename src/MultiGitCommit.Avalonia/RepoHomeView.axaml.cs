@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 // 安卓 TFM 的隐式全局 using 会引入 Android.Widget.Button，与 Avalonia 的 Button 冲突，固定别名消歧
@@ -9,6 +10,7 @@ namespace MultiGitCommit;
 /// <summary>
 /// 仓库管理首页：最近打开的项目记录（保存在 AppSettings.RecentRepoPaths）+ 本地 Git 仓库自动发现
 /// （后台线程扫描，算法与 MCP find_repos 共用 RepoScanner），支持唤起系统文件管理器选目录打开。
+/// 两个列表的每一项都显示完整路径与当前分支（由 RepoBranchReader 解析 .git/HEAD，不启动 git 进程）。
 /// 以覆盖层形式嵌在 MainView 内，由宿主通过 <see cref="Attach"/> 注入回调。
 /// </summary>
 public partial class RepoHomeView : UserControl
@@ -25,11 +27,11 @@ public partial class RepoHomeView : UserControl
     /// <summary>应用设置来源（最近项目记录与默认启动页）。</summary>
     private ISettingsProvider _settings = SettingsProvider.Instance;
 
-    /// <summary>最近打开的项目（绑定到 ListRecent）。</summary>
-    private readonly ObservableCollection<string> _recent = new();
+    /// <summary>最近打开的项目（绑定到 ListRecent，含完整路径与当前分支）。</summary>
+    private readonly ObservableCollection<RepoHomeItem> _recent = new();
 
-    /// <summary>自动发现的本地仓库（绑定到 ListDiscovered）。</summary>
-    private readonly ObservableCollection<string> _discovered = new();
+    /// <summary>自动发现的本地仓库（绑定到 ListDiscovered，含完整路径与当前分支）。</summary>
+    private readonly ObservableCollection<RepoHomeItem> _discovered = new();
 
     /// <summary>当前扫描的取消令牌源（刷新 / 视图销毁时中止旧扫描）。</summary>
     private CancellationTokenSource? _scanCts;
@@ -66,6 +68,10 @@ public partial class RepoHomeView : UserControl
     public void OnShown()
     {
         RefreshRecent();
+
+        // 在项目页切换分支 / 新建分支后返回首页，自动发现列表的分支信息也要同步刷新
+        foreach (RepoHomeItem item in _discovered) item.RefreshBranch();
+
         if (!_scanStarted)
         {
             _scanStarted = true;
@@ -83,7 +89,7 @@ public partial class RepoHomeView : UserControl
         {
             foreach (string path in recents)
             {
-                if (!string.IsNullOrWhiteSpace(path)) _recent.Add(path);
+                if (!string.IsNullOrWhiteSpace(path)) _recent.Add(new RepoHomeItem(path));
             }
         }
 
@@ -93,8 +99,8 @@ public partial class RepoHomeView : UserControl
 
     private void RemoveRecent_Click(object? sender, RoutedEventArgs e)
     {
-        if ((sender as AvaloniaButton)?.DataContext is not string path) return;
-        _settings.Current.RecentRepoPaths.RemoveAll(p => string.Equals(p, path, StringComparison.Ordinal));
+        if ((sender as AvaloniaButton)?.DataContext is not RepoHomeItem item) return;
+        _settings.Current.RecentRepoPaths.RemoveAll(p => string.Equals(p, item.RepoPath, StringComparison.Ordinal));
         SaveSettingsQuiet();
         RefreshRecent();
     }
@@ -124,10 +130,12 @@ public partial class RepoHomeView : UserControl
 
         try
         {
-            IReadOnlyList<string> found =
-                await Task.Run(() => RepoScanner.Scan(roots, ScanMaxDepth, ScanLimit, ct), ct);
+            // 分支读取（解析 .git/HEAD）与目录扫描一起放后台线程：最多 300 个仓库，避免阻塞 UI
+            List<RepoHomeItem> found = await Task.Run(
+                () => RepoScanner.Scan(roots, ScanMaxDepth, ScanLimit, ct)
+                    .Select(path => new RepoHomeItem(path)).ToList(), ct);
 
-            foreach (string repo in found) _discovered.Add(repo);
+            foreach (RepoHomeItem repo in found) _discovered.Add(repo);
             TxtScanStatus.Text = found.Count >= ScanLimit
                 ? Loc.F($"已发现 {found.Count} 个仓库（达到上限，可能未扫全）")
                 : Loc.F($"共发现 {found.Count} 个本地仓库");
@@ -186,8 +194,8 @@ public partial class RepoHomeView : UserControl
     /// <summary>列表「打开」按钮（最近项目与自动发现共用）：跳转到对应仓库的项目页。</summary>
     private void OpenRepo_Click(object? sender, RoutedEventArgs e)
     {
-        if (_host == null || (sender as AvaloniaButton)?.DataContext is not string path) return;
-        _host.OpenRepoFromHome(path);
+        if (_host == null || (sender as AvaloniaButton)?.DataContext is not RepoHomeItem item) return;
+        _host.OpenRepoFromHome(item.RepoPath);
     }
 
     /// <summary>唤起系统文件管理器选择仓库目录并载入（复用项目页的选目录管线，含安卓 SAF 与手输兜底）。</summary>
@@ -229,4 +237,40 @@ public partial class RepoHomeView : UserControl
             // 保存失败不影响当前使用
         }
     }
+}
+
+/// <summary>
+/// 仓库管理列表项：完整路径 + 当前分支。
+/// 分支由 <see cref="RepoBranchReader"/> 解析 .git/HEAD 得到（不启动 git 进程，适合批量展示）；
+/// 分支可变（在项目页切换分支后返回首页会重读），故实现属性变更通知让绑定自动刷新。
+/// </summary>
+public sealed class RepoHomeItem : INotifyPropertyChanged
+{
+    private string _branch;
+
+    public RepoHomeItem(string repoPath)
+    {
+        RepoPath = repoPath;
+        _branch = RepoBranchReader.Read(repoPath);
+    }
+
+    /// <summary>仓库根目录完整路径。</summary>
+    public string RepoPath { get; }
+
+    /// <summary>当前分支名；无法读取时显示「—」，游离 HEAD 显示 HEAD@短哈希。</summary>
+    public string Branch
+    {
+        get => _branch;
+        private set
+        {
+            if (_branch == value) return;
+            _branch = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Branch)));
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    /// <summary>重新读取当前分支（切换分支 / 拉取 / 克隆等操作后回到首页时调用）。</summary>
+    public void RefreshBranch() => Branch = RepoBranchReader.Read(RepoPath);
 }

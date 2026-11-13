@@ -219,6 +219,10 @@ L.RepoHomeView.L102.Content	Project page
 L.RepoHomeView.L104.ToolTip_Tip	Start directly on the commit & push page (previous behavior)
 L.RepoHomeView.L105.Content	Repository home
 L.RepoHomeView.L107.ToolTip_Tip	Start on the repository home page (when the current directory is not a repository)
+# 首页两个列表共用的语义键（不绑定 XAML 行号）
+L.RepoHomeView.PathLabel.Text	Path:
+L.RepoHomeView.BranchLabel.Text	Branch:
+L.RepoHomeView.BranchLabel.ToolTip_Tip	Current branch is read from the repository's .git/HEAD; an em dash means no .git or unreadable, and the HEAD@ prefix means a detached HEAD
 L.StageFilesView.L027.Content	Add selected files
 L.StageFilesView.L028.Content	Cancel
 L.StageFilesView.L033.Text	Select files to run git add on

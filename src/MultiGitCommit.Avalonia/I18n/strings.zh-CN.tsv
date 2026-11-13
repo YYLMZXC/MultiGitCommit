@@ -219,6 +219,10 @@ L.RepoHomeView.L102.Content	项目页
 L.RepoHomeView.L104.ToolTip_Tip	启动直接进入仓库提交推送界面（历史行为）
 L.RepoHomeView.L105.Content	仓库管理页
 L.RepoHomeView.L107.ToolTip_Tip	启动先进入仓库管理首页（当前目录无仓库时）
+# 首页两个列表共用的语义键（不绑定 XAML 行号）
+L.RepoHomeView.PathLabel.Text	路径：
+L.RepoHomeView.BranchLabel.Text	分支：
+L.RepoHomeView.BranchLabel.ToolTip_Tip	当前分支读取自仓库的 .git/HEAD；「—」表示没有 .git 或无法读取，HEAD@ 前缀表示游离 HEAD
 L.StageFilesView.L027.Content	添加勾选的文件
 L.StageFilesView.L028.Content	取消
 L.StageFilesView.L033.Text	选择要执行 git add 的文件

@@ -48,8 +48,21 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Border BorderBrush="#DDDDDD" BorderThickness="0,0,0,1" Padding="0,4">
+                                    <!-- 两个列表共用同一套「路径 / 分支」标签资源键：语义键不随 XAML 行号漂移 -->
                                     <Grid ColumnDefinitions="*,Auto,Auto">
-                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" VerticalAlignment="Center" ToolTip.Tip="{Binding}"/>
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,6,0">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <TextBlock Grid.Column="0" Foreground="#666" VerticalAlignment="Top" Margin="0,0,4,0"
+                                                           Text="{DynamicResource L.RepoHomeView.PathLabel.Text}"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding RepoPath}" TextWrapping="Wrap" ToolTip.Tip="{Binding RepoPath}"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                                                <TextBlock Grid.Column="0" Foreground="#666" VerticalAlignment="Top" Margin="0,0,4,0"
+                                                           Text="{DynamicResource L.RepoHomeView.BranchLabel.Text}"/>
+                                                <TextBlock Grid.Column="1" Foreground="#2B579A" Text="{Binding Branch}" TextWrapping="Wrap"
+                                                           ToolTip.Tip="{DynamicResource L.RepoHomeView.BranchLabel.ToolTip_Tip}"/>
+                                            </Grid>
+                                        </StackPanel>
                                         <Button Grid.Column="1" Classes="linkBtn" Content="{DynamicResource L.RepoHomeView.L053.Content}" Click="OpenRepo_Click"
                                                 ToolTip.Tip="{DynamicResource L.RepoHomeView.L054.ToolTip_Tip}"/>
                                         <Button Grid.Column="2" Classes="linkBtn" Content="{DynamicResource L.RepoHomeView.L055.Content}" Click="RemoveRecent_Click"
@@ -78,7 +91,19 @@
                                 <DataTemplate>
                                     <Border BorderBrush="#DDDDDD" BorderThickness="0,0,0,1" Padding="0,4">
                                         <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" VerticalAlignment="Center" ToolTip.Tip="{Binding}"/>
+                                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,6,0">
+                                                <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Grid.Column="0" Foreground="#666" VerticalAlignment="Top" Margin="0,0,4,0"
+                                                               Text="{DynamicResource L.RepoHomeView.PathLabel.Text}"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding RepoPath}" TextWrapping="Wrap" ToolTip.Tip="{Binding RepoPath}"/>
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                                                    <TextBlock Grid.Column="0" Foreground="#666" VerticalAlignment="Top" Margin="0,0,4,0"
+                                                               Text="{DynamicResource L.RepoHomeView.BranchLabel.Text}"/>
+                                                    <TextBlock Grid.Column="1" Foreground="#2B579A" Text="{Binding Branch}" TextWrapping="Wrap"
+                                                               ToolTip.Tip="{DynamicResource L.RepoHomeView.BranchLabel.ToolTip_Tip}"/>
+                                                </Grid>
+                                            </StackPanel>
                                             <Button Grid.Column="1" Classes="linkBtn" Content="{DynamicResource L.RepoHomeView.L053.Content}" Click="OpenRepo_Click"
                                                     ToolTip.Tip="{DynamicResource L.RepoHomeView.L054.ToolTip_Tip}"/>
                                         </Grid>
