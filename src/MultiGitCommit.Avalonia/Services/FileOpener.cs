@@ -88,6 +88,41 @@ public static class FileOpener
     }
 
     /// <summary>
+    /// 直接打开文件夹本身（Windows 资源管理器 / macOS Finder / Linux 文件管理器）；
+    /// 与 <see cref="TryReveal"/> 的「在父目录中定位并选中」不同，这里进入目录内容，
+    /// 供仓库管理首页的【打开文件夹】使用。
+    /// </summary>
+    public static bool TryOpenFolder(string dir, out string error)
+    {
+        if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
+        {
+            error = Loc.T("移动端不支持在系统文件管理器中打开文件夹。");
+            return false;
+        }
+
+        if (!Directory.Exists(dir))
+        {
+            error = Loc.F($"所在目录不存在：{dir}");
+            return false;
+        }
+
+        // Windows：ShellExecute 传目录路径即由资源管理器打开该目录（不用 explorer /select，那会停在父目录）
+        if (OperatingSystem.IsWindows())
+            return TryShellExecute(dir, out error);
+
+        if (OperatingSystem.IsMacOS())
+            return TryStartAny(new[] { ("open", new[] { dir }) }, out error);
+
+        return TryStartAny(new[]
+        {
+            ("xdg-open", new[] { dir }),
+            ("gio", new[] { "open", dir }),
+            ("gnome-open", new[] { dir }),
+            ("kde-open", new[] { dir })
+        }, out error);
+    }
+
+    /// <summary>
     /// 在文件管理器中定位文件（Windows 资源管理器选中 / macOS Finder 显示 / Linux 打开所在文件夹）。
     /// 文件已被删除时自动退到最近一个仍然存在的父目录，因此 D 状态的文件也可用。
     /// </summary>

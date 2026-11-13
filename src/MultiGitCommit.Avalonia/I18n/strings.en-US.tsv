@@ -223,6 +223,8 @@ L.RepoHomeView.L107.ToolTip_Tip	Start on the repository home page (when the curr
 L.RepoHomeView.PathLabel.Text	Path:
 L.RepoHomeView.BranchLabel.Text	Branch:
 L.RepoHomeView.BranchLabel.ToolTip_Tip	Current branch is read from the repository's .git/HEAD; an em dash means no .git or unreadable, and the HEAD@ prefix means a detached HEAD
+L.RepoHomeView.OpenFolder.Content	Open folder
+L.RepoHomeView.OpenFolder.ToolTip_Tip	Open this project's folder in the system file manager (Windows Explorer / macOS Finder / Linux file manager; not available on mobile)
 L.StageFilesView.L027.Content	Add selected files
 L.StageFilesView.L028.Content	Cancel
 L.StageFilesView.L033.Text	Select files to run git add on
@@ -633,7 +635,11 @@ git add -- {0} 个文件（{1}-{2}/{3}）	git add -- {0} files ({1}-{2}/{3})
 移动端不支持用系统默认程序打开本地文件。	Opening local files with a system default app is not supported on mobile.
 文件不存在：{0}	File does not exist: {0}
 移动端不支持在系统文件管理器中定位文件。	Locating files in the system file manager is not supported on mobile.
+移动端不支持在系统文件管理器中打开文件夹。	Opening folders in the system file manager is not supported on mobile.
 所在目录不存在：{0}	Containing directory does not exist: {0}
+# 仓库管理首页：打开项目文件夹
+打开文件夹	Open folder
+× 打开文件夹失败：	x Failed to open folder:
 没有可用的系统打开程序。	No system program is available to open this.
 iOS 沙盒禁止执行外部进程，git 命令在本平台不可用。	The iOS sandbox forbids child processes; git commands are unavailable on this platform.
 无法启动进程：{0}	Cannot start process: {0}

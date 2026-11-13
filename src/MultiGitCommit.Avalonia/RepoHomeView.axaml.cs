@@ -10,7 +10,8 @@ namespace MultiGitCommit;
 /// <summary>
 /// 仓库管理首页：最近打开的项目记录（保存在 AppSettings.RecentRepoPaths）+ 本地 Git 仓库自动发现
 /// （后台线程扫描，算法与 MCP find_repos 共用 RepoScanner），支持唤起系统文件管理器选目录打开。
-/// 两个列表的每一项都显示完整路径与当前分支（由 RepoBranchReader 解析 .git/HEAD，不启动 git 进程）。
+/// 两个列表的每一项都显示完整路径与当前分支（由 RepoBranchReader 解析 .git/HEAD，不启动 git 进程），
+/// 并可点【打开文件夹】在系统文件管理器中打开该仓库目录。
 /// 以覆盖层形式嵌在 MainView 内，由宿主通过 <see cref="Attach"/> 注入回调。
 /// </summary>
 public partial class RepoHomeView : UserControl
@@ -196,6 +197,15 @@ public partial class RepoHomeView : UserControl
     {
         if (_host == null || (sender as AvaloniaButton)?.DataContext is not RepoHomeItem item) return;
         _host.OpenRepoFromHome(item.RepoPath);
+    }
+
+    /// <summary>列表「打开文件夹」按钮（两个列表共用）：在系统文件管理器中打开该项目的目录，不切换页面。</summary>
+    private async void OpenFolder_Click(object? sender, RoutedEventArgs e)
+    {
+        if ((sender as AvaloniaButton)?.DataContext is not RepoHomeItem item) return;
+        if (FileOpener.TryOpenFolder(item.RepoPath, out string error)) return;
+
+        await Dialogs.ShowMessageAsync(this, Loc.T("打开文件夹"), Loc.T("× 打开文件夹失败：") + error);
     }
 
     /// <summary>唤起系统文件管理器选择仓库目录并载入（复用项目页的选目录管线，含安卓 SAF 与手输兜底）。</summary>

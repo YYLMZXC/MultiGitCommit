@@ -229,6 +229,8 @@ internal static class LocStringsZh
             { "L.RepoHomeView.PathLabel.Text", "路径：" },
             { "L.RepoHomeView.BranchLabel.Text", "分支：" },
             { "L.RepoHomeView.BranchLabel.ToolTip_Tip", "当前分支读取自仓库的 .git/HEAD；「—」表示没有 .git 或无法读取，HEAD@ 前缀表示游离 HEAD" },
+            { "L.RepoHomeView.OpenFolder.Content", "打开文件夹" },
+            { "L.RepoHomeView.OpenFolder.ToolTip_Tip", "在系统文件管理器中打开该项目的文件夹（Windows 资源管理器 / macOS Finder / Linux 文件管理器；移动端暂不支持）" },
             { "L.StageFilesView.L027.Content", "添加勾选的文件" },
             { "L.StageFilesView.L028.Content", "取消" },
             { "L.StageFilesView.L033.Text", "选择要执行 git add 的文件" },

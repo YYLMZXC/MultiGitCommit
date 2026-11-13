@@ -49,7 +49,7 @@
                             <DataTemplate>
                                 <Border BorderBrush="#DDDDDD" BorderThickness="0,0,0,1" Padding="0,4">
                                     <!-- 两个列表共用同一套「路径 / 分支」标签资源键：语义键不随 XAML 行号漂移 -->
-                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
                                         <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,6,0">
                                             <Grid ColumnDefinitions="Auto,*">
                                                 <TextBlock Grid.Column="0" Foreground="#666" VerticalAlignment="Top" Margin="0,0,4,0"
@@ -65,7 +65,9 @@
                                         </StackPanel>
                                         <Button Grid.Column="1" Classes="linkBtn" Content="{DynamicResource L.RepoHomeView.L053.Content}" Click="OpenRepo_Click"
                                                 ToolTip.Tip="{DynamicResource L.RepoHomeView.L054.ToolTip_Tip}"/>
-                                        <Button Grid.Column="2" Classes="linkBtn" Content="{DynamicResource L.RepoHomeView.L055.Content}" Click="RemoveRecent_Click"
+                                        <Button Grid.Column="2" Classes="linkBtn" Content="{DynamicResource L.RepoHomeView.OpenFolder.Content}" Click="OpenFolder_Click"
+                                                ToolTip.Tip="{DynamicResource L.RepoHomeView.OpenFolder.ToolTip_Tip}"/>
+                                        <Button Grid.Column="3" Classes="linkBtn" Content="{DynamicResource L.RepoHomeView.L055.Content}" Click="RemoveRecent_Click"
                                                 ToolTip.Tip="{DynamicResource L.RepoHomeView.L056.ToolTip_Tip}"/>
                                     </Grid>
                                 </Border>
@@ -90,7 +92,7 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border BorderBrush="#DDDDDD" BorderThickness="0,0,0,1" Padding="0,4">
-                                        <Grid ColumnDefinitions="*,Auto">
+                                        <Grid ColumnDefinitions="*,Auto,Auto">
                                             <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,6,0">
                                                 <Grid ColumnDefinitions="Auto,*">
                                                     <TextBlock Grid.Column="0" Foreground="#666" VerticalAlignment="Top" Margin="0,0,4,0"
@@ -106,6 +108,8 @@
                                             </StackPanel>
                                             <Button Grid.Column="1" Classes="linkBtn" Content="{DynamicResource L.RepoHomeView.L053.Content}" Click="OpenRepo_Click"
                                                     ToolTip.Tip="{DynamicResource L.RepoHomeView.L054.ToolTip_Tip}"/>
+                                            <Button Grid.Column="2" Classes="linkBtn" Content="{DynamicResource L.RepoHomeView.OpenFolder.Content}" Click="OpenFolder_Click"
+                                                    ToolTip.Tip="{DynamicResource L.RepoHomeView.OpenFolder.ToolTip_Tip}"/>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
