@@ -1,19 +1,16 @@
-﻿<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="RuntimeIdentifier">
+﻿<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="RuntimeIdentifier;JavaSdkDirectory">
 
   <PropertyGroup>
     <!-- 跨平台统一项目：一套代码同时支持 Windows / macOS / Linux（桌面）与 Android / iOS（移动）。
          桌面走经典窗口生命周期（MainWindow 壳 + MainView）；
          移动走单视图生命周期（Platforms/Android/MainActivity、Platforms/iOS/AppDelegate + MainView）。 -->
-    <!-- 默认只构建桌面 net10.0：移动端（Android / iOS）需要本机装有 Android SDK 平台与 iOS 预配文件，
-         若不显式限定框架，「构建解决方案」/ IDE 默认构建会把三个 TFM 一起编，桌面明明成功也会因移动端环境缺失报错。
-         需要移动端时显式开启（还原与构建都要带 IncludeMobile：隐式还原看不到 -f 指定的框架，
-         只写 -f 会因资产文件里没有移动目标而报 NETSDK1005）：
-           dotnet build -p:IncludeMobile=true -f net10.0-android  （单独构建 Android，需本机 Android SDK）
-           dotnet build -p:IncludeMobile=true -f net10.0-ios      （单独构建 iOS，需 macOS 与预配文件）
-           dotnet build -p:IncludeMobile=true                    （三个 TFM 一起构建；IDE 里构建移动端配置时也用它）
-         第二个条件在 -f 已指定移动 TFM 时同样纳入移动端，仅用于已单独还原过移动目标的 no-restore 场景。 -->
-    <TargetFrameworks>net10.0</TargetFrameworks>
-    <TargetFrameworks Condition="'$(IncludeMobile)' == 'true' or '$(TargetFramework)' == 'net10.0-android' or '$(TargetFramework)' == 'net10.0-ios'">net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
+    <!-- 默认构建（含 IDE 的「构建解决方案」/ Rider 直接构建）只编桌面 net10.0：
+         移动端需要本机安装 Android SDK 平台与 iOS 预配文件，桌面构建不应因移动环境缺失而失败。
+         做法：TargetFrameworks 仍完整声明三个目标（Rider / VS 才能识别并单独构建移动端），
+         但跨目标外层构建在派发内层构建前把移动端剔除（见文件末尾 _SkipMobileInnerBuilds）。
+         一次构建全部目标：dotnet build -p:IncludeMobile=true；
+         单独构建移动端：dotnet build -f net10.0-android / -f net10.0-ios（单目标构建，不受剔除影响）。 -->
+    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
     <OutputType Condition="'$(TargetFramework)' == 'net10.0'">WinExe</OutputType>
     <OutputType Condition="'$(TargetFramework)' != 'net10.0'">Exe</OutputType>
     <Nullable>enable</Nullable>
@@ -38,11 +35,21 @@
          RuntimeIdentifiers 必须按 TFM 分别指定：桌面 RID 泄漏进移动端会触发 XA0035 / NETSDK1206。 -->
     <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0'">win-x64;osx-arm64;osx-x64;linux-x64;linux-arm64</RuntimeIdentifiers>
     <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-android' and '$(RuntimeIdentifier)' == ''">android-arm64</RuntimeIdentifiers>
-    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-ios'">ios-arm64</RuntimeIdentifiers>
+    <!-- iOS：Debug 默认面向模拟器，本机无需证书与预配文件即可编译 / 调试；Release 仍打包真机 ios-arm64。
+         必须用 RuntimeIdentifiers（复数）而不是 RuntimeIdentifier：iOS SDK 在两者同时设置时会清空单数
+         RuntimeIdentifier（本项目 TreatAsLocalProperty 使其可被清空），导致回落到真机默认并要求预配。
+         调试真机时用 -p:RuntimeIdentifiers=ios-arm64 覆盖。 -->
+    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-ios' and '$(Configuration)' != 'Release'">iossimulator-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-ios' and '$(Configuration)' == 'Release'">ios-arm64</RuntimeIdentifiers>
     <!-- 移动端应用标识：Android 包名 / iOS Bundle Identifier（与桌面 macOS 包一致） -->
     <ApplicationId>com.yylmzxc.multigitcommit</ApplicationId>
     <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
     <ApplicationVersion>$(BuildTime)</ApplicationVersion>
+    <!-- Android：.NET 10 要求 JDK 17，但 macOS 上系统的 /Library/Java/JavaVirtualMachines 若有旧 JDK（如 11），
+         SDK / Rider 都会优先选中它并因 class 版本过高报 AMM0000。只要本机装有用户级 JDK 17 就强制用它
+         （JavaSdkDirectory 已加入 TreatAsLocalProperty，可覆盖 IDE 传入的旧路径）；
+         未安装时保持 SDK / IDE 的自动探测，不影响其他机器。 -->
+    <JavaSdkDirectory Condition="Exists('$(HOME)/Library/Developer/Xamarin/jdk/bin/java')">$(HOME)/Library/Developer/Xamarin/jdk</JavaSdkDirectory>
     <!-- Android：.NET 10 下 minSdk 必须 ≥ 23（XA4216） -->
     <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-android'">23</SupportedOSPlatformVersion>
     <AndroidPackageFormat Condition="'$(TargetFramework)' == 'net10.0-android'">apk</AndroidPackageFormat>
@@ -183,5 +190,17 @@
     <AvaloniaResource Include="Fonts\NotoSansCJKsc-Regular.otf" />
     <None Include="Fonts\LICENSE" Visible="false" />
   </ItemGroup>
+  <!-- 跨目标外层构建默认只派发桌面内层构建，避免桌面环境缺少 Android SDK / iOS 预配时整包构建失败。
+       TargetFrameworks 仍保留三个目标：Rider / VS 的项目模型据此识别并允许单独构建移动端；
+       -f net10.0-android / net10.0-ios 走单目标构建，不经过本目标，因此不受影响；
+       需要一次构建全部目标时传 -p:IncludeMobile=true。 -->
+  <Target Name="_SkipMobileInnerBuilds"
+          BeforeTargets="DispatchToInnerBuilds;Clean"
+          Condition="'$(IsCrossTargetingBuild)' == 'true' and '$(IncludeMobile)' != 'true'">
+    <ItemGroup>
+      <_InnerBuildProjects Remove="@(_InnerBuildProjects)"
+                           Condition="$([System.String]::Copy('%(AdditionalProperties)').Contains('net10.0-android')) or $([System.String]::Copy('%(AdditionalProperties)').Contains('net10.0-ios'))" />
+    </ItemGroup>
+  </Target>
 
 </Project>
