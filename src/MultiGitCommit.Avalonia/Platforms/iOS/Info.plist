@@ -6,6 +6,10 @@
     <string>MultiGitCommit</string>
     <key>CFBundleIdentifier</key>
     <string>com.yylmzxc.multigitcommit</string>
+    <!-- 应用图标资源目录（Assets.xcassets/AppIcon.appiconset，单张 1024x1024）：
+         构建期 ACTool 任务按此键定位图标集并编译，产物 Info.plist 自动获得 CFBundleIcons 条目。 -->
+    <key>XSAppIconAssets</key>
+    <string>Platforms/iOS/Assets.xcassets/AppIcon.appiconset</string>
     <!-- 不要在这里写 CFBundleShortVersionString / CFBundleVersion：
          plist 里的值会覆盖 csproj 的 ApplicationDisplayVersion / ApplicationVersion，
          版本号就退化成写死的 1.0 / 1，不再是构建时自动生成的日期与 dHHmm。 -->

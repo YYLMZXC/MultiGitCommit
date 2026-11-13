@@ -151,6 +151,10 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
     <Compile Include="Platforms\iOS\**\*.cs" />
   </ItemGroup>
+  <!-- iOS 应用图标：Platforms\iOS\AppIcon.png（源图 res\icon.png 放大到 1024x1024 无透明）被
+       Assets.xcassets\AppIcon.appiconset 引用；xcassets 由 SDK 默认规则（EnableDefaultiOSItems）
+       自动作为 ImageAsset 收集并交给 actool 编译，产物 Info.plist 自动获得 CFBundleIcons 条目，
+       无需手工维护各分辨率切片。 -->
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
     <AndroidManifest>Platforms\Android\AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
