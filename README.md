@@ -131,16 +131,27 @@ Release 默认发布为 **单文件可执行程序**（Avalonia、Skia 等依赖
 cd src/MultiGitCommit.Avalonia
 
 # Windows（默认 RID 为 win-x64）
-dotnet publish -c Release -r win-x64
+dotnet publish -c Release -f net10.0 -r win-x64
 
 # macOS Apple 芯片 / Intel
-dotnet publish -c Release -r osx-arm64
-dotnet publish -c Release -r osx-x64
+dotnet publish -c Release -f net10.0 -r osx-arm64
+dotnet publish -c Release -f net10.0 -r osx-x64
 
 # Linux x64 / ARM64
-dotnet publish -c Release -r linux-x64
-dotnet publish -c Release -r linux-arm64
+dotnet publish -c Release -f net10.0 -r linux-x64
+dotnet publish -c Release -f net10.0 -r linux-arm64
+
+# 或直接用仓库自带的发布配置（等价于第一条，输出到 bin\Release\net10.0\publish\win-x64\）
+dotnet publish -c Release -f net10.0 -p:PublishProfile=FolderProfile
 ```
+
+> **必须带 `-f net10.0`**：项目是多目标（桌面 + Android + iOS），不指定框架时 `Publish` 目标直接报 `NETSDK1129`。
+>
+> **Visual Studio 发布**：在【发布】里选择仓库自带的 `FolderProfile`（win-x64）或 `FolderProfile-osx-arm64` 配置文件，
+> 它们已固定 `TargetFramework=net10.0`，不会把桌面目标/框架混进来。若自行新建配置文件，务必把「目标框架」选成 `net10.0`——
+> VS 若在未固定框架的情况下带上 `RuntimeIdentifier=win-x64`，该 RID 会泄漏到 Android / iOS 的还原图，
+> NuGet 会去找并不存在的 `Microsoft.NETCore.App.Runtime.Mono.win-x64` 并报 `NU1102`。
+> csproj 已用 `TreatAsLocalProperty="RuntimeIdentifier"` + 条件复位把泄漏到移动 TFM 的桌面 RID 清零，但不要依赖这层兜底。
 
 > 目标机器需已安装 .NET 10 运行时（非自包含）。需要完全独立分发时，追加 `-p:SelfContained=true` 即可（体积会大很多）。
 >

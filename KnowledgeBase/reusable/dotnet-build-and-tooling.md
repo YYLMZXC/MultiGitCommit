@@ -20,6 +20,7 @@
 - 桌面 `PublishSingleFile` 会把依赖打进主程序；**数据目录（如内嵌 git、字体资源、配置模板）必须 `ExcludeFromSingleFile="true"`**，否则运行时找不到同级文件夹。
 - 平台专属源码目录（如 `Platforms/**`）SDK 不自动过滤：先 `<Compile Remove="Platforms/**" />`，再按 TFM `<Compile Include="Platforms\Android\**\*.cs" />`；iOS 需要显式入口文件（如 `Platforms/iOS/Main.cs`）。
 - 移动端应用元数据：`ApplicationId` 同时作 Android 包名 / iOS BundleId；macOS `CFBundleShortVersionString` 只接受纯数字三段，构建时间戳这类字符串放到 `CFBundleVersion`。
+- **全局 `RuntimeIdentifier` 会泄漏到所有 TFM**：多目标（桌面 + android/ios）项目里，VS 发布配置或命令行 `-r win-x64` 是全局属性，会让移动 TFM 去还原不存在的 `Microsoft.NETCore.App.Runtime.Mono.win-x64`（NU1102）。项目根上加 `TreatAsLocalProperty="RuntimeIdentifier"`，再用按 TFM 条件的 PropertyGroup 把非移动 RID 清零（判断时用 `$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('android'))`，避免空值上调用实例方法报 MSB4184）。另外 `dotnet publish` 对多目标项目必须带 `-f <tfm>`，否则 `NETSDK1129`——加 `-p:PublishProfile=xxx` 也不能省略 `-f`。
 
 ## 3. 平台编译冲突
 

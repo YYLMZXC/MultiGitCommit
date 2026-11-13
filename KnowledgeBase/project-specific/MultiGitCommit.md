@@ -7,7 +7,7 @@
 
 - 主项目 `src/MultiGitCommit.Avalonia`：单 csproj 多目标 `net10.0;net10.0-android;net10.0-ios`，Avalonia 11.3.11，`ApplicationId=com.yylmzxc.multigitcommit`；桌面 `WinExe`，移动端 `Exe`。
 - 桌面后端包仅 `net10.0`，Android/iOS 后端包仅对应 TFM；`Platforms/**` 先 `Compile Remove`，再按 TFM `Include`。
-- `RuntimeIdentifiers` 按 TFM 分别声明；Android `SupportedOSPlatformVersion=23`（.NET 10 要求 ≥23，见 reusable 文档）。
+- `RuntimeIdentifiers` 按 TFM 分别声明；Android `SupportedOSPlatformVersion=23`（.NET 10 要求 ≥23，见 reusable 文档）。`Project` 上带 `TreatAsLocalProperty="RuntimeIdentifier"`，并有条件 PropertyGroup 把泄漏到 android/ios TFM 的桌面 RID 清零（否则 VS 发布报 `NU1102` 找 `Microsoft.NETCore.App.Runtime.Mono.win-x64`）。发布配置在 `Properties/PublishProfiles/`（`FolderProfile.pubxml` = win-x64、`FolderProfile-osx-arm64.pubxml`），均固定 `TargetFramework=net10.0`；命令行加载 profile 仍须带 `-f net10.0`（多目标否则 `NETSDK1129`）。
 - 版本号：`Version=$(BuildDate)`（`yy.MM.dd`，纯数字）、`InformationalVersion=$(BuildDate)-$(BuildTime)`（`dHHmm`）、`ApplicationVersion=$(BuildTime)`（Android versionCode / iOS CFBundleVersion）、`CFBundleShortVersionString=$(BuildDate)`；`ApplicationDisplayVersion` 跟随 `$(Version)`——移动端 SDK 会用 `ApplicationDisplayVersion` 覆盖 `Version`，两者分叉会让各 TFM 的 `PackageVersion` 不一致（NU1105，Visual Studio 还原必失败）。`IncludeSourceRevisionInInformationalVersion=false`；`NoWarn` 含 `AVLN3001`（窗口均带参构造，设计器加载器用不到）。
 - Release 桌面才启用 `PublishSingleFile` + `SelfContained=false`，默认 RID 随构建主机；内嵌 git 目录用 `ExcludeFromSingleFile=true` 保持为 exe 同级 `git/` 文件夹。
 - 安卓中文字体 `Fonts/NotoSansCJKsc-Regular.otf`（SIL OFL，许可文件 `Fonts/LICENSE`）**仅 android TFM** 作为 `AvaloniaResource` 嵌入；iOS 用系统 PingFang SC，不内置字体以免 ipa 增大。

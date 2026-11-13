@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk" TreatAsLocalProperty="RuntimeIdentifier">
 
   <PropertyGroup>
     <!-- 跨平台统一项目：一套代码同时支持 Windows / macOS / Linux（桌面）与 Android / iOS（移动）。
@@ -12,10 +12,10 @@
     <RootNamespace>MultiGitCommit</RootNamespace>
     <AssemblyName>MultiGitCommit</AssemblyName>
     <!-- 版本号自动生成：yy.MM.dd（构建机本地时间；构建时刻见 InformationalVersion），无需手改。
-         需要固定版本时用命令行覆盖：dotnet build -p:Version=26.11.03-1119 -->
+         需要固定版本时用命令行覆盖：dotnet build -p:Version=26.11.03 -->
     <BuildDate>$([System.DateTime]::Now.ToString('yy.MM.dd'))</BuildDate>
     <BuildTime>$([System.DateTime]::Now.ToString('dHHmm'))</BuildTime>
-        <!-- ⚠ Version 必须是【纯数字日期】且各 TFM 完全一致：Android/iOS SDK 里有一条「ApplicationDisplayVersion 能解析成 System.Version 时就用它覆盖 Version」的规则；
+    <!-- ⚠ Version 必须是【纯数字日期】且各 TFM 完全一致：Android/iOS SDK 里有一条「ApplicationDisplayVersion 能解析成 System.Version 时就用它覆盖 Version」的规则；
          桌面侧若带 -dHHmm 后缀则各 TFM 的 PackageVersion 不同，NuGet 报 NU1105「PackageVersion 应在所有目标框架中具有单个值」，还原直接失败（VS 必现，命令行 NuGet 版本较宽容所以能过）。
          构建时刻改放 InformationalVersion（文件属性「产品版本」，AppVersion 标题仍只取日期部分）。 -->
     <Version Condition="'$(Version)' == ''">$(BuildDate)</Version>
@@ -53,6 +53,14 @@
          本项目的窗口都通过带参构造函数创建（如 GitSettingsWindow(settings)），设计时加载器用不到，
          属预期行为，故静默该提示以保持生成日志干净。 -->
     <NoWarn>$(NoWarn);AVLN3001</NoWarn>
+  </PropertyGroup>
+
+  <!-- 桌面 RID 防泄漏：Visual Studio 发布配置 / 命令行 -r 会把桌面 RuntimeIdentifier（win-x64 等）
+       当全局属性传进来，它会连带作用到移动 TFM 的还原图，让 NuGet 去找并不存在的
+       Microsoft.NETCore.App.Runtime.Mono.win-x64（NU1102，还原直接失败）。
+       Project 上的 TreatAsLocalProperty 允许项目内复位该属性，这里只保留移动端自己的 RID（android* / ios*）。 -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android' or '$(TargetFramework)' == 'net10.0-ios'">
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' != '' and !$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('android')) and !$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('ios'))" />
   </PropertyGroup>
 
   <!-- Windows 桌面：exe 文件图标（资源管理器 / 任务栏显示），必须是 .ico；
