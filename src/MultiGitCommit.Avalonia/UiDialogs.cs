@@ -151,22 +151,27 @@ internal static class UiDialogs
     }
 
     /// <summary>
-    /// 桌面对话框尺寸策略：SizeToContent 会随内容变化撑窗口（展开【Git 环境设置 → 高级设置】时最明显）。
-    /// 窗口位置不会重算，向下长到屏幕外后，固定的底部按钮栏与下半部分内容就看不见了。
-    /// ① 把窗口限制在当前屏幕工作区内；② 自带滚动区 + 固定按钮栏的视图在首帧后锁定尺寸，
-    /// 之后内容变化全部由视图内部 ScrollViewer 承担，窗口不再跳动。
+    /// 桌面对话框尺寸策略：
+    /// ① 上限取「默认主界面大小（MainWindow.DefaultWidth / DefaultHeight）」与「当前屏幕工作区」的较小值，
+    ///    任何弹窗都不会比默认主界面还大，也不会长到屏幕外；
+    /// ② 自带滚动区 + 固定按钮栏的视图在首帧按【内容实际尺寸】锁定窗口，
+    ///    之后内容变化（展开【高级设置】、输出检测日志等）全部由视图内部 ScrollViewer 承担，窗口不再跳动。
+    /// 旧策略把长设置页强行撑到屏幕高度的 75%，导致「高级设置」收起时下方出现大片空白，已移除。
     /// </summary>
     private static void ConfigureDesktopWindowSize(Window win, DialogViewBase content)
     {
-        double maxW = double.PositiveInfinity;
-        double maxH = double.PositiveInfinity;
+        double maxW = MainWindow.DefaultWidth;
+        double maxH = MainWindow.DefaultHeight;
         if (win.Screens.Primary is { } screen && screen.Scaling > 0)
         {
-            maxW = Math.Max(320, screen.WorkingArea.Width / screen.Scaling - 40);
-            maxH = Math.Max(400, screen.WorkingArea.Height / screen.Scaling - 60);
-            win.MaxWidth = maxW;
-            win.MaxHeight = maxH;
+            double screenW = screen.WorkingArea.Width / screen.Scaling - 40;
+            double screenH = screen.WorkingArea.Height / screen.Scaling - 60;
+            maxW = Math.Max(320, Math.Min(maxW, screenW));
+            maxH = Math.Max(400, Math.Min(maxH, screenH));
         }
+
+        win.MaxWidth = maxW;
+        win.MaxHeight = maxH;
 
         if (!content.FitsOverlayViewport)
             return;
@@ -175,11 +180,6 @@ internal static class UiDialogs
         {
             double width = Math.Min(win.ClientSize.Width, maxW);
             double height = Math.Min(win.ClientSize.Height, maxH);
-
-            // 长设置页（MinHeight ≥ 450：Git 环境 / 系统凭据检测）给足初始高度，避免锁定后
-            // 滚动区过窄、展开高级设置要滚很久；内容少的小对话框仍保持按内容自适应。
-            if (content.MinHeight >= 450 && !double.IsInfinity(maxH))
-                height = Math.Min(maxH, Math.Max(height, maxH * 0.75));
 
             win.SizeToContent = SizeToContent.Manual;
             win.Width = width;

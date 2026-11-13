@@ -9,6 +9,12 @@ namespace MultiGitCommit;
 /// </summary>
 public partial class MainWindow : Window
 {
+    /// <summary>默认主界面宽度；同时也是所有桌面对话框的尺寸上限。</summary>
+    public const double DefaultWidth = 1120;
+
+    /// <summary>默认主界面高度；同时也是所有桌面对话框的尺寸上限。</summary>
+    public const double DefaultHeight = 800;
+
     private readonly MainView _view;
 
     public MainWindow() : this(AppServices.Current.Cli, AppServices.Current.Settings)
@@ -24,6 +30,8 @@ public partial class MainWindow : Window
     public MainWindow(IGitCliRunner cli, ISettingsProvider settings)
     {
         InitializeComponent();
+        Width = DefaultWidth;
+        Height = DefaultHeight;
         Dialogs.ApplyIcon(this);
 
         _view = new MainView(cli, settings);

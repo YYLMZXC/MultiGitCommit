@@ -1,8 +1,8 @@
+<!-- 默认宽高统一在 MainWindow.DefaultWidth / DefaultHeight 定义并在构造函数赋值；弹窗尺寸上限也引用它们 -->
 <Window x:Class="MultiGitCommit.MainWindow"
         xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="{DynamicResource L.MainWindow.L004.Title}"
-        Width="1120" Height="800"
         MinWidth="900" MinHeight="640"
         WindowStartupLocation="CenterScreen"
         FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
