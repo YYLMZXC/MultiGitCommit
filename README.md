@@ -101,6 +101,28 @@ JetBrains Rider 可直接使用 `src/MultiGitCommit.Avalonia/.run/` 下的共享
 `MultiGitCommit (Windows Debug)`、`MultiGitCommit (Windows Release win-x64)`、`MultiGitCommit (macOS Debug)`、`MultiGitCommit (Linux Debug)`。
 其中 Release 配置需先在 Rider 中把解决方案配置切到 `Release`。
 
+### 版本号与还原
+
+版本号按构建时间自动生成，无需手改任何文件：
+
+| 属性 | 取值示例 | 用途 |
+|---|---|---|
+| `Version` | `26.11.13`（日期 `yy.MM.dd`） | 程序集版本 / NuGet 包版本，**必须纯数字且三个 TFM 完全一致** |
+| `InformationalVersion` | `26.11.13-1311`（日期 + 构建时刻 `dHHmm`） | 文件属性「产品版本」；界面标题只取日期部分（`AppVersion`） |
+| `ApplicationVersion` | `131105`（`dHHmm`：日 + 时 + 分） | Android `versionCode` / iOS `CFBundleVersion` |
+
+`Version` 必须保持纯数字日期：Android / iOS SDK 有一条「`ApplicationDisplayVersion` 能解析成 `System.Version` 时就用它覆盖 `Version`」的规则，
+桌面侧若带 `-HHmm` 后缀，三个 TFM 的 `PackageVersion` 就不一致，NuGet 报 `NU1105`「属性 PackageVersion 应在所有目标框架中具有单个值」并直接拒绝还原。
+需要固定版本时传纯数字版本：
+
+```powershell
+dotnet build -p:Version=26.11.03
+```
+
+> **Visual Studio 还原失败**（报 `NETSDK1005`「资产文件 … 没有 net10.0 的目标」）：说明还原被 NuGet 拒绝，
+> 失败结果连同日志缓存在 `obj\project.assets.json` / `obj\project.nuget.cache` 里。
+> 删除 `src\MultiGitCommit.Avalonia\obj` 后重新【还原 NuGet 包】即可；命令行 `dotnet restore` 与 Rider 使用较宽容的 NuGet 实现，通常不会暴露这类不一致。
+
 ### 发布（单文件，依赖框架）
 
 Release 默认发布为 **单文件可执行程序**（Avalonia、Skia 等依赖全部打进主程序），输出目录只有主程序（Windows：`MultiGitCommit.exe`；macOS / Linux：`MultiGitCommit`）+ `git/` 目录：

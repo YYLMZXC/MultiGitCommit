@@ -113,7 +113,7 @@ public sealed class WorkingTreeFile
 
     /// <summary>
     /// 去掉命令执行器读行时补上的换行（-z 输出本身没有换行，
-    /// 只有整段输出的残尾会被 <see cref="StreamReader.ReadLineAsync"/> 附加一次）。
+    /// 只有整段输出的残尾会被 <see cref="System.IO.StreamReader.ReadLineAsync()"/> 附加一次）。
     /// </summary>
     private static string TrimLineEnding(string value)
         => value.Length == 0 ? value : value.TrimEnd('\r', '\n');

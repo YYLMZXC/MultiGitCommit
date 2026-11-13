@@ -33,5 +33,5 @@
 - **PowerShell 5.1 读取含中文注释的 `.ps1` 必须是 UTF-8 BOM**，否则注释按 ANSI 解析导致脚本异常；无 BOM 的 UTF-8 只在 PowerShell 7+ 可靠。
 - 纯逻辑改造加一个可直接运行的冒烟入口（例如 `--smoke`），把关键分支写成断言，验证时先 build 再跑冒烟，比只靠 UI 手点可靠。
 - 生成日志里的第三方警告（如 Avalonia 的 `AVLN3001`：窗口无 public 无参构造）若确认是设计使然，用 `NoWarn` 显式静默并写明原因，不要留着淹没真实错误。
-- 版本号可由构建时间自动生成（`yy.MM.dd-HHmm`）并支持 `-p:Version=...` 覆盖；需要可复现构建时显式传版本。
+- 版本号可由构建时间自动生成并支持 `-p:Version=...` 覆盖；需要可复现构建时显式传版本。**同时有 `netX.0-android` / `netX.0-ios` 目标时，`Version` 必须纯数字且各 TFM 一致**——移动端 SDK 有一条「`ApplicationDisplayVersion` 能解析成 `System.Version` 就覆盖 `Version`」的规则，带后缀（如 `26.11.13-1311`）会使 `PackageVersion` 各 TFM 不同，NuGet 报 NU1105、资产文件被写成空壳（`"targets": {}`）进而报 NETSDK1005；构建时刻应放 `InformationalVersion`。这种不一致只有 Visual Studio 的 NuGet 会拒绝，`dotnet restore` / Rider 常放行，不能以「命令行能过」判定还原健康。
 - 本机常驻 `MultiGitCommit.exe` 会自动提交中间态：改动过程中间文件可能被自动提交，重要中间结论先落到文档，验证通过后再做一次整理性提交。

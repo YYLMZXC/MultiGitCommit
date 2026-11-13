@@ -1,6 +1,6 @@
 # MultiGitCommit（本仓库主项目）项目独立经验
 
-> 核验日期：2026-11-12。依据 `README.md`、`src/MultiGitCommit.Avalonia/MultiGitCommit.csproj` 及源码内命名检索。
+> 核验日期：2026-11-13。依据 `README.md`、`src/MultiGitCommit.Avalonia/MultiGitCommit.csproj` 及源码内命名检索。
 > 这些内容依赖本项目自身的结构与业务，换项目后不直接适用；通用机制见 [`../reusable/`](../reusable/)。
 
 ## 1. 项目现状（会随升级变化）
@@ -8,7 +8,7 @@
 - 主项目 `src/MultiGitCommit.Avalonia`：单 csproj 多目标 `net10.0;net10.0-android;net10.0-ios`，Avalonia 11.3.11，`ApplicationId=com.yylmzxc.multigitcommit`；桌面 `WinExe`，移动端 `Exe`。
 - 桌面后端包仅 `net10.0`，Android/iOS 后端包仅对应 TFM；`Platforms/**` 先 `Compile Remove`，再按 TFM `Include`。
 - `RuntimeIdentifiers` 按 TFM 分别声明；Android `SupportedOSPlatformVersion=23`（.NET 10 要求 ≥23，见 reusable 文档）。
-- 版本号由构建时间自动生成 `yy.MM.dd-HHmm`；`IncludeSourceRevisionInInformationalVersion=false`；`NoWarn` 含 `AVLN3001`（窗口均带参构造，设计器加载器用不到）。
+- 版本号：`Version=$(BuildDate)`（`yy.MM.dd`，纯数字）、`InformationalVersion=$(BuildDate)-$(BuildTime)`（`dHHmm`）、`ApplicationVersion=$(BuildTime)`（Android versionCode / iOS CFBundleVersion）、`CFBundleShortVersionString=$(BuildDate)`；`ApplicationDisplayVersion` 跟随 `$(Version)`——移动端 SDK 会用 `ApplicationDisplayVersion` 覆盖 `Version`，两者分叉会让各 TFM 的 `PackageVersion` 不一致（NU1105，Visual Studio 还原必失败）。`IncludeSourceRevisionInInformationalVersion=false`；`NoWarn` 含 `AVLN3001`（窗口均带参构造，设计器加载器用不到）。
 - Release 桌面才启用 `PublishSingleFile` + `SelfContained=false`，默认 RID 随构建主机；内嵌 git 目录用 `ExcludeFromSingleFile=true` 保持为 exe 同级 `git/` 文件夹。
 - 安卓中文字体 `Fonts/NotoSansCJKsc-Regular.otf`（SIL OFL，许可文件 `Fonts/LICENSE`）**仅 android TFM** 作为 `AvaloniaResource` 嵌入；iOS 用系统 PingFang SC，不内置字体以免 ipa 增大。
 - 归档实现：`src/old-version/`（WPF 版 `MultiGitCommit.NET`、旧 macOS 版 `MultiGitCommit.MACOS`），不再更新。
