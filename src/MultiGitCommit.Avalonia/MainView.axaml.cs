@@ -532,15 +532,21 @@ public partial class MainView : UserControl
     /// <summary>打开仓库管理首页。</summary>
     private void BtnRepoHome_Click(object? sender, RoutedEventArgs e) => ShowHomePage();
 
-    /// <summary>显示仓库管理首页覆盖层（最近项目 + 本地 Git 仓库自动发现 + 快速跳转）。</summary>
+    /// <summary>显示仓库管理首页覆盖层（最近项目 + 本地 Git 仓库自动发现 + 快速跳转）。
+    /// 同时隐藏项目页根滚动层：双保险，避免首页背景万一未生效时项目页内容从下方穿透重叠。</summary>
     internal void ShowHomePage()
     {
         HomeView.OnShown();
         HomeView.IsVisible = true;
+        RootScroll.IsVisible = false;
     }
 
     /// <summary>关闭仓库管理首页覆盖层，回到项目页。</summary>
-    private void HideHomePage() => HomeView.IsVisible = false;
+    private void HideHomePage()
+    {
+        HomeView.IsVisible = false;
+        RootScroll.IsVisible = true;
+    }
 
     /// <summary>仓库管理首页【选择文件夹打开…】：唤起系统文件管理器选目录并载入（复用项目页选目录管线）。</summary>
     public Task BrowseForRepoFromHomeAsync() => BrowseForRepoAsync();

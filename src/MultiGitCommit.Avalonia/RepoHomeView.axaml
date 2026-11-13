@@ -21,9 +21,10 @@
         </Style>
     </UserControl.Styles>
 
-    <!-- 不透明背景：盖住背后的项目页；跟随主题（Fluent）背景色 -->
-    <Border Background="{DynamicResource ThemeBackgroundBrush}">
-        <Grid Margin="16,14,16,12" RowDefinitions="Auto,Auto,Auto,*,Auto">
+    <!-- 浅色背景（全应用锁定 Light 主题，见 App.axaml）：首页以覆盖层形式盖在项目页上方，
+         必须不透明，否则项目页内容会从下方穿透显示 -->
+    <Border Background="#F9F9F9">
+        <Grid Margin="16,14,16,12" RowDefinitions="Auto,Auto,*,Auto">
 
             <!-- ============ 标题 ============ -->
             <StackPanel Grid.Row="0" Margin="0,0,0,10">
@@ -92,7 +93,7 @@
             </Border>
 
             <!-- ============ 三、底部操作条 ============ -->
-            <Grid Grid.Row="4" Margin="0,10,0,0" ColumnDefinitions="Auto,Auto,*">
+            <Grid Grid.Row="3" Margin="0,10,0,0" ColumnDefinitions="Auto,Auto,*">
                 <Button x:Name="BtnPickFolder" Content="选择文件夹打开…" Click="BtnPickFolder_Click" Height="34"
                         ToolTip.Tip="唤起系统文件管理器选择 Git 仓库根目录（与 .git 同级），选择后自动载入项目页"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
