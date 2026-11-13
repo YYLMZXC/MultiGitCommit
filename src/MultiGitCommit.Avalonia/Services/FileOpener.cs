@@ -88,13 +88,17 @@ public static class FileOpener
     }
 
     /// <summary>
-    /// 直接打开文件夹本身（Windows 资源管理器 / macOS Finder / Linux 文件管理器）；
+    /// 直接打开文件夹本身（Windows 资源管理器 / macOS Finder / Linux 文件管理器；
+    /// Android 调用外部文件管理器，见 <see cref="AndroidGitPlatform.TryOpenFolderInFileManager"/>）；
     /// 与 <see cref="TryReveal"/> 的「在父目录中定位并选中」不同，这里进入目录内容，
     /// 供仓库管理首页的【打开文件夹】使用。
     /// </summary>
     public static bool TryOpenFolder(string dir, out string error)
     {
-        if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
+        if (OperatingSystem.IsAndroid())
+            return AndroidGitPlatform.TryOpenFolderInFileManager(dir, out error);
+
+        if (OperatingSystem.IsIOS())
         {
             error = Loc.T("移动端不支持在系统文件管理器中打开文件夹。");
             return false;

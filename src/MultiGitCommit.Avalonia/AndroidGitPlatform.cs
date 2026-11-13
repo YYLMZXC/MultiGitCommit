@@ -310,6 +310,157 @@ public static class AndroidGitPlatform
 #endif
     }
 
+    // ==================== 外部文件管理器 ====================
+
+    /// <summary>
+    /// 调用外部文件管理器打开指定文件夹（Android 供 <see cref="FileOpener.TryOpenFolder"/> 转发）。
+    /// 按优先级尝试三级候选，全部 ActivityNotFoundException 才报错：
+    /// ① 内置「文件」（DocumentsUI）及支持文档 URI 的管理器：路径在共享存储内时按
+    ///    ExternalStorageProvider 的 documentId（volume:相对路径）构造 content:// URI，
+    ///    ACTION_VIEW + vnd.android.document/directory；
+    /// ② 多数第三方文件管理器注册的 ACTION_VIEW + vnd.android.document/directory + 裸路径 URI；
+    /// ③ 老牌管理器（ES 文件浏览器等）使用的 resource/folder。
+    /// 不能用 file:// URI：targetSdk 24+ 跨应用传 file:// 会抛 FileUriExposedException，
+    /// 因此 ②③ 用 Uri.Parse 的无 scheme 裸路径。隐式 StartActivity 不受 Android 11+
+    /// 包可见性限制（那只影响 ResolveActivity 查询），无需在 Manifest 声明 queries。
+    /// </summary>
+    public static bool TryOpenFolderInFileManager(string dir, out string error)
+    {
+#if ANDROID
+        error = string.Empty;
+
+        if (!Directory.Exists(dir))
+        {
+            error = Loc.F($"所在目录不存在：{dir}");
+            return false;
+        }
+
+        // 优先用前台 Activity；应用在后台时退回 Application Context（须带 NEW_TASK）
+        global::Android.Content.Context? context = MainActivity.Current
+                                                   ?? global::Android.App.Application.Context;
+        if (context == null)
+        {
+            error = Loc.T("无法获取应用上下文，无法打开文件管理器。");
+            return false;
+        }
+
+        string path;
+        try
+        {
+            path = Path.GetFullPath(dir).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        catch (Exception ex)
+        {
+            error = Loc.T("路径无效：") + ex.Message;
+            return false;
+        }
+        if (string.IsNullOrEmpty(path))
+        {
+            error = Loc.F($"所在目录不存在：{dir}");
+            return false;
+        }
+
+        var errors = new List<string>();
+
+        // ① 文档 URI：内置「文件」按目录文档直接进入该文件夹
+        var contentUri = BuildExternalStorageDocumentUri(path);
+        if (contentUri != null)
+        {
+            var docIntent = new global::Android.Content.Intent(global::Android.Content.Intent.ActionView);
+            docIntent.SetDataAndType(contentUri, global::Android.Provider.DocumentsContract.Document.MimeTypeDir);
+            if (TryStartActivity(context, docIntent, out string docError)) return true;
+            errors.Add("DocumentsUI: " + docError);
+        }
+
+        // ② 第三方管理器：vnd.android.document/directory + 裸路径
+        var pathIntent = new global::Android.Content.Intent(global::Android.Content.Intent.ActionView);
+        pathIntent.SetDataAndType(global::Android.Net.Uri.Parse(path),
+            global::Android.Provider.DocumentsContract.Document.MimeTypeDir);
+        if (TryStartActivity(context, pathIntent, out string pathError)) return true;
+        errors.Add("vnd.android.document/directory: " + pathError);
+
+        // ③ 老牌管理器：resource/folder
+        var folderIntent = new global::Android.Content.Intent(global::Android.Content.Intent.ActionView);
+        folderIntent.SetDataAndType(global::Android.Net.Uri.Parse(path), "resource/folder");
+        if (TryStartActivity(context, folderIntent, out string folderError)) return true;
+        errors.Add("resource/folder: " + folderError);
+
+        error = Loc.T("未找到可用的文件管理器：") + string.Join("；", errors);
+        return false;
+#else
+        error = Loc.T("移动端不支持在系统文件管理器中打开文件夹。");
+        return false;
+#endif
+    }
+
+#if ANDROID
+    /// <summary>启动隐式 Intent；context 不是 Activity 时补 NEW_TASK。失败返回异常信息。</summary>
+    private static bool TryStartActivity(global::Android.Content.Context context,
+        global::Android.Content.Intent intent, out string error)
+    {
+        try
+        {
+            if (context is not global::Android.App.Activity)
+                intent.AddFlags(global::Android.Content.ActivityFlags.NewTask);
+            context.StartActivity(intent);
+            error = string.Empty;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 共享存储路径 → ExternalStorageProvider 的 document URI（与 <see cref="ResolveSafTreeUri"/> 互为反操作）：
+    /// /storage/emulated/0/x、/sdcard/x → primary:x；/storage/&lt;卷&gt;/x → &lt;卷&gt;:x。
+    /// 不在共享存储（应用私有内部目录等）时返回 null，交给裸路径候选。
+    /// </summary>
+    private static global::Android.Net.Uri? BuildExternalStorageDocumentUri(string path)
+    {
+        const string EmulatedPrefix = "/storage/emulated/0";
+        const string SdcardPrefix = "/sdcard";
+        const string StoragePrefix = "/storage/";
+
+        string volume;
+        string relative;
+        if (path.StartsWith(EmulatedPrefix, StringComparison.Ordinal))
+        {
+            volume = "primary";
+            relative = path.Length > EmulatedPrefix.Length ? path.Substring(EmulatedPrefix.Length) : string.Empty;
+        }
+        else if (path.StartsWith(SdcardPrefix, StringComparison.Ordinal))
+        {
+            volume = "primary";
+            relative = path.Length > SdcardPrefix.Length ? path.Substring(SdcardPrefix.Length) : string.Empty;
+        }
+        else if (path.StartsWith(StoragePrefix, StringComparison.Ordinal))
+        {
+            int second = path.IndexOf('/', StoragePrefix.Length);
+            volume = second < 0 ? path.Substring(StoragePrefix.Length) : path.Substring(StoragePrefix.Length, second - StoragePrefix.Length);
+            relative = second < 0 ? string.Empty : path.Substring(second);
+        }
+        else
+        {
+            return null;
+        }
+
+        if (string.IsNullOrEmpty(volume)) return null;
+        string docId = volume + ":" + relative.Trim('/');
+        try
+        {
+            return global::Android.Provider.DocumentsContract.BuildDocumentUri(
+                "com.android.externalstorage.documents", docId);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+#endif
+
     /// <summary>应用私有 Files 目录（HOME 与符号链接目录的宿主）；非 Android 为 null。</summary>
     private static string? FilesDir
     {
