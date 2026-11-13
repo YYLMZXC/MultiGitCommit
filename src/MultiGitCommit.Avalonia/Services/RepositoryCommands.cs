@@ -99,7 +99,7 @@ public sealed class RepositoryCommands : IRepositoryCommands
             return new SetDefaultBranchResult
             {
                 Success = r.Success,
-                Message = r.Success ? $"已将默认分支设置为：{branch}" : $"设置默认分支失败：{branch}"
+                Message = r.Success ? Loc.F($"已将默认分支设置为：{branch}") : Loc.F($"设置默认分支失败：{branch}")
             };
         }
 
@@ -119,8 +119,8 @@ public sealed class RepositoryCommands : IRepositoryCommands
         {
             Success = res.Success,
             Message = res.Success
-                ? (exists.Success ? $"已切换到默认分支：{branch}" : $"已创建并切换到默认分支：{branch}")
-                : $"创建默认分支失败：{branch}"
+                ? (exists.Success ? Loc.F($"已切换到默认分支：{branch}") : Loc.F($"已创建并切换到默认分支：{branch}"))
+                : Loc.F($"创建默认分支失败：{branch}")
         };
     }
 
@@ -161,7 +161,7 @@ public sealed class RepositoryCommands : IRepositoryCommands
             return new ManualCommandPlan(null, gitArgs, command,
                 gitAvailable
                     ? null
-                    : "未找到可用的 git：请点击【Git 环境】按钮配置（自动检测 / 系统 PATH / 指定路径 / 内嵌 Git）。");
+                    : Loc.T("未找到可用的 git：请点击【Git 环境】按钮配置（自动检测 / 系统 PATH / 指定路径 / 内嵌 Git）。"));
         }
 
         if (isWindows)

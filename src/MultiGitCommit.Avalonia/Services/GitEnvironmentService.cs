@@ -15,12 +15,12 @@ public sealed class GitEnvironmentSnapshot
     /// <summary>状态栏文本。</summary>
     public string StatusText => Available
         ? $"Git：{GitExePath}"
-        : "Git：未找到（点击【Git 环境】配置）";
+        : Loc.T("Git：未找到（点击【Git 环境】配置）");
 
     /// <summary>状态栏悬浮提示。</summary>
     public string ToolTipText => Available
-        ? $"当前生效：{Description}"
-        : "未找到可用的 git，请点击【Git 环境】按钮配置来源。";
+        ? Loc.F($"当前生效：{Description}")
+        : Loc.T("未找到可用的 git，请点击【Git 环境】按钮配置来源。");
 }
 
 /// <summary>

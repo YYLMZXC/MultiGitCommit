@@ -21,7 +21,7 @@ public sealed class ProjectConfigStore : IProjectConfigStore
     public ProjectConfig Load(string repoRootDir)
     {
         if (string.IsNullOrWhiteSpace(repoRootDir))
-            throw new ArgumentException("仓库根目录不能为空。", nameof(repoRootDir));
+            throw new ArgumentException(Loc.T("仓库根目录不能为空。"), nameof(repoRootDir));
 
         var config = new ProjectConfig
         {
@@ -51,11 +51,11 @@ public sealed class ProjectConfigStore : IProjectConfigStore
     {
         ArgumentNullException.ThrowIfNull(config);
         if (string.IsNullOrWhiteSpace(config.ConfigFilePath))
-            throw new InvalidOperationException("配置路径为空，无法保存（未选择有效的仓库目录）。");
+            throw new InvalidOperationException(Loc.T("配置路径为空，无法保存（未选择有效的仓库目录）。"));
 
         string dir = Path.GetDirectoryName(config.ConfigFilePath) ?? string.Empty;
         if (!Directory.Exists(dir))
-            throw new DirectoryNotFoundException($"仓库根目录不存在：{dir}");
+            throw new DirectoryNotFoundException(Loc.F($"仓库根目录不存在：{dir}"));
 
         string json = JsonSerializer.Serialize(config, ProjectConfig.JsonOptions);
         File.WriteAllText(config.ConfigFilePath, json, new UTF8Encoding(false));

@@ -69,7 +69,7 @@ internal static class Dialogs
 
             if (!Path.IsPathRooted(path))
             {
-                await ShowMessageAsync(anchor, title, "请输入以 / 开头的绝对路径，安卓不支持相对路径。");
+                await ShowMessageAsync(anchor, title, Loc.T("请输入以 / 开头的绝对路径，安卓不支持相对路径。"));
                 suggestion = path;
                 continue;
             }
@@ -80,7 +80,7 @@ internal static class Dialogs
             if (!Directory.Exists(path))
             {
                 bool create = await ConfirmAsync(anchor, title,
-                    $"目录不存在，是否新建？{Environment.NewLine}{path}");
+                    Loc.F($"目录不存在，是否新建？{Environment.NewLine}{path}"));
                 if (!create)
                 {
                     suggestion = path;
@@ -93,7 +93,7 @@ internal static class Dialogs
                 }
                 catch (Exception ex)
                 {
-                    await ShowMessageAsync(anchor, title, $"新建目录失败：{ex.Message}");
+                    await ShowMessageAsync(anchor, title, Loc.F($"新建目录失败：{ex.Message}"));
                     suggestion = path;
                     continue;
                 }
@@ -102,8 +102,8 @@ internal static class Dialogs
             if (!TryEnsureWritable(path, out string error))
             {
                 await ShowMessageAsync(anchor, title,
-                    $"目录不可写：{path}{Environment.NewLine}{error}{Environment.NewLine}" +
-                    "若使用 /storage/emulated/0，请先在系统设置中为 MultiGitCommit 授予「所有文件访问」。");
+                    Loc.F($"目录不可写：{path}{Environment.NewLine}{error}{Environment.NewLine}") +
+                    Loc.T("若使用 /storage/emulated/0，请先在系统设置中为 MultiGitCommit 授予「所有文件访问」。"));
                 suggestion = path;
                 continue;
             }
@@ -142,7 +142,7 @@ internal static class Dialogs
         public MessageBoxView(string message, bool showCancel)
         {
             Width = 460;
-            var ok = new AvaloniaButton { Content = "确定", Width = 90, IsDefault = true, Padding = new Thickness(8, 2) };
+            var ok = new AvaloniaButton { Content = Loc.T("确定"), Width = 90, IsDefault = true, Padding = new Thickness(8, 2) };
             ok.Click += (_, _) => Close(true);
 
             var buttons = new StackPanel
@@ -153,7 +153,7 @@ internal static class Dialogs
             buttons.Children.Add(ok);
             if (showCancel)
             {
-                var cancel = new AvaloniaButton { Content = "取消", Width = 90, IsCancel = true, Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(8, 2) };
+                var cancel = new AvaloniaButton { Content = Loc.T("取消"), Width = 90, IsCancel = true, Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(8, 2) };
                 cancel.Click += (_, _) => Close(false);
                 buttons.Children.Add(cancel);
             }
@@ -177,8 +177,8 @@ internal static class Dialogs
         {
             Width = 520;
             var box = new TextBox { Text = initialValue, MinHeight = 30 };
-            var ok = new AvaloniaButton { Content = "确定", Width = 90, IsDefault = true, Padding = new Thickness(8, 2) };
-            var cancel = new AvaloniaButton { Content = "取消", Width = 90, IsCancel = true, Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(8, 2) };
+            var ok = new AvaloniaButton { Content = Loc.T("确定"), Width = 90, IsDefault = true, Padding = new Thickness(8, 2) };
+            var cancel = new AvaloniaButton { Content = Loc.T("取消"), Width = 90, IsCancel = true, Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(8, 2) };
             ok.Click += (_, _) => Close(box.Text?.Trim() ?? string.Empty);
             cancel.Click += (_, _) => Close(null);
 

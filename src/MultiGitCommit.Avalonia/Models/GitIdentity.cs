@@ -35,5 +35,5 @@ public class GitIdentity
     public bool IsComplete => !string.IsNullOrWhiteSpace(Name) && !string.IsNullOrWhiteSpace(Email);
 
     /// <summary>展示文本。</summary>
-    public override string ToString() => IsComplete ? $"{Name} <{Email}>" : "（未设置）";
+    public override string ToString() => IsComplete ? $"{Name} <{Email}>" : Loc.T("（未设置）");
 }

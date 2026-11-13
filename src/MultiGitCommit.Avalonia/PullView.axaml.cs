@@ -39,7 +39,7 @@ public partial class PullView : DialogView<bool>
         {
             BtnStart.IsEnabled = false;
             CmbRemote.IsEnabled = false;
-            TxtError.Text = "当前项目没有配置远端地址，请先在【推送远端地址管理】中添加。";
+            TxtError.Text = Loc.T("当前项目没有配置远端地址，请先在【推送远端地址管理】中添加。");
             return;
         }
 
@@ -52,7 +52,7 @@ public partial class PullView : DialogView<bool>
     {
         if (CmbRemote.SelectedIndex < 0 || CmbRemote.SelectedIndex >= _remotes.Count)
         {
-            TxtError.Text = "请选择要拉取的远端地址。";
+            TxtError.Text = Loc.T("请选择要拉取的远端地址。");
             return;
         }
 

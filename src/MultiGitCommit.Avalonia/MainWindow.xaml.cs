@@ -31,11 +31,17 @@ public partial class MainWindow : Window
 
         // 标题带上大版本号 + 月日（如 v26.11.03），不同构建一眼区分；
         // 完整版本号（含构建时间 -HHmm）仍在【关于】对话框与文件属性里
-        Title = AppVersion.TitleVersion.Length > 0
-            ? $"MultiGitCommit v{AppVersion.TitleVersion} - 一键提交推送工具"
-            : "MultiGitCommit - 一键提交推送工具";
+        RefreshTitle();
+        Loc.LanguageChanged += RefreshTitle;
 
         // 关闭主窗口时中止仍在进行的拉取，避免 git 进程残留
         Closing += (_, _) => _view.Shutdown();
+    }
+
+    private void RefreshTitle()
+    {
+        Title = AppVersion.TitleVersion.Length > 0
+            ? Loc.F($"MultiGitCommit v{AppVersion.TitleVersion} - 一键提交推送工具")
+            : Loc.T("MultiGitCommit - 一键提交推送工具");
     }
 }

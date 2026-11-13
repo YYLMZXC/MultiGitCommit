@@ -51,7 +51,11 @@ public sealed class GitCommandResult
     public static GitCommandResult Timeout(string message)
         => new() { ExitCode = -1, TimedOut = true, Stderr = message };
 
-    public static GitCommandResult Canceled(string message = "操作已取消")
+    // 默认文案需经 Loc 翻译，不能写成默认参数（必须是编译期常量），故拆成重载
+    public static GitCommandResult Canceled()
+        => Canceled(Loc.T("操作已取消"));
+
+    public static GitCommandResult Canceled(string message)
         => new() { ExitCode = -1, Cancelled = true, Stderr = message };
 
     public static GitCommandResult Failure(string message)

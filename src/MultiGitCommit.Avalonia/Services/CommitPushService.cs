@@ -105,14 +105,14 @@ public sealed class CommitPushService
             .Distinct()
             .ToList();
 
-        log("========== 开始提交并推送流程 ==========");
+        log(Loc.T("========== 开始提交并推送流程 =========="));
 
         // 1) 自动获取当前分支名称（禁止硬编码 main/master）
         string? branch = await GetCurrentBranchAsync(repoDir, log).ConfigureAwait(true);
         if (branch == null)
         {
-            log("流程终止：无法获取当前分支。");
-            return CommitPushResult.Aborted("无法获取当前分支", urls.Count);
+            log(Loc.T("流程终止：无法获取当前分支。"));
+            return CommitPushResult.Aborted(Loc.T("无法获取当前分支"), urls.Count);
         }
 
         request.OnBranchDetected?.Invoke(branch);
@@ -120,9 +120,9 @@ public sealed class CommitPushService
         // 2) 远端列表为空则无需推送
         if (urls.Count == 0)
         {
-            log("尚未配置推送远端地址，请添加远端URL");
-            log("流程终止。");
-            return CommitPushResult.Aborted("尚未配置推送远端地址", 0, branch);
+            log(Loc.T("尚未配置推送远端地址，请添加远端URL"));
+            log(Loc.T("流程终止。"));
+            return CommitPushResult.Aborted(Loc.T("尚未配置推送远端地址"), 0, branch);
         }
 
         // 3) 勾选【执行 git add】才添加文件；未勾选则跳过，由用户提前手动 add。
@@ -132,8 +132,8 @@ public sealed class CommitPushService
             bool staged = await StageAsync(repoDir, request, log, cancellationToken).ConfigureAwait(true);
             if (!staged)
             {
-                log("流程终止：已取消选择要添加的文件。");
-                return CommitPushResult.Aborted("已取消选择要添加的文件", urls.Count, branch);
+                log(Loc.T("流程终止：已取消选择要添加的文件。"));
+                return CommitPushResult.Aborted(Loc.T("已取消选择要添加的文件"), urls.Count, branch);
             }
         }
 
@@ -147,7 +147,7 @@ public sealed class CommitPushService
         bool hasWorkTreeChanges = !string.IsNullOrWhiteSpace(status.Stdout);
 
         GitCommandResult stagedCheck = await _git.RunQuietAsync(repoDir, "diff --cached --quiet",
-            "git diff --cached --quiet（检查暂存区）", GitTimeouts.Quick,
+            Loc.T("git diff --cached --quiet（检查暂存区）"), GitTimeouts.Quick,
             cancellationToken: cancellationToken).ConfigureAwait(true);
 
         // 退出码 0 = 暂存区无改动，1 = 有改动；其他退出码说明判定失败，退回按工作区状态判断
@@ -160,23 +160,23 @@ public sealed class CommitPushService
         if (!hasStagedChanges && !request.ForceCommit)
         {
             log(hasWorkTreeChanges
-                ? "暂存区没有待提交的改动（nothing to commit）：未勾选 / 未 add 的文件不会被提交，跳过 git commit。"
-                : "工作区无任何变更（nothing to commit），跳过 git commit，不生成空提交。");
+                ? Loc.T("暂存区没有待提交的改动（nothing to commit）：未勾选 / 未 add 的文件不会被提交，跳过 git commit。")
+                : Loc.T("工作区无任何变更（nothing to commit），跳过 git commit，不生成空提交。"));
         }
         else
         {
             if (!hasStagedChanges)
-                log("暂存区无改动，但已勾选【强制提交】，仍执行一次空提交（--allow-empty）。");
+                log(Loc.T("暂存区无改动，但已勾选【强制提交】，仍执行一次空提交（--allow-empty）。"));
 
             // 4.5) 提交前置条件：必须存在 user.name / user.email，否则 git 生成不了 commit
             if (!await EnsureIdentityAsync(repoDir, request, log).ConfigureAwait(true))
             {
-                log("流程终止：未设置提交身份（user.name / user.email），无法生成 commit。");
-                return CommitPushResult.Aborted("未设置提交身份", urls.Count, branch);
+                log(Loc.T("流程终止：未设置提交身份（user.name / user.email），无法生成 commit。"));
+                return CommitPushResult.Aborted(Loc.T("未设置提交身份"), urls.Count, branch);
             }
 
             if (!await CommitAsync(repoDir, request, log, cancellationToken).ConfigureAwait(true))
-                log("git commit 执行失败，继续尝试推送已提交的内容。");
+                log(Loc.T("git commit 执行失败，继续尝试推送已提交的内容。"));
         }
 
         // 5) 循环推送每个远端；一个失败不阻断后续
@@ -184,8 +184,8 @@ public sealed class CommitPushService
             .ConfigureAwait(true);
 
         log(allSuccess
-            ? "========== 全部远端推送成功 =========="
-            : "========== 推送流程结束（存在失败项，请查看上方日志） ==========");
+            ? Loc.T("========== 全部远端推送成功 ==========")
+            : Loc.T("========== 推送流程结束（存在失败项，请查看上方日志） =========="));
 
         return new CommitPushResult
         {
@@ -211,7 +211,7 @@ public sealed class CommitPushService
         string shortName = fallback.Stdout.Trim();
         if (fallback.Success && shortName.Length > 0) return shortName;
 
-        log("获取当前分支失败（可能处于 detached HEAD 状态）。");
+        log(Loc.T("获取当前分支失败（可能处于 detached HEAD 状态）。"));
         return null;
     }
 
@@ -231,31 +231,31 @@ public sealed class CommitPushService
         // 设置里选了「全提交」：直接 git add .，不额外读取文件列表（少一次命令，也不弹窗）
         if (request.SelectFilesToStage == null)
         {
-            log("文件添加方式：全提交（git add .，添加全部变更）。");
+            log(Loc.T("文件添加方式：全提交（git add .，添加全部变更）。"));
             GitCommandResult add = await _git.RunAsync(repoDir, "add .", "git add .",
                 cancellationToken: cancellationToken).ConfigureAwait(true);
-            if (!add.Success) log("git add . 执行失败，继续后续流程。");
+            if (!add.Success) log(Loc.T("git add . 执行失败，继续后续流程。"));
             return true;
         }
 
         // 设置里选了「可选提交」：先读取工作区文件列表，再弹窗勾选
-        log("文件添加方式：可选提交（弹窗勾选要添加的文件）。");
+        log(Loc.T("文件添加方式：可选提交（弹窗勾选要添加的文件）。"));
         IReadOnlyList<WorkingTreeFile>? files = await ReadWorkingTreeChangesAsync(repoDir, log, cancellationToken)
             .ConfigureAwait(true);
 
         if (files == null)
         {
-            log("无法读取工作区文件列表，已跳过 git add（可稍后重试或手动执行 git add）。");
+            log(Loc.T("无法读取工作区文件列表，已跳过 git add（可稍后重试或手动执行 git add）。"));
             return true;
         }
 
         if (files.Count == 0)
         {
-            log("工作区没有可添加的文件（无任何变更）。");
+            log(Loc.T("工作区没有可添加的文件（无任何变更）。"));
             return true;
         }
 
-        log($"工作区共 {files.Count} 个变更文件。");
+        log(Loc.F($"工作区共 {files.Count} 个变更文件。"));
 
         IReadOnlyList<string>? selected = await request.SelectFilesToStage(files).ConfigureAwait(true);
         if (selected == null) return false;
@@ -263,12 +263,12 @@ public sealed class CommitPushService
         List<string> paths = selected.Where(p => p.Length > 0).Distinct(StringComparer.Ordinal).ToList();
         if (paths.Count == 0)
         {
-            log("未勾选任何文件，跳过 git add（已暂存的内容保持不变）。");
+            log(Loc.T("未勾选任何文件，跳过 git add（已暂存的内容保持不变）。"));
             return true;
         }
 
         if (paths.Count < files.Count)
-            log($"已勾选 {paths.Count} 个文件，其余 {files.Count - paths.Count} 个不添加。");
+            log(Loc.F($"已勾选 {paths.Count} 个文件，其余 {files.Count - paths.Count} 个不添加。"));
 
         return await AddFilesAsync(repoDir, paths, log, cancellationToken).ConfigureAwait(true);
     }
@@ -284,7 +284,7 @@ public sealed class CommitPushService
 
         if (!status.Success)
         {
-            log("读取工作区文件列表失败：请查看上方 git 输出。");
+            log(Loc.T("读取工作区文件列表失败：请查看上方 git 输出。"));
             return null;
         }
 
@@ -306,20 +306,20 @@ public sealed class CommitPushService
             List<string> batch = paths.Skip(start).Take(batchSize).ToList();
             string args = "add -- " + string.Join(" ", batch.Select(GitArgument.Quote));
             string label = batch.Count == paths.Count
-                ? $"git add -- {batch.Count} 个文件"
-                : $"git add -- {batch.Count} 个文件（{done + 1}-{done + batch.Count}/{paths.Count}）";
+                ? Loc.F($"git add -- {batch.Count} 个文件")
+                : Loc.F($"git add -- {batch.Count} 个文件（{done + 1}-{done + batch.Count}/{paths.Count}）");
 
             GitCommandResult add = await _git.RunAsync(repoDir, args, label, GitTimeouts.Default,
                 cancellationToken: cancellationToken).ConfigureAwait(true);
 
             if (add.Success)
             {
-                foreach (string path in batch) log("      已添加：" + path);
+                foreach (string path in batch) log(Loc.T("      已添加：") + path);
             }
             else
             {
                 allSuccess = false;
-                log("      本批 git add 执行失败，继续后续流程。");
+                log(Loc.T("      本批 git add 执行失败，继续后续流程。"));
             }
 
             done += batch.Count;
@@ -334,7 +334,7 @@ public sealed class CommitPushService
         var (name, email) = _identity.Read(repoDir);
         if (name.Length > 0 && email.Length > 0)
         {
-            log($"提交身份：{name} <{email}>");
+            log(Loc.F($"提交身份：{name} <{email}>"));
             return true;
         }
 
@@ -352,7 +352,7 @@ public sealed class CommitPushService
 
         // 对消息内双引号做转义，防止命令行语法报错
         string escapedMessage = commitMessage.Replace("\"", "\\\"");
-        log($"提交消息：{commitMessage}");
+        log(Loc.F($"提交消息：{commitMessage}"));
 
         string forceFlag = request.ForceCommit ? " --allow-empty" : string.Empty;
         string commitArgs = "commit -m \"" + escapedMessage + "\"" + forceFlag;
@@ -370,13 +370,13 @@ public sealed class CommitPushService
     {
         // 存在 https 远端时，先说明凭据助手状态（助手不可用时会导致"取不到账号"的典型故障）
         if (urls.Any(GitCredentials.NeedsCredential))
-            log("凭据助手：" + GitCredentialHelper.Describe());
+            log(Loc.T("凭据助手：") + GitCredentialHelper.Describe());
 
         bool allSuccess = true;
         int failed = 0;
 
         if (request.ForcePush)
-            log("警告：已勾选【强制推送 --force】，将覆盖远端同名分支的提交历史。");
+            log(Loc.T("警告：已勾选【强制推送 --force】，将覆盖远端同名分支的提交历史。"));
 
         foreach (string url in urls)
         {
@@ -395,13 +395,13 @@ public sealed class CommitPushService
                 {
                     pushUrl = GitCredentials.Apply(url, credential);
                     log(credential is DetectedCredential detected
-                        ? $"已自动使用系统 git 凭据（{detected.Source}）：{GitCredentials.Mask(pushUrl)}"
-                        : $"已为 {GitCredentials.Mask(pushUrl)} 注入已保存的推送凭据。");
+                        ? Loc.F($"已自动使用系统 git 凭据（{detected.Source}）：{GitCredentials.Mask(pushUrl)}")
+                        : Loc.F($"已为 {GitCredentials.Mask(pushUrl)} 注入已保存的推送凭据。"));
                 }
                 else if (_settings.Current.CredentialSource != CredentialSourceMode.None)
                 {
-                    log($"提示：{GitCredentials.Mask(url)} 未找到可用的推送凭据，https 远端的非交互推送很可能失败" +
-                        "（可在【Git 环境】中选择账号来源，并用【检测系统凭据…】导入或手动填写）。");
+                    log(Loc.F($"提示：{GitCredentials.Mask(url)} 未找到可用的推送凭据，https 远端的非交互推送很可能失败") +
+                        Loc.T("（可在【Git 环境】中选择账号来源，并用【检测系统凭据…】导入或手动填写）。"));
                 }
             }
 
@@ -414,20 +414,20 @@ public sealed class CommitPushService
             string pushArgs = $"{helperArg}push{forceFlag} {pushUrl} {branch}{tagsFlag}";
             string pushLabel = $"git push{forceFlag} {displayUrl} {branch}{tagsFlag}";
 
-            log($"--- 推送到：{displayUrl}（分支：{branch}{(request.ForcePush ? "，强制推送" : string.Empty)}）---");
+            log(Loc.F($"--- 推送到：{displayUrl}（分支：{branch}{(request.ForcePush ? Loc.T("，强制推送") : string.Empty)}）---"));
 
             GitCommandResult push = await _git.RunAsync(repoDir, pushArgs, pushLabel,
                 cancellationToken: cancellationToken).ConfigureAwait(true);
 
             if (push.Success)
             {
-                log($"[成功] 推送到：{url}");
+                log(Loc.F($"[成功] 推送到：{url}"));
             }
             else
             {
                 allSuccess = false;
                 failed++;
-                log($"[失败] 推送到：{url}（继续推送其余远端）");
+                log(Loc.F($"[失败] 推送到：{url}（继续推送其余远端）"));
             }
         }
 

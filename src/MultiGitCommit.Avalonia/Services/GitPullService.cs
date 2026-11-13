@@ -72,14 +72,14 @@ public sealed class GitPullService
         // 兼容旧配置里带引号 / 空白的 URL
         string pullUrl = GitCredentials.NormalizeUrl(request.RemoteUrl);
 
-        log("========== 开始拉取更新 ==========");
-        log($"远端：{GitCredentials.Mask(pullUrl)}");
-        log($"分支：{request.Branch}（{DescribeStrategy(request.Strategy)}）");
+        log(Loc.T("========== 开始拉取更新 =========="));
+        log(Loc.F($"远端：{GitCredentials.Mask(pullUrl)}"));
+        log(Loc.F($"分支：{request.Branch}（{DescribeStrategy(request.Strategy)}）"));
 
         if (pullUrl.Length == 0 || string.IsNullOrWhiteSpace(request.Branch))
         {
-            log("流程终止：缺少远端地址或分支。");
-            return new PullResult { Message = "缺少远端地址或分支" };
+            log(Loc.T("流程终止：缺少远端地址或分支。"));
+            return new PullResult { Message = Loc.T("缺少远端地址或分支") };
         }
 
         // https 远端：按账号来源取得凭据并注入 URL（与推送同样的处理）
@@ -90,13 +90,13 @@ public sealed class GitPullService
             {
                 pullUrl = GitCredentials.Apply(pullUrl, credential);
                 log(credential is DetectedCredential detected
-                    ? $"已自动使用系统 git 凭据（{detected.Source}）：{GitCredentials.Mask(pullUrl)}"
-                    : "已为拉取地址注入已保存的 git 凭据。");
+                    ? Loc.F($"已自动使用系统 git 凭据（{detected.Source}）：{GitCredentials.Mask(pullUrl)}")
+                    : Loc.T("已为拉取地址注入已保存的 git 凭据。"));
             }
             else if (_settings.Current.CredentialSource != CredentialSourceMode.None)
             {
-                log($"提示：{GitCredentials.Mask(pullUrl)} 未找到可用的凭据，https 远端的非交互拉取很可能失败" +
-                    "（可在【Git 环境】中选择账号来源，并用【检测系统凭据…】导入或手动填写）。");
+                log(Loc.F($"提示：{GitCredentials.Mask(pullUrl)} 未找到可用的凭据，https 远端的非交互拉取很可能失败") +
+                    Loc.T("（可在【Git 环境】中选择账号来源，并用【检测系统凭据…】导入或手动填写）。"));
             }
         }
 
@@ -118,34 +118,34 @@ public sealed class GitPullService
 
         if (result.TimedOut)
         {
-            log("拉取超时，已终止 git 进程。");
-            return new PullResult { TimedOut = true, Message = "拉取超时" };
+            log(Loc.T("拉取超时，已终止 git 进程。"));
+            return new PullResult { TimedOut = true, Message = Loc.T("拉取超时") };
         }
 
         if (result.Cancelled)
         {
-            log("拉取已取消。");
-            return new PullResult { Cancelled = true, Message = "已取消" };
+            log(Loc.T("拉取已取消。"));
+            return new PullResult { Cancelled = true, Message = Loc.T("已取消") };
         }
 
         if (!result.Success)
         {
-            log("[失败] 拉取未完成。");
+            log(Loc.T("[失败] 拉取未完成。"));
             string suggestion = Suggest(result);
             if (suggestion.Length > 0) log(suggestion);
             return new PullResult { Message = result.ErrorText };
         }
 
-        log("[成功] 拉取完成，已把远端最新提交同步到本地分支。");
+        log(Loc.T("[成功] 拉取完成，已把远端最新提交同步到本地分支。"));
         return new PullResult { Success = true };
     }
 
     /// <summary>策略的中文说明（日志展示用）。</summary>
     private static string DescribeStrategy(PullStrategy strategy) => strategy switch
     {
-        PullStrategy.Rebase => "变基 --rebase",
-        PullStrategy.Merge => "合并 --no-rebase",
-        _ => "仅快进 --ff-only"
+        PullStrategy.Rebase => Loc.T("变基 --rebase"),
+        PullStrategy.Merge => Loc.T("合并 --no-rebase"),
+        _ => Loc.T("仅快进 --ff-only")
     };
 
     /// <summary>针对常见拉取失败给出可操作的建议（git 原始报错已由执行器逐行输出）。</summary>
@@ -158,32 +158,32 @@ public sealed class GitPullService
             text.Contains("divergent branches", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("need to specify how to reconcile", StringComparison.OrdinalIgnoreCase))
         {
-            return "提示：本地与远端已分叉。可改用【变基 --rebase】或【合并 --no-rebase】重新拉取。";
+            return Loc.T("提示：本地与远端已分叉。可改用【变基 --rebase】或【合并 --no-rebase】重新拉取。");
         }
 
         if (text.Contains("Your local changes", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("Please commit your changes or stash them", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("would be overwritten by merge", StringComparison.OrdinalIgnoreCase))
         {
-            return "提示：工作区有未提交改动且与远端改动冲突。请先提交或暂存（git stash）后再拉取。";
+            return Loc.T("提示：工作区有未提交改动且与远端改动冲突。请先提交或暂存（git stash）后再拉取。");
         }
 
         if (text.Contains("could not read Username", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("Authentication failed", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("terminal prompts disabled", StringComparison.OrdinalIgnoreCase))
         {
-            return "提示：远端认证失败。https 远端请在【Git 环境】中配置账号；ssh 远端请确认密钥已加载。";
+            return Loc.T("提示：远端认证失败。https 远端请在【Git 环境】中配置账号；ssh 远端请确认密钥已加载。");
         }
 
         if (text.Contains("CONFLICT", StringComparison.OrdinalIgnoreCase))
         {
-            return "提示：拉取产生冲突，请在仓库目录手动解决冲突后再继续。";
+            return Loc.T("提示：拉取产生冲突，请在仓库目录手动解决冲突后再继续。");
         }
 
         if (text.Contains("couldn't find remote ref", StringComparison.OrdinalIgnoreCase) ||
             text.Contains("could not resolve host", StringComparison.OrdinalIgnoreCase))
         {
-            return "提示：远端地址或分支名可能不正确，也可能是网络不可达。";
+            return Loc.T("提示：远端地址或分支名可能不正确，也可能是网络不可达。");
         }
 
         return string.Empty;

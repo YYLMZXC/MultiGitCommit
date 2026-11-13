@@ -30,9 +30,9 @@ public static class GitResetDescriptions
 
     public static string Effect(GitResetMode mode) => mode switch
     {
-        GitResetMode.Hard => "工作区中所有未提交的改动都会被永久丢弃（无法恢复）",
-        GitResetMode.Mixed => "暂存区会被重置，工作区中的文件内容保持不变",
-        _ => "不会改动暂存区和工作区，改动会保留为已暂存状态"
+        GitResetMode.Hard => Loc.T("工作区中所有未提交的改动都会被永久丢弃（无法恢复）"),
+        GitResetMode.Mixed => Loc.T("暂存区会被重置，工作区中的文件内容保持不变"),
+        _ => Loc.T("不会改动暂存区和工作区，改动会保留为已暂存状态")
     };
 }
 

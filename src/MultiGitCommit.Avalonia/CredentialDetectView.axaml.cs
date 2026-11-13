@@ -70,14 +70,14 @@ public partial class CredentialDetectView : DialogView<bool>
         string input = TxtHost.Text?.Trim() ?? string.Empty;
         if (input.Length == 0)
         {
-            ShowStatus("请先填写要检测的主机（如 gitee.com）。", false);
+            ShowStatus(Loc.T("请先填写要检测的主机（如 gitee.com）。"), false);
             return;
         }
 
         string? host = GitCredentials.GetHost(input) ?? input.ToLowerInvariant();
         if (string.IsNullOrEmpty(host))
         {
-            ShowStatus("主机名无效，请检查输入。", false);
+            ShowStatus(Loc.T("主机名无效，请检查输入。"), false);
             return;
         }
 
@@ -88,12 +88,12 @@ public partial class CredentialDetectView : DialogView<bool>
         }
         else
         {
-            _hosts.Add(new HostSelectItem { Host = host, Origin = "手动添加", Selected = true });
+            _hosts.Add(new HostSelectItem { Host = host, Origin = Loc.T("手动添加"), Selected = true });
         }
 
         TxtHost.Text = string.Empty;
         RefreshHosts();
-        ShowStatus($"已添加主机：{host}", null);
+        ShowStatus(Loc.F($"已添加主机：{host}"), null);
     }
 
     private void BtnSelectAll_Click(object? sender, RoutedEventArgs e) => SetAllHosts(true);
@@ -131,13 +131,13 @@ public partial class CredentialDetectView : DialogView<bool>
 
         if (targets.Count == 0)
         {
-            ShowStatus("请至少勾选一个要检测的主机。", false);
+            ShowStatus(Loc.T("请至少勾选一个要检测的主机。"), false);
             return;
         }
 
         if (!_environment.IsAvailable)
         {
-            ShowStatus("未找到可用的 git，请先在 Git 环境设置里配置 git 来源。", false);
+            ShowStatus(Loc.T("未找到可用的 git，请先在 Git 环境设置里配置 git 来源。"), false);
             return;
         }
 
@@ -165,7 +165,7 @@ public partial class CredentialDetectView : DialogView<bool>
                 if (ct.IsCancellationRequested) break;
 
                 string host = targets[i];
-                TxtProgress.Text = $"正在检测 {i + 1}/{targets.Count}：{host}";
+                TxtProgress.Text = Loc.F($"正在检测 {i + 1}/{targets.Count}：{host}");
 
                 var cred = await SystemCredentialProbe.ProbeAsync(host, _environment.GitExe, ct, helperArg)
                     .ConfigureAwait(true);
@@ -183,21 +183,21 @@ public partial class CredentialDetectView : DialogView<bool>
             TxtProgress.Text = string.Empty;
             if (ct.IsCancellationRequested)
             {
-                ShowStatus($"已停止检测：已检测 {Progress.Value:0}/{targets.Count} 个主机，找到 {found} 个账号。", null);
+                ShowStatus(Loc.F($"已停止检测：已检测 {Progress.Value:0}/{targets.Count} 个主机，找到 {found} 个账号。"), null);
             }
             else if (found == 0)
             {
-                ShowStatus($"检测完成：未在这 {targets.Count} 个主机上发现系统凭据。" +
-                           "可先在本机成功推送一次让系统保存凭据，或手动填写账号。", false);
+                ShowStatus(Loc.F($"检测完成：未在这 {targets.Count} 个主机上发现系统凭据。") +
+                           Loc.T("可先在本机成功推送一次让系统保存凭据，或手动填写账号。"), false);
             }
             else
             {
-                ShowStatus($"检测完成：找到 {found} 个账号，勾选后点击【导入选中】。", true);
+                ShowStatus(Loc.F($"检测完成：找到 {found} 个账号，勾选后点击【导入选中】。"), true);
             }
         }
         catch (Exception ex)
         {
-            ShowStatus("检测过程中发生异常：" + ex.Message, false);
+            ShowStatus(Loc.T("检测过程中发生异常：") + ex.Message, false);
         }
         finally
         {
@@ -214,7 +214,7 @@ public partial class CredentialDetectView : DialogView<bool>
         if (_cts == null) return;
         _cts.Cancel();
         BtnStop.IsEnabled = false;
-        TxtProgress.Text = "正在停止…";
+        TxtProgress.Text = Loc.T("正在停止…");
     }
 
     // ==================== 导入 ====================
@@ -223,7 +223,7 @@ public partial class CredentialDetectView : DialogView<bool>
     {
         if (SelectedCredentials.Count == 0)
         {
-            await Dialogs.ShowMessageAsync(this, "检测系统凭据", "请先检测并勾选至少一个账号。");
+            await Dialogs.ShowMessageAsync(this, Loc.T("检测系统凭据"), Loc.T("请先检测并勾选至少一个账号。"));
             return;
         }
 

@@ -22,7 +22,7 @@ public static class FileOpener
 
         if (string.IsNullOrWhiteSpace(repoRoot) || string.IsNullOrWhiteSpace(relativePath))
         {
-            error = "文件路径为空。";
+            error = Loc.T("文件路径为空。");
             return false;
         }
 
@@ -42,7 +42,7 @@ public static class FileOpener
 
             if (!candidate.Equals(root, comparison) && !candidate.StartsWith(prefix, comparison))
             {
-                error = $"路径超出仓库范围，已拒绝打开：{relativePath}";
+                error = Loc.F($"路径超出仓库范围，已拒绝打开：{relativePath}");
                 return false;
             }
 
@@ -51,7 +51,7 @@ public static class FileOpener
         }
         catch (Exception ex)
         {
-            error = "路径无效：" + ex.Message;
+            error = Loc.T("路径无效：") + ex.Message;
             return false;
         }
     }
@@ -61,13 +61,13 @@ public static class FileOpener
     {
         if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
         {
-            error = "移动端不支持用系统默认程序打开本地文件。";
+            error = Loc.T("移动端不支持用系统默认程序打开本地文件。");
             return false;
         }
 
         if (!File.Exists(path))
         {
-            error = $"文件不存在：{path}";
+            error = Loc.F($"文件不存在：{path}");
             return false;
         }
 
@@ -95,7 +95,7 @@ public static class FileOpener
     {
         if (OperatingSystem.IsAndroid() || OperatingSystem.IsIOS())
         {
-            error = "移动端不支持在系统文件管理器中定位文件。";
+            error = Loc.T("移动端不支持在系统文件管理器中定位文件。");
             return false;
         }
 
@@ -108,7 +108,7 @@ public static class FileOpener
 
             if (string.IsNullOrEmpty(dir))
             {
-                error = $"所在目录不存在：{path}";
+                error = Loc.F($"所在目录不存在：{path}");
                 return false;
             }
 
@@ -185,7 +185,7 @@ public static class FileOpener
             errors.Add($"{exe}：{oneError}");
         }
 
-        error = errors.Count == 0 ? "没有可用的系统打开程序。" : string.Join("；", errors);
+        error = errors.Count == 0 ? Loc.T("没有可用的系统打开程序。") : string.Join("；", errors);
         return false;
     }
 

@@ -24,26 +24,26 @@
         <!-- Stretch：WrapPanel 必须先拿到可用宽度才会换行，设 Right 会按「单行期望宽度」测量而不换行 -->
         <WrapPanel DockPanel.Dock="Bottom" HorizontalAlignment="Stretch" Margin="0,10,0,0">
             <TextBlock x:Name="TxtCount" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#666" TextWrapping="Wrap"/>
-            <Button x:Name="BtnOk" Content="添加勾选的文件" Width="130" IsDefault="True" Click="BtnOk_Click"/>
-            <Button Content="取消" Width="80" IsCancel="True" Click="BtnCancel_Click"/>
+            <Button x:Name="BtnOk" Content="{DynamicResource L.StageFilesView.L027.Content}" Width="130" IsDefault="True" Click="BtnOk_Click"/>
+            <Button Content="{DynamicResource L.StageFilesView.L028.Content}" Width="80" IsCancel="True" Click="BtnCancel_Click"/>
         </WrapPanel>
 
         <!-- 顶部说明与批量操作（不随列表滚动） -->
         <StackPanel DockPanel.Dock="Top">
-            <TextBlock Text="选择要执行 git add 的文件" FontWeight="Bold" FontSize="14" Foreground="#2B579A"/>
+            <TextBlock Text="{DynamicResource L.StageFilesView.L033.Text}" FontWeight="Bold" FontSize="14" Foreground="#2B579A"/>
 
-            <TextBlock Text="仓库：" Margin="0,8,0,2" Foreground="#666"/>
+            <TextBlock Text="{DynamicResource L.StageFilesView.L035.Text}" Margin="0,8,0,2" Foreground="#666"/>
             <TextBox x:Name="TxtRepo" IsReadOnly="True" VerticalContentAlignment="Center"/>
 
             <TextBlock TextWrapping="Wrap" Margin="0,8,0,6" Foreground="#666"
-                       Text="默认全部勾选（等同于 git add .）；取消勾选的文件不会被添加。已在暂存区的文件即使取消勾选也不会撤销暂存，仍会进入本次提交。"/>
+                       Text="{DynamicResource L.StageFilesView.L039.Text}"/>
 
             <!-- WrapPanel：手机竖屏放不下一排按钮时自动换行，状态提示不会被挤出视口 -->
             <WrapPanel Margin="0,0,0,6">
-                <Button Content="全选" Width="70" Click="BtnSelectAll_Click"/>
-                <Button Content="全不选" Width="70" Click="BtnSelectNone_Click"/>
-                <Button Content="只选未暂存" Width="100" Click="BtnSelectUnstaged_Click"
-                        ToolTip.Tip="已暂存的文件不重复 add，适合只想补齐工作区改动的场景"/>
+                <Button Content="{DynamicResource L.StageFilesView.L043.Content}" Width="70" Click="BtnSelectAll_Click"/>
+                <Button Content="{DynamicResource L.StageFilesView.L044.Content}" Width="70" Click="BtnSelectNone_Click"/>
+                <Button Content="{DynamicResource L.StageFilesView.L045.Content}" Width="100" Click="BtnSelectUnstaged_Click"
+                        ToolTip.Tip="{DynamicResource L.StageFilesView.L046.ToolTip_Tip}"/>
                 <TextBlock x:Name="TxtStatus" VerticalAlignment="Center" Margin="12,0,0,0"
                            Foreground="#B00020" TextWrapping="Wrap"/>
             </WrapPanel>
@@ -55,10 +55,10 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="添加" Foreground="#666"/>
-                <TextBlock Grid.Column="1" Text="状态" Foreground="#666"/>
-                <TextBlock Grid.Column="2" Text="文件（相对仓库根目录）" Foreground="#666"/>
-                <TextBlock Grid.Column="3" Text="暂存区" Foreground="#666"/>
+                <TextBlock Grid.Column="0" Text="{DynamicResource L.StageFilesView.L058.Text}" Foreground="#666"/>
+                <TextBlock Grid.Column="1" Text="{DynamicResource L.StageFilesView.L059.Text}" Foreground="#666"/>
+                <TextBlock Grid.Column="2" Text="{DynamicResource L.StageFilesView.L060.Text}" Foreground="#666"/>
+                <TextBlock Grid.Column="3" Text="{DynamicResource L.StageFilesView.L061.Text}" Foreground="#666"/>
             </Grid>
         </StackPanel>
 

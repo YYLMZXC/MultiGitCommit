@@ -82,13 +82,13 @@ public static class CredentialTester
         string token = (cred.Token ?? string.Empty).Trim();
 
         if (host.Length == 0)
-            return Error("主机为空，无法验证账号。");
+            return Error(Loc.T("主机为空，无法验证账号。"));
 
         if (user.Length == 0 || token.Length == 0)
-            return Error("用户名或访问令牌为空，无法验证账号。");
+            return Error(Loc.T("用户名或访问令牌为空，无法验证账号。"));
 
         if (string.IsNullOrWhiteSpace(gitExe))
-            return Error("未找到可用的 git，请先配置 git 来源再验证账号。");
+            return Error(Loc.T("未找到可用的 git，请先配置 git 来源再验证账号。"));
 
         var probe = new GitCredential { Host = host, Username = user, Token = token };
         string probeUrl = PickProbeUrl(host, remoteUrls);
@@ -117,11 +117,11 @@ public static class CredentialTester
             if (!completed)
             {
                 return ct.IsCancellationRequested
-                    ? new CredentialTestResult { Status = CredentialTestStatus.Cancelled, Message = "已取消账号验证。", Target = target }
+                    ? new CredentialTestResult { Status = CredentialTestStatus.Cancelled, Message = Loc.T("已取消账号验证。"), Target = target }
                     : new CredentialTestResult
                     {
                         Status = CredentialTestStatus.NetworkError,
-                        Message = $"验证超时（超过 {timeoutSeconds} 秒未响应）：无法确认 {user}@{host} 是否可用，请检查网络或主机地址。",
+                        Message = Loc.F($"验证超时（超过 {timeoutSeconds} 秒未响应）：无法确认 {user}@{host} 是否可用，请检查网络或主机地址。"),
                         Target = target
                     };
             }
@@ -131,7 +131,7 @@ public static class CredentialTester
         }
         catch (Exception ex)
         {
-            return Error("验证账号失败：" + GitCredentials.MaskText(ex.Message), target);
+            return Error(Loc.T("验证账号失败：") + GitCredentials.MaskText(ex.Message), target);
         }
     }
 
@@ -172,7 +172,7 @@ public static class CredentialTester
             return new CredentialTestResult
             {
                 Status = CredentialTestStatus.Ok,
-                Message = $"账号可用：{user}@{host} 已通过认证，可访问 {target}。",
+                Message = Loc.F($"账号可用：{user}@{host} 已通过认证，可访问 {target}。"),
                 Detail = detail,
                 Target = target
             };
@@ -183,7 +183,7 @@ public static class CredentialTester
             return new CredentialTestResult
             {
                 Status = CredentialTestStatus.AuthFailed,
-                Message = $"账号不可用：{user}@{host} 未通过认证（用户名 / 访问令牌不正确，或该账号无访问权限）。",
+                Message = Loc.F($"账号不可用：{user}@{host} 未通过认证（用户名 / 访问令牌不正确，或该账号无访问权限）。"),
                 Detail = detail,
                 Target = target
             };
@@ -194,7 +194,7 @@ public static class CredentialTester
             return new CredentialTestResult
             {
                 Status = CredentialTestStatus.RepoNotFound,
-                Message = $"账号可用：{user}@{host} 的身份已被服务端接受（探测地址 {target} 不存在，凭据有效）。",
+                Message = Loc.F($"账号可用：{user}@{host} 的身份已被服务端接受（探测地址 {target} 不存在，凭据有效）。"),
                 Detail = detail,
                 Target = target
             };
@@ -206,10 +206,10 @@ public static class CredentialTester
             return new CredentialTestResult
             {
                 Status = CredentialTestStatus.NetworkError,
-                Message = $"无法与 {host} 建立 TLS 连接（握手失败），账号未能验证。" +
-                          "常见原因：代理 / 防火墙拦截了 TLS、服务端只接受特定 TLS 版本或客户端证书、该地址并非 https git 服务；" +
-                          "也请确认主机名拼写是否正确（公开 CNB 平台为 cnb.cool）。" +
-                          $"可用浏览器打开 https://{host} 确认，" + SshHint(host),
+                Message = Loc.F($"无法与 {host} 建立 TLS 连接（握手失败），账号未能验证。") +
+                          Loc.T("常见原因：代理 / 防火墙拦截了 TLS、服务端只接受特定 TLS 版本或客户端证书、该地址并非 https git 服务；") +
+                          Loc.T("也请确认主机名拼写是否正确（公开 CNB 平台为 cnb.cool）。") +
+                          Loc.F($"可用浏览器打开 https://{host} 确认，") + SshHint(host),
                 Detail = detail,
                 Target = target
             };
@@ -220,9 +220,9 @@ public static class CredentialTester
             return new CredentialTestResult
             {
                 Status = CredentialTestStatus.NetworkError,
-                Message = $"无法验证 {host} 的服务器证书，账号未能验证" +
-                          "（自签名证书 / 缺少根证书 / 证书过期或与主机名不符）。" +
-                          "可让 git 信任该 CA（http.sslCAInfo）" + SshHint(host),
+                Message = Loc.F($"无法验证 {host} 的服务器证书，账号未能验证") +
+                          Loc.T("（自签名证书 / 缺少根证书 / 证书过期或与主机名不符）。") +
+                          Loc.T("可让 git 信任该 CA（http.sslCAInfo）") + SshHint(host),
                 Detail = detail,
                 Target = target
             };
@@ -233,7 +233,7 @@ public static class CredentialTester
             return new CredentialTestResult
             {
                 Status = CredentialTestStatus.NetworkError,
-                Message = $"无法连接 {host}，账号未能验证（网络不通 / 主机不可达 / 被代理拦截）。",
+                Message = Loc.F($"无法连接 {host}，账号未能验证（网络不通 / 主机不可达 / 被代理拦截）。"),
                 Detail = detail,
                 Target = target
             };
@@ -242,7 +242,7 @@ public static class CredentialTester
         return new CredentialTestResult
         {
             Status = CredentialTestStatus.Error,
-            Message = $"未能验证 {user}@{host} 是否可用（git ls-remote 退出码 {exitCode}）。",
+            Message = Loc.F($"未能验证 {user}@{host} 是否可用（git ls-remote 退出码 {exitCode}）。"),
             Detail = detail,
             Target = target
         };
@@ -251,8 +251,8 @@ public static class CredentialTester
     /// <summary>连接类建议：CNB 只支持 HTTPS + 令牌，不能改用 ssh；其他平台可换 ssh。</summary>
     private static string SshHint(string host) =>
         string.Equals(host, "cnb.cool", StringComparison.OrdinalIgnoreCase)
-            ? "CNB 平台只支持 HTTPS + 访问令牌，不能改用 ssh。"
-            : "或改用 ssh 远端。";
+            ? Loc.T("CNB 平台只支持 HTTPS + 访问令牌，不能改用 ssh。")
+            : Loc.T("或改用 ssh 远端。");
 
     private static bool ContainsAny(string text, string[] keywords)
     {

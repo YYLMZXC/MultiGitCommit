@@ -115,7 +115,7 @@ internal static class UiDialogs
         var owner = (anchor as Window)
                     ?? anchor.GetVisualAncestors().OfType<Window>().FirstOrDefault();
         if (owner == null)
-            throw new InvalidOperationException("无法确定对话框宿主：anchor 可视树中既没有 Window 也没有覆盖层。");
+            throw new InvalidOperationException(Loc.T("无法确定对话框宿主：anchor 可视树中既没有 Window 也没有覆盖层。"));
 
         var win = new Window
         {
@@ -253,7 +253,7 @@ public class DialogOverlay : Panel
         // 全限定：android TFM 的隐式 using 里也有 Android.Widget.Button，简写会 CS0104 二义性
         var closeButton = new Avalonia.Controls.Button
         {
-            Content = "关闭",
+            Content = Loc.T("关闭"),
             MinWidth = 56,
             Height = 30,
             Padding = new Thickness(10, 2),

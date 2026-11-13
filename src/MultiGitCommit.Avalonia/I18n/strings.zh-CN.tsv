@@ -1,0 +1,234 @@
+# key<TAB>text   |   @N@ = newline   |   UTF-8
+L.AboutView.L012.Content	确定
+L.AboutView.L027.Text	个人自用的 Git 一键提交推送工具（Avalonia 跨平台版，支持 Windows、macOS、Linux、Android 与 iOS）。
+L.CloneView.L012.Content	开始克隆
+L.CloneView.L013.Content	取消
+L.CloneView.L032.Text	远端 URL：
+L.CloneView.L035.ToolTip_Tip	支持 ssh / https / 本地路径，例如 git@gitee.com:user/repo.git、https://github.com/user/repo.git
+L.CloneView.L037.Text	克隆到：
+L.CloneView.L040.ToolTip_Tip	本地父目录，仓库将被克隆到该目录下的【目录名】子文件夹
+L.CloneView.L041.Content	浏览...
+L.CloneView.L042.ToolTip_Tip	选择本地父目录
+L.CloneView.L044.Text	目录名：
+L.CloneView.L047.ToolTip_Tip	目标文件夹名，默认根据远端 URL 自动推导，可手动修改
+L.CloneView.L049.Text	分支：
+L.CloneView.L052.ToolTip_Tip	可选：指定要克隆并检出的分支（--branch）；留空则使用远端默认分支
+L.CloneView.L056.Text	递归克隆子模块 --recursive
+L.CloneView.L059.Text	浅克隆 --depth 1（仅拉取最近一次提交，速度快）
+L.CloneView.L062.Text	克隆后把该 URL 添加到本项目的推送远端列表
+L.CloneView.L069.Text	目标路径：
+L.CloneView.L071.Text	将执行命令：
+L.CredentialDetectView.L012.Content	导入选中
+L.CredentialDetectView.L013.Content	关闭
+L.CredentialDetectView.L021.Text	从本机已保存的 git 凭据里检测账号（Windows 凭据管理器 / macOS 钥匙串 / Linux Secret Service（libsecret）/ ~/.git-credentials / credential helper）。为避免逐个扫描耗时，默认只勾选有明确线索的主机，其余按需自行勾选。
+L.CredentialDetectView.L025.Text	1. 选择要检测的主机
+L.CredentialDetectView.L046.Watermark	主机，如 gitee.com
+L.CredentialDetectView.L047.ToolTip_Tip	手动添加要检测的主机，例如 gitee.com
+L.CredentialDetectView.L048.Content	添加主机
+L.CredentialDetectView.L049.Content	全选
+L.CredentialDetectView.L050.Content	全不选
+L.CredentialDetectView.L057.Content	开始检测
+L.CredentialDetectView.L058.Content	停止
+L.CredentialDetectView.L065.Text	2. 检测到的账号（勾选后导入）
+L.GitSettingsView.L096.Content	确定
+L.GitSettingsView.L097.Content	取消
+L.GitSettingsView.L107.Text	Git 环境设置
+L.GitSettingsView.L109.Text	常用项放在前面；不常用的底层配置收在下方【高级设置】里，默认收起。点【确定】保存，启动策略下次启动生效。
+L.GitSettingsView.L114.Text	提交身份
+L.GitSettingsView.L117.Text	commit 提交必须身份，不配置无法提交。修改后点【设置】写入 git config。
+L.GitSettingsView.L134.Text	用户名
+L.GitSettingsView.L136.Watermark	提交记录里显示的名字
+L.GitSettingsView.L137.ToolTip_Tip	git config user.name，提交记录里显示的作者名
+L.GitSettingsView.L141.Text	邮箱
+L.GitSettingsView.L144.ToolTip_Tip	git config user.email，建议与代码平台注册邮箱一致
+L.GitSettingsView.L150.Text	写入到
+L.GitSettingsView.L152.ToolTip_Tip	本仓库只影响当前项目，全局对所有仓库生效
+L.GitSettingsView.L153.Content	仅当前仓库
+L.GitSettingsView.L154.Content	全局（所有仓库）
+L.GitSettingsView.L157.Content	设置
+L.GitSettingsView.L162.Text	默认只写入当前仓库；选「全局」对所有仓库生效。
+L.GitSettingsView.L177.Text	提交文件添加方式
+L.GitSettingsView.L178.Text	git add 策略 · 主界面勾选【执行 git add】后生效
+L.GitSettingsView.L182.Text	全部提交（默认）
+L.GitSettingsView.L185.Text	可选提交（手动勾选文件）
+L.GitSettingsView.L202.Text	高级设置
+L.GitSettingsView.L204.Text	Git 程序来源 · 启动仓库加载策略 · 远端凭据与账号认证。绝大多数用户永远不需要碰这里。
+L.GitSettingsView.L213.Text	Git 程序来源
+L.GitSettingsView.L215.Text	本工具执行 git 命令时用哪个 git 程序。默认自动检测，一般不用改；装了便携版 Git 或要用特定版本时才需要指定。
+L.GitSettingsView.L218.Text	自动检测（推荐）
+L.GitSettingsView.L221.Text	软件内嵌 Git
+L.GitSettingsView.L224.Text	系统 Git（PATH 环境变量）
+L.GitSettingsView.L227.Text	指定 git 路径 / Git 目录
+L.GitSettingsView.L232.Text	git 可执行文件，或 Git 安装 / 解压根目录
+L.GitSettingsView.L239.ToolTip_Tip	git 可执行文件完整路径，或 Git 安装 / 解压根目录（自动查找其中的 bin/git、cmd/git、libexec/git-core/git）
+L.GitSettingsView.L240.Content	浏览…
+L.GitSettingsView.L242.ToolTip_Tip	选择 git 可执行文件；若想指定 Git 根目录请直接粘贴目录路径
+L.GitSettingsView.L247.Content	检测当前 Git 配置
+L.GitSettingsView.L253.Text	自动检测顺序：软件内嵌 Git → 常见安装位置 → 系统 PATH。
+L.GitSettingsView.L264.Text	启动仓库加载策略
+L.GitSettingsView.L266.Text	打开软件时自动填入哪个仓库目录；改动在下次启动时生效。
+L.GitSettingsView.L269.Text	只读取当前目录（默认）
+L.GitSettingsView.L272.Text	打开上次使用的仓库
+L.GitSettingsView.L275.Text	当前目录优先，找不到再回退上次仓库
+L.GitSettingsView.L287.Text	远端凭据与账号认证
+L.GitSettingsView.L289.Text	HTTPS 远端推送时工具不会弹窗询问账号，所以要先准备好凭据。SSH 远端或 URL 里已带账号时选「不使用凭据」。
+L.GitSettingsView.L295.Text	只用系统凭据
+L.GitSettingsView.L298.Text	只用自定义账号
+L.GitSettingsView.L301.Text	不使用凭据
+L.GitSettingsView.L306.Text	自动检测＝优先用下方保存的账号，找不到时再从系统凭据库获取；「只用系统凭据」每次推送实时索取，令牌不保存到配置文件。
+L.GitSettingsView.L311.Text	自定义账号（按主机匹配，可配多个）
+L.GitSettingsView.L313.Text	选平台自动填主机名；推送时自动注入账号，令牌在日志中显示为 ***。
+L.GitSettingsView.L322.Text	平台：
+L.GitSettingsView.L325.ToolTip_Tip	选择平台会自动填入主机名与用户名规则；也可选“自定义”手动填写
+L.GitSettingsView.L328.Content	CNB 云原生构建（cnb.cool）
+L.GitSettingsView.L329.Content	自定义（手动填写主机）
+L.GitSettingsView.L331.Content	获取访问令牌
+L.GitSettingsView.L334.ToolTip_Tip	用浏览器打开当前平台的访问令牌创建页面
+L.GitSettingsView.L351.Watermark	主机，如 cnb.cool
+L.GitSettingsView.L352.ToolTip_Tip	远端主机名（cnb.cool / gitee.com / github.com），也可直接粘贴完整 URL
+L.GitSettingsView.L354.ToolTip_Tip	平台账号名
+L.GitSettingsView.L356.Watermark	访问令牌 / 密码
+L.GitSettingsView.L357.ToolTip_Tip	平台的访问令牌（Personal Access Token），不要填登录密码以外的敏感口令
+L.GitSettingsView.L361.Content	验证账号
+L.GitSettingsView.L362.ToolTip_Tip	用一次 git ls-remote 实测该账号能否通过服务端认证（最多 20 秒，可随时取消）
+L.GitSettingsView.L363.Content	添加/更新
+L.GitSettingsView.L364.Content	删除
+L.GitSettingsView.L365.Content	检测系统凭据…
+L.GitSettingsView.L366.ToolTip_Tip	打开检测窗口：自行选择要检测的主机，再按需导入（可随时停止，不会全量扫描）
+L.GitSettingsView.L370.Text	凭据明文保存在应用设置目录的 settings.json，请只在本机使用。
+L.GitSettingsView.L378.Text	凭据助手（credential.helper）
+L.GitSettingsView.L380.Text	系统凭据能否取到，取决于当前 git 有没有可用的助手；点【确定】保存新的 git 来源后会重新检测。
+L.GitSettingsView.L383.ToolTip_Tip	git 取用系统保存的账号所依赖的助手；若配置的助手在当前 git 中不存在（常见于精简便携版），推送时会报 'credential-manager' is not a git command
+L.HistoryView.L028.Content	重置到选中提交
+L.HistoryView.L029.ToolTip_Tip	执行 git reset，把当前分支回退到选中提交（执行前会二次确认）
+L.HistoryView.L030.Content	关闭
+L.HistoryView.L036.Text	提交历史（当前分支，最新在前）
+L.HistoryView.L040.Content	刷新
+L.HistoryView.L052.Text	时间
+L.HistoryView.L053.Text	提交
+L.HistoryView.L054.Text	作者
+L.HistoryView.L055.Text	说明
+L.HistoryView.L092.Text	修改的文件（选中提交后显示）
+L.HistoryView.L095.Content	打开选中文件
+L.HistoryView.L096.ToolTip_Tip	用系统默认程序（按文件类型关联）打开选中文件，也可直接双击列表项或按回车
+L.HistoryView.L097.Content	打开所在文件夹
+L.HistoryView.L098.ToolTip_Tip	在文件管理器中定位（Windows 资源管理器 / macOS Finder / Linux 文件管理器）；已删除的文件也能打开其所在目录
+L.HistoryView.L106.ToolTip_Tip	双击（或选中后按回车）用系统默认程序打开对应文件；上方按钮可在文件管理器中定位
+L.HistoryView.L128.Text	重置到选中提交（只影响本地分支，不会推送远端）
+L.HistoryView.L131.Text	soft：只移动 HEAD，改动保留在暂存区（最安全，推荐）
+L.HistoryView.L134.Text	mixed：重置暂存区，工作区文件内容不变（git reset 默认行为）
+L.HistoryView.L137.Text	hard：丢弃工作区所有未提交改动（不可恢复，请谨慎）
+L.HistoryView.L142.Text	请先在列表中选择要重置到的提交。
+L.IdentityView.L011.Content	确定
+L.IdentityView.L012.Content	取消
+L.IdentityView.L017.Text	git 生成 commit 的前置条件：必须配置 user.name 与 user.email，否则 git 直接报错（Please tell me who you are / unable to auto-detect email address），根本生成不了提交。
+L.IdentityView.L021.Text	用户名
+L.IdentityView.L023.ToolTip_Tip	git config user.name，提交记录里显示的作者名
+L.IdentityView.L025.Text	邮箱
+L.IdentityView.L027.ToolTip_Tip	git config user.email，提交记录里显示的作者邮箱
+L.IdentityView.L030.Text	写入位置
+L.IdentityView.L033.Text	仅当前仓库（git config，写入该仓库的 .git/config）
+L.IdentityView.L036.Text	全局（git config --global，对所有仓库生效）
+L.IdentityView.L041.Text	用户名与邮箱都会写入提交记录（git log 可见），邮箱建议与代码平台注册邮箱一致，便于平台关联贡献者。
+L.MainView.L054.Text	仓库目录：
+L.MainView.L057.ToolTip_Tip	Git 仓库本地根目录路径，与 .git 文件夹同级
+L.MainView.L058.Content	选择文件夹
+L.MainView.L059.Content	克隆项目
+L.MainView.L060.ToolTip_Tip	从远端 URL 克隆仓库到本地目录，完成后自动切换为该仓库并可写入推送远端列表
+L.MainView.L061.Content	初始化仓库
+L.MainView.L062.ToolTip_Tip	对当前目录执行 git init 初始化仓库，并创建默认分支（目录不存在时提示新建）
+L.MainView.L063.Content	创建默认分支
+L.MainView.L064.ToolTip_Tip	为当前仓库创建/切换默认分支；空仓库直接设置 HEAD 指向该分支
+L.MainView.L065.Content	重新加载配置
+L.MainView.L066.ToolTip_Tip	重新读取当前目录下的 multigitcommit.config.json
+L.MainView.L067.Content	关于
+L.MainView.L068.ToolTip_Tip	关于 MultiGitCommit 及项目地址
+L.MainView.L069.Content	Git 环境
+L.MainView.L070.ToolTip_Tip	配置 git 来源：自动检测 / 系统 PATH（环境 git）/ 指定路径 / 软件内嵌 Git
+L.MainView.L071.Content	仓库管理
+L.MainView.L072.ToolTip_Tip	打开仓库管理首页：最近打开的项目与本地 Git 仓库自动发现
+L.MainView.L086.Text	推送远端地址管理（每个项目独立保存到 multigitcommit.config.json）
+L.MainView.L088.Content	添加远端
+L.MainView.L089.Content	编辑选中
+L.MainView.L090.Content	删除选中
+L.MainView.L091.Content	在浏览器中打开
+L.MainView.L092.ToolTip_Tip	使用系统默认浏览器打开选中的远端 URL
+L.MainView.L096.ToolTip_Tip	当前项目保存的全部远端 URL（ssh/https 均支持）
+L.MainView.L108.Text	提交设置
+L.MainView.L114.Text	提交备注：
+L.MainView.L116.ToolTip_Tip	留空时 commit 消息仅使用本地时间，格式：yyyy-MM-dd HH:mm:ss 用户备注
+L.MainView.L120.Content	执行 git add（全提交 / 可选提交见【Git 环境】设置）
+L.MainView.L121.ToolTip_Tip	勾选后提交前会先执行 git add：默认全提交（git add .，添加全部变更）；可在【Git 环境】→「执行 git add 时的文件添加方式」改为可选提交（弹窗勾选要添加的文件）
+L.MainView.L123.Content	推送标签 --tags（默认不勾选）
+L.MainView.L125.Content	强制提交 --allow-empty（无变更也生成空提交）
+L.MainView.L126.ToolTip_Tip	勾选后即使工作区无变更也执行 git commit --allow-empty，忽略空提交防护
+L.MainView.L128.Content	强制推送 --force（覆盖远端历史，谨慎使用）
+L.MainView.L129.ToolTip_Tip	勾选后推送命令追加 --force，可解决非快进被拒；会覆盖远端提交历史，请谨慎使用
+L.MainView.L137.Content	执行提交并推送全部远端
+L.MainView.L139.Content	拉取更新
+L.MainView.L141.ToolTip_Tip	从配置的远端拉取当前分支的最新提交（支持 ff-only / rebase / merge，执行中可取消）
+L.MainView.L147.Text	提交身份：未选择仓库
+L.MainView.L148.ToolTip_Tip	git commit 需要 user.name 与 user.email，缺失时 git 直接报错（Please tell me who you are）
+L.MainView.L149.Content	提交身份…
+L.MainView.L150.ToolTip_Tip	设置并提交 git 的 user.name / user.email（可写入本仓库或全局）
+L.MainView.L151.Content	历史记录…
+L.MainView.L152.ToolTip_Tip	浏览当前分支的历史提交记录，并可重置（soft / mixed / hard）到指定提交
+L.MainView.L163.Text	手动命令执行区（在当前仓库目录执行任意 git/shell 命令）
+L.MainView.L170.ToolTip_Tip	例如：git status / git log --oneline -5 / ls -la（Windows 可用 dir；Linux / macOS 走登录 shell，可用环境变量与管道）
+L.MainView.L172.Content	执行命令
+L.MainView.L185.Text	日志输出
+L.MainView.L218.Content	复制日志
+L.MainView.L219.ToolTip_Tip	把日志区当前全部内容复制到系统剪贴板
+L.MainView.L220.Content	清空日志
+L.MainView.L221.Content	自动滚动到底部
+L.MainView.L224.ToolTip_Tip	当前生效的 git（点击上方【Git 环境】按钮可修改来源）
+L.MainWindow.L004.Title	MultiGitCommit - 一键提交推送工具
+L.PullView.L019.Content	开始拉取
+L.PullView.L020.Content	取消
+L.PullView.L025.Text	从远端拉取最新提交到当前分支
+L.PullView.L027.Text	仓库：
+L.PullView.L030.Text	分支：
+L.PullView.L033.Text	远端：
+L.PullView.L035.ToolTip_Tip	选择要拉取的远端（与推送列表共用同一份配置）
+L.PullView.L037.Text	拉取方式
+L.PullView.L040.Text	仅快进 --ff-only（推荐）：本地没有分叉时最安全，分叉会直接失败
+L.PullView.L043.Text	变基 --rebase：把本地提交放到远端最新提交之上，历史保持线性
+L.PullView.L046.Text	合并 --no-rebase：产生一个合并提交
+L.PullView.L050.Text	说明：拉取只更新本地分支，不会推送。工作区有未提交改动时，若与远端改动冲突，git 会拒绝拉取或产生冲突，请先提交或暂存（git stash）。
+L.RepoHomeView.L031.Text	仓库管理
+L.RepoHomeView.L033.Text	过往访问的项目与本地 Git 仓库统一管理，点击「打开」快速跳转到对应项目页。
+L.RepoHomeView.L040.Text	最近打开的项目
+L.RepoHomeView.L041.ToolTip_Tip	记录本工具成功加载过的仓库（最多 10 条，按最近使用排序），保存在应用设置中
+L.RepoHomeView.L042.Content	清空记录
+L.RepoHomeView.L043.ToolTip_Tip	清空最近打开项目的记录（不影响仓库本身）
+L.RepoHomeView.L046.Text	暂无记录：打开过的仓库会显示在这里
+L.RepoHomeView.L053.Content	打开
+L.RepoHomeView.L054.ToolTip_Tip	切换到该仓库的项目页（自动上溯到仓库根目录）
+L.RepoHomeView.L055.Content	移除
+L.RepoHomeView.L056.ToolTip_Tip	从最近项目记录中移除该条目
+L.RepoHomeView.L069.Text	本地 Git 仓库（自动发现）
+L.RepoHomeView.L070.ToolTip_Tip	自动扫描本地磁盘上的 Git 仓库（命中 .git 或 multigitcommit.config.json 即算一个）
+L.RepoHomeView.L071.Content	刷新
+L.RepoHomeView.L072.ToolTip_Tip	重新扫描本地 Git 仓库；默认扫描用户主目录与各固定磁盘（Android 为共享存储）
+L.RepoHomeView.L091.Text	未发现 Git 仓库：请确认仓库位置，或点【刷新】重扫
+L.RepoHomeView.L097.Content	选择文件夹打开…
+L.RepoHomeView.L098.ToolTip_Tip	唤起系统文件管理器选择 Git 仓库根目录（与 .git 同级），选择后自动载入项目页
+L.RepoHomeView.L100.Text	启动默认页面：
+L.RepoHomeView.L101.ToolTip_Tip	应用启动时的默认页面；当前目录所在的仓库存在时，始终优先进项目页
+L.RepoHomeView.L102.Content	项目页
+L.RepoHomeView.L104.ToolTip_Tip	启动直接进入仓库提交推送界面（历史行为）
+L.RepoHomeView.L105.Content	仓库管理页
+L.RepoHomeView.L107.ToolTip_Tip	启动先进入仓库管理首页（当前目录无仓库时）
+L.StageFilesView.L027.Content	添加勾选的文件
+L.StageFilesView.L028.Content	取消
+L.StageFilesView.L033.Text	选择要执行 git add 的文件
+L.StageFilesView.L035.Text	仓库：
+L.StageFilesView.L039.Text	默认全部勾选（等同于 git add .）；取消勾选的文件不会被添加。已在暂存区的文件即使取消勾选也不会撤销暂存，仍会进入本次提交。
+L.StageFilesView.L043.Content	全选
+L.StageFilesView.L044.Content	全不选
+L.StageFilesView.L045.Content	只选未暂存
+L.StageFilesView.L046.ToolTip_Tip	已暂存的文件不重复 add，适合只想补齐工作区改动的场景
+L.StageFilesView.L058.Text	添加
+L.StageFilesView.L059.Text	状态
+L.StageFilesView.L060.Text	文件（相对仓库根目录）
+L.StageFilesView.L061.Text	暂存区

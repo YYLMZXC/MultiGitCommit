@@ -15,13 +15,28 @@ public partial class App : Avalonia.Application
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
+
+        // 必须在创建任何视图之前：XAML 的 DynamicResource 在控件加载时就会解析资源值
+        Loc.Initialize(AppServices.Current.Settings.Current.Language);
+        Loc.LanguageChanged += RefreshResources;
+        RefreshResources();
+    }
+
+    /// <summary>
+    /// 把当前语言的全部 XAML 文案写进应用级资源。原地赋值（而不是替换整个字典对象）
+    /// 才能触发 DynamicResource 的资源变更通知，实现不重启切换语言。
+    /// </summary>
+    private void RefreshResources()
+    {
+        foreach (var entry in Loc.GetResourceEntries())
+            Resources[entry.Key] = entry.Value;
     }
 
     public override void OnFrameworkInitializationCompleted()
     {
         AppDomain.CurrentDomain.UnhandledException += (_, args) =>
         {
-            System.Console.Error.WriteLine("未处理异常：" + (args.ExceptionObject as System.Exception)?.Message);
+            System.Console.Error.WriteLine(Loc.T("未处理异常：") + (args.ExceptionObject as System.Exception)?.Message);
         };
 
         // 唯一的应用装配入口：桌面 / 移动两条启动路径都从组合根取同一套默认依赖

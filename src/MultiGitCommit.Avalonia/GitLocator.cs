@@ -246,31 +246,31 @@ public static class GitLocator
             case GitSourceMode.Embedded:
                 found = EmbeddedCandidates().FirstOrDefault(IsExecutable);
                 description = found != null
-                    ? $"软件内嵌：{found}"
+                    ? Loc.F($"软件内嵌：{found}")
                     : OperatingSystem.IsAndroid()
-                        ? "APK 原生库目录未发现内嵌 Git（libgit.so），请改用其他来源"
-                        : "软件目录 / .app 内未发现内嵌 Git（git/bin/git 或 Resources/git/bin/git），请改用其他来源";
+                        ? Loc.T("APK 原生库目录未发现内嵌 Git（libgit.so），请改用其他来源")
+                        : Loc.T("软件目录 / .app 内未发现内嵌 Git（git/bin/git 或 Resources/git/bin/git），请改用其他来源");
                 break;
 
             case GitSourceMode.System:
                 found = FindOnPath();
                 description = found != null
-                    ? $"系统 PATH：{found}"
-                    : "系统 PATH 环境变量中未找到 git";
+                    ? Loc.F($"系统 PATH：{found}")
+                    : Loc.T("系统 PATH 环境变量中未找到 git");
                 break;
 
             case GitSourceMode.Custom:
                 found = ResolveCustomPath(customPath);
                 description = found != null
-                    ? $"指定路径：{found}"
-                    : $"指定路径中未找到可用的 git：{(string.IsNullOrWhiteSpace(customPath) ? "（空）" : customPath)}";
+                    ? Loc.F($"指定路径：{found}")
+                    : Loc.F($"指定路径中未找到可用的 git：{(string.IsNullOrWhiteSpace(customPath) ? Loc.T("（空）") : customPath)}");
                 break;
 
             default:
                 found = CandidatePaths().FirstOrDefault(IsExecutable) ?? FindOnPath();
                 description = found != null
-                    ? $"自动检测：{found}"
-                    : $"自动检测：未找到 git（macOS 可安装 Xcode 命令行工具或 Homebrew；Linux 可用系统包管理器安装 git 或 Linuxbrew；也可在设置中指定路径）";
+                    ? Loc.F($"自动检测：{found}")
+                    : Loc.F($"自动检测：未找到 git（macOS 可安装 Xcode 命令行工具或 Homebrew；Linux 可用系统包管理器安装 git 或 Linuxbrew；也可在设置中指定路径）");
                 break;
         }
 
@@ -283,7 +283,7 @@ public static class GitLocator
             return found;
         }
 
-        description += "（文件存在但执行 git --version 校验失败）";
+        description += Loc.T("（文件存在但执行 git --version 校验失败）");
         return null;
     }
 

@@ -9,7 +9,7 @@
          底部【确定】按钮放在 ScrollViewer 外，始终可见 -->
     <DockPanel Margin="20" LastChildFill="True">
         <StackPanel DockPanel.Dock="Bottom" HorizontalAlignment="Center" Margin="0,14,0,0">
-            <Button Content="确定" Width="90" IsDefault="True" Click="BtnOk_Click"/>
+            <Button Content="{DynamicResource L.AboutView.L012.Content}" Width="90" IsDefault="True" Click="BtnOk_Click"/>
         </StackPanel>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -24,7 +24,7 @@
                                TextWrapping="Wrap" Margin="0,3,0,0"/>
                 </StackPanel>
 
-                <TextBlock Text="个人自用的 Git 一键提交推送工具（Avalonia 跨平台版，支持 Windows、macOS、Linux、Android 与 iOS）。"
+                <TextBlock Text="{DynamicResource L.AboutView.L027.Text}"
                            TextAlignment="Center" TextWrapping="Wrap" Foreground="#555555" Margin="0,0,0,14"/>
 
                 <Border BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4">

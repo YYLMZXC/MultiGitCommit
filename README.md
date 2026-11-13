@@ -29,6 +29,7 @@
 - **推送凭据（账号）**：像【Git 环境】选择 git 来源一样，账号也可**选择来源**——自动检测（自定义优先，缺失时取系统）/ 仅系统凭据 / 仅自定义 / 不使用；系统账号可按需**检测并导入**（先选主机再检测，可随时停止），填写后可用一次 `git ls-remote` 实测账号是否可用（详见下方【推送凭据】）。
 - **凭据助手自动适配**：自动扫描当前 git 真正可用的 `credential.helper`（Windows：manager / wincred / store；macOS：manager / osxkeychain / store；Linux：manager / libsecret / gnome-keyring / store）；配置里的助手在当前 git 中不存在时（精简便携版常见），临时用 `-c credential.helper=xxx` 覆盖，不改动用户 git 配置。
 - **非交互执行 + 超时兜底**：不弹窗等待账号/口令，快速命令 20 秒、普通 git 命令 10 分钟、克隆 30 分钟超时即终止，按钮必定恢复（详见下方【非交互执行与超时保护】）。
+- **多语言界面**：内置简体中文（默认）与 English，【Git 环境】→「界面语言」切换后立即生效；界面、弹窗提示与运行日志同步翻译，语言选择保存在 `settings.json` 的 `Language` 字段（详见下方【多语言（i18n）】）。
 - **中文不乱码**：进程调用统一 UTF-8 编码。
 - **不依赖系统 git**：内置【Git 环境】设置，支持四种来源——自动检测（软件内嵌便携版 Git → 常见安装位置 → 系统 PATH）、仅软件内嵌 Git、仅系统 PATH（环境 git）、指定 git 可执行文件 / Git 目录；配置保存到各自平台的应用设置目录，切换来源无需重装系统 git。
 
@@ -187,6 +188,7 @@ dotnet build MultiGitCommit.csproj -f net10.0-ios -c Release
 3. 在【推送远端地址管理】中添加远端 URL（支持 ssh/https 格式，如 `git@gitee.com:user/repo.git`、`https://github.com/user/repo.git`），可添加多个，也可【在浏览器中打开】查看。
 4. 填写提交备注（可选），按需勾选 `git add`（勾选后提交前会弹窗列出工作区变更，自己勾选要添加的文件）、`--tags` 推送标签、【强制提交 `--allow-empty`】与【强制推送 `--force`】。
 5. 点击【执行提交并推送全部远端】，日志区实时查看每一步命令与结果（执行期间按钮显示「执行中…」）。
+6. 想用英文界面：点击【Git 环境】→「界面语言」选择 `English` →【确定】，界面文案立即切换；已输出的日志属于历史记录，保留其原语言。
 
 > **Android 权限与文件夹选择**：启动时申请存储权限——Android 10 及以下弹系统运行时权限框（READ/WRITE_EXTERNAL_STORAGE）；Android 11+ 的「所有文件访问」（MANAGE_EXTERNAL_STORAGE）没有运行时弹框，应用内会先说明用途再引导到系统设置页授权，可跳过（跳过时只能用应用专属外部目录）。
 > 【选择文件夹】/【浏览...】在安卓走系统 SAF 文档选择器，应用会把「内部存储 / SD 卡」返回的 `content://` 树 URI 映射成 git 可用的真实路径（如 `/storage/emulated/0/GitRepos`），并做可写校验；未授权共享存储或选到云端盘 / 下载内容等无真实路径的位置时，会提示并回退到手输绝对路径（可自动新建目录）。远端请用 https。
@@ -329,11 +331,20 @@ Git 来源等全局设置（与仓库无关）保存在 **`settings.json`**，�
 | `LastRepoPath` | string | 上次成功加载的仓库根目录；仅在启动模式选择「上次使用的仓库优先」或「回退上次项目」时用于自动载入 |
 | `StartupRepo` | int | 启动时加载的仓库：`0` 只读取当前目录（默认，找不到时不自动打开上次项目）/ `1` 上次使用的仓库优先 / `2` 当前目录优先，找不到时回退上次项目 |
 | `StageMode` | int | 执行 `git add` 的文件添加方式：`0` 全提交（`git add .`，默认）/ `1` 可选提交（提交前弹窗勾选要添加的文件） |
+| `Language` | int | 界面语言：`0` 简体中文（默认）/ `1` English；切换后立即生效 |
 
 > **注意**
 > - 本工具**不会修改** git 原生的 `.git/config` 文件；远端地址只保存在上述工具独立配置文件中。
 > - 推送时直接使用 `git push {url} {branch}`，**不操作 `git remote` 命令**。
 > - 每个 Git 仓库拥有独立配置，切换仓库自动加载对应项目的远端列表。
+
+## 多语言（i18n）
+
+- **内置语言**：简体中文（默认）与 English。【Git 环境】→「界面语言」选择后点【确定】，设置立即保存、界面文案即时刷新，无需重启；已输出的日志是历史记录，保持原语言不回译。
+- **覆盖范围**：全部 XAML 界面文案、按钮 / 提示 / 对话框、运行状态与 git 流程日志。CLI / MCP 的工具描述与错误文本属于面向 Agent 的协议输出，暂不参与界面本地化。
+- **实现方式**：中文文案直接作为资源键——C# 侧用 `Loc.T("中文")` / `Loc.F($"中文 {x}")`，XAML 侧用 `{DynamicResource L.xxx}`。App 启动时把当前语言字典写入 `Application.Resources`，切换语言时原地改写资源值即可让 `DynamicResource` 整页刷新；字典里查不到的键自动回退中文，新增文案不会导致界面空白。字典内置于代码（无 .resx / 卫星程序集），桌面单文件发布与 Android / iOS 打包行为一致。
+- **翻译源与生成**：`I18n/strings.zh-CN.tsv`、`I18n/strings.en-US.tsv`（每行 `key<TAB>文本`，`@N@` 表示换行）；运行 `python scripts/BuildI18n.py` 生成 `I18n/Strings.*.g.cs`（请勿手改生成文件）。脚本会校验英文包覆盖全部界面键。
+- **扩展新语言**：在 `I18n/AppLanguage.cs` 追加枚举值 → 复制一份 `strings.<区域>.tsv` 并翻译 → 在 `Loc.T` / `Loc.GetResourceEntries()` 接入新字典 → 设置页 `CmbLanguage` 加一项 → 重新生成字典。
 
 ## MCP 支持（外部 AI 调用软件）
 
@@ -454,6 +465,7 @@ MultiGitCommit.exe help                                    # 全部命令
 - **一套代码三个平台**：`net10.0` + Avalonia 11（`Avalonia.Desktop`、`Avalonia.Themes.Fluent`），不依赖 WPF / WinForms；
   平台差异（git 候选路径、设置目录、命令 shell、凭据库）统一收在 `OperatingSystem.IsWindows()` / `IsMacOS()` 分支里。
 - 原生控件 + 事件驱动后台代码，无 MVVM 框架、无第三方 Git NuGet 包；JSON 使用内置 `System.Text.Json`。
+- 界面文案统一走 `I18n/Loc` + `Application.Resources` 的 `DynamicResource`（无第三方 i18n 框架、无 .resx / 卫星程序集），详见【多语言（i18n）】。
 - 文件夹 / 文件选择使用 Avalonia 的 `StorageProvider`；弹窗为自建 `Dialogs`（提示 / 确认 / 输入），不用系统 MessageBox。
 - 全部 Git 操作通过调用 git 命令行完成：由 `GitLocator` 解析来源，并把 git 所在目录及其 `mingw64\bin`、`usr\bin`（Windows）
   或 `bin`、`libexec/git-core`（macOS / Linux）注入子进程 PATH，便携版 / 内嵌 git 执行 ssh 远端推送时也无需系统组件；
@@ -467,6 +479,9 @@ MultiGitCommit/
 ├── download-portable-git.ps1        # 下载 MinGit 到 src\MultiGitCommit.Avalonia\git\
 ├── multigitcommit.config.json       # 本项目自身的工具配置（远端列表）
 ├── res/                             # 图标等素材
+├── scripts/
+│   ├── BuildI18n.py                 # 由 I18n/strings.*.tsv 生成 Strings.*.g.cs
+│   └── FetchAndroidGit.ps1          # 安卓内嵌 Git 获取 / 重打包脚本
 └── src/
     ├── MultiGitCommit.Avalonia/     # 【当前主项目】net10.0 / net10.0-android / net10.0-ios 一套代码
     │   ├── Program.cs / App.axaml(.cs)      # 入口与应用定义；App 从组合根装配桌面 / 移动两条启动路径
@@ -486,6 +501,11 @@ MultiGitCommit/
     │   │   ├── GitEnvironmentService.cs     # git 来源解析、可用性判断、凭据助手缓存失效
     │   │   ├── RepoLocator.cs / GitIdentityService.cs / GitCredentialResolver.cs
     │   │   └── FileOpener.cs / GitCredentials.cs / GitArgument.cs
+    │   ├── I18n/
+    │   │   ├── AppLanguage.cs               # 界面语言枚举（写入 settings.json 的 Language）
+    │   │   ├── Loc.cs                      # 本地化服务：T / F、语言切换事件、资源字典输出
+    │   │   ├── strings.zh-CN.tsv / strings.en-US.tsv   # 翻译源（人工维护）
+    │   │   └── Strings.*.g.cs              # 由 scripts/BuildI18n.py 生成，勿手工编辑
     │   ├── Settings/
     │   │   ├── AppServices.cs               # 组合根（唯一装配点）+ AppSession（一次界面生命周期的服务集合）
     │   │   ├── ISettingsProvider.cs         # 全局设置访问契约

@@ -136,23 +136,23 @@ public partial class MainView : UserControl
         _pathDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _pathDebounce.Tick += OnPathDebounceTick;
 
-        Log("MultiGitCommit 已启动（跨平台版：Windows / macOS / Linux / Android / iOS）。");
-        Log("提示：本工具不会修改 git 原生 .git/config；远端地址保存在每个项目目录下的 multigitcommit.config.json。");
-        Log("提示：每个 git 仓库拥有独立配置，切换仓库会自动加载对应项目的远端列表。");
+        Log(Loc.T("MultiGitCommit 已启动（跨平台版：Windows / macOS / Linux / Android / iOS）。"));
+        Log(Loc.T("提示：本工具不会修改 git 原生 .git/config；远端地址保存在每个项目目录下的 multigitcommit.config.json。"));
+        Log(Loc.T("提示：每个 git 仓库拥有独立配置，切换仓库会自动加载对应项目的远端列表。"));
 
         if (OperatingSystem.IsIOS())
-            Log("注意：iOS 沙盒禁止执行子进程，git 相关功能在本平台不可用；界面与设置仅供浏览。");
+            Log(Loc.T("注意：iOS 沙盒禁止执行子进程，git 相关功能在本平台不可用；界面与设置仅供浏览。"));
         else if (OperatingSystem.IsAndroid())
         {
-            Log("提示：Android 已内嵌 git（APK 原生库目录），提交推送默认开箱即用；");
-            Log("      远端请使用 https 协议（APK 未内置 ssh 客户端，ssh 协议远端不可用）。");
-            Log("      点【选择文件夹】可选内部存储 / SD 卡目录；使用 /storage/emulated/0 需「所有文件访问」权限。");
+            Log(Loc.T("提示：Android 已内嵌 git（APK 原生库目录），提交推送默认开箱即用；"));
+            Log(Loc.T("      远端请使用 https 协议（APK 未内置 ssh 客户端，ssh 协议远端不可用）。"));
+            Log(Loc.T("      点【选择文件夹】可选内部存储 / SD 卡目录；使用 /storage/emulated/0 需「所有文件访问」权限。"));
 
             if (AndroidGitPlatform.IsAllFilesAccessGranted)
-                Log("      已获得存储权限，可直接选择共享存储中的仓库目录。");
+                Log(Loc.T("      已获得存储权限，可直接选择共享存储中的仓库目录。"));
             else
             {
-                Log("      当前未获得存储权限：共享存储目录会不可写，稍后引导授权。");
+                Log(Loc.T("      当前未获得存储权限：共享存储目录会不可写，稍后引导授权。"));
                 PromptStoragePermissionOnStartup();
             }
         }
@@ -169,7 +169,7 @@ public partial class MainView : UserControl
         HomeView.Attach(this, _settings);
         if (startup == null && _settings.Current.DefaultStartPage == StartPageMode.RepoHome)
         {
-            Log("已打开仓库管理首页：可从最近项目或自动发现的仓库中快速进入项目页。");
+            Log(Loc.T("已打开仓库管理首页：可从最近项目或自动发现的仓库中快速进入项目页。"));
             ShowHomePage();
         }
     }
@@ -187,24 +187,24 @@ public partial class MainView : UserControl
             {
                 try
                 {
-                    bool go = await Dialogs.ConfirmAsync(this, "存储权限",
-                        "MultiGitCommit 需要「所有文件访问」权限，才能读写共享存储（/storage/emulated/0）中的 Git 仓库。" +
+                    bool go = await Dialogs.ConfirmAsync(this, Loc.T("存储权限"),
+                        Loc.T("MultiGitCommit 需要「所有文件访问」权限，才能读写共享存储（/storage/emulated/0）中的 Git 仓库。") +
                         Environment.NewLine + Environment.NewLine +
-                        "不授权也能使用应用专属目录（输入框已预填），但系统文件夹选择器中选到的共享目录会不可写。" +
-                        Environment.NewLine + Environment.NewLine + "是否前往系统设置授权？");
+                        Loc.T("不授权也能使用应用专属目录（输入框已预填），但系统文件夹选择器中选到的共享目录会不可写。") +
+                        Environment.NewLine + Environment.NewLine + Loc.T("是否前往系统设置授权？"));
                     if (go)
                     {
                         AndroidGitPlatform.OpenStoragePermissionSettings();
-                        Log("已打开系统设置；授权后返回应用即可选择共享存储中的仓库目录。");
+                        Log(Loc.T("已打开系统设置；授权后返回应用即可选择共享存储中的仓库目录。"));
                     }
                     else
                     {
-                        Log("已跳过授权：请使用应用专属目录，或稍后在系统设置中开启「所有文件访问」。");
+                        Log(Loc.T("已跳过授权：请使用应用专属目录，或稍后在系统设置中开启「所有文件访问」。"));
                     }
                 }
                 catch (Exception ex)
                 {
-                    Log("权限引导失败：" + ex.Message);
+                    Log(Loc.T("权限引导失败：") + ex.Message);
                 }
             }
 
@@ -288,13 +288,13 @@ public partial class MainView : UserControl
             string? repoRoot = _repoLocator.TryResolve(path, out string resolveError);
             if (repoRoot == null)
             {
-                Log(resolveError.StartsWith("目录不存在", StringComparison.Ordinal)
+                Log(resolveError.StartsWith(Loc.T("目录不存在"), StringComparison.Ordinal)
                     ? resolveError
-                    : $"不是合法的 git 仓库目录：{path}（未发现有效的 .git 仓库）");
+                    : Loc.F($"不是合法的 git 仓库目录：{path}（未发现有效的 .git 仓库）"));
 
                 // 输出 git 的真实报错（权限不足 / 目录不可访问 / 进程启动失败等），便于定位
-                if (resolveError.Length > 0 && !resolveError.StartsWith("目录不存在", StringComparison.Ordinal))
-                    Log("       git 返回：" + resolveError);
+                if (resolveError.Length > 0 && !resolveError.StartsWith(Loc.T("目录不存在"), StringComparison.Ordinal))
+                    Log(Loc.T("       git 返回：") + resolveError);
                 return;
             }
 
@@ -307,7 +307,7 @@ public partial class MainView : UserControl
             // 输入的是子目录时回填真正的仓库根目录，保证配置文件始终与 .git 同级、git add . 在根执行
             if (!string.Equals(path, repoRoot, StringComparison.Ordinal))
             {
-                Log($"已定位到仓库根目录：{repoRoot}");
+                Log(Loc.F($"已定位到仓库根目录：{repoRoot}"));
                 TxtRepoPath.Text = repoRoot;
             }
 
@@ -326,10 +326,10 @@ public partial class MainView : UserControl
             ChkForcePush.IsChecked = _config.CheckForcePush;
 
             string urlSummary = _config.RemoteUrls.Count == 0
-                ? "（空）"
+                ? Loc.T("（空）")
                 : string.Join("、", _config.RemoteUrls);
-            Log($"已加载项目配置：{ProjectConfig.ConfigFileName}（目录：{repoRoot}）");
-            Log($"当前项目远端共 {_config.RemoteUrls.Count} 个：{urlSummary}");
+            Log(Loc.F($"已加载项目配置：{ProjectConfig.ConfigFileName}（目录：{repoRoot}）"));
+            Log(Loc.F($"当前项目远端共 {_config.RemoteUrls.Count} 个：{urlSummary}"));
         }
         finally
         {
@@ -345,11 +345,11 @@ public partial class MainView : UserControl
         try
         {
             _configs.Save(_config);
-            Log($"已保存配置：{_config.ConfigFilePath}");
+            Log(Loc.F($"已保存配置：{_config.ConfigFilePath}"));
         }
         catch (Exception ex)
         {
-            Log($"保存配置失败：{ex.Message}");
+            Log(Loc.F($"保存配置失败：{ex.Message}"));
         }
     }
 
@@ -450,7 +450,7 @@ public partial class MainView : UserControl
             {
                 var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
                 {
-                    Title = "请选择 Git 仓库根目录（与 .git 文件夹同级）",
+                    Title = Loc.T("请选择 Git 仓库根目录（与 .git 文件夹同级）"),
                     AllowMultiple = false
                 });
 
@@ -468,12 +468,12 @@ public partial class MainView : UserControl
                     return;
                 }
 
-                Log("该位置无法转换为本地目录（仅支持「内部存储 / SD 卡」中的文件夹），已改为手动输入路径。");
+                Log(Loc.T("该位置无法转换为本地目录（仅支持「内部存储 / SD 卡」中的文件夹），已改为手动输入路径。"));
             }
             catch (Exception ex)
             {
                 // 个别 ROM 的 SAF 实现会抛异常：不能让 async void 事件处理器把应用带崩
-                Log($"系统文件夹选择器不可用：{ex.Message}，已改为手动输入路径。");
+                Log(Loc.F($"系统文件夹选择器不可用：{ex.Message}，已改为手动输入路径。"));
             }
         }
 
@@ -484,10 +484,10 @@ public partial class MainView : UserControl
     /// <summary>系统选择器不可用 / 该位置无真实路径时的兜底：手输绝对路径，可自动新建。</summary>
     private async Task<string?> PickFolderManuallyAsync()
     {
-        string? picked = await Dialogs.PickFolderAsync(this, "输入仓库目录",
-            "请输入 Git 仓库根目录的绝对路径（与 .git 同级），例如：" + Environment.NewLine +
+        string? picked = await Dialogs.PickFolderAsync(this, Loc.T("输入仓库目录"),
+            Loc.T("请输入 Git 仓库根目录的绝对路径（与 .git 同级），例如：") + Environment.NewLine +
             "/storage/emulated/0/GitRepos/MyRepo" + Environment.NewLine +
-            "目录不存在时会询问是否新建；新建的空目录请再点【初始化仓库】。",
+            Loc.T("目录不存在时会询问是否新建；新建的空目录请再点【初始化仓库】。"),
             AndroidGitPlatform.SuggestRepoParent());
         if (picked == null) return null;
         ApplyPickedFolder(picked);
@@ -500,9 +500,9 @@ public partial class MainView : UserControl
         if (!OperatingSystem.IsAndroid()) return true;
         if (Dialogs.TryEnsureWritable(path, out string error)) return true;
 
-        await Dialogs.ShowMessageAsync(this, "目录不可写",
-            $"无法写入该目录：{path}{Environment.NewLine}{error}{Environment.NewLine}{Environment.NewLine}" +
-            "若这是 /storage/emulated/0 下的目录，请先在系统设置中为 MultiGitCommit 授予「所有文件访问」权限。");
+        await Dialogs.ShowMessageAsync(this, Loc.T("目录不可写"),
+            Loc.F($"无法写入该目录：{path}{Environment.NewLine}{error}{Environment.NewLine}{Environment.NewLine}") +
+            Loc.T("若这是 /storage/emulated/0 下的目录，请先在系统设置中为 MultiGitCommit 授予「所有文件访问」权限。"));
         return false;
     }
 
@@ -524,7 +524,7 @@ public partial class MainView : UserControl
     /// <summary>打开“关于”对话框。</summary>
     private async void BtnAbout_Click(object? sender, RoutedEventArgs e)
     {
-        await UiDialogs.ShowAsync(this, new AboutView(), "关于 MultiGitCommit");
+        await UiDialogs.ShowAsync(this, new AboutView(), Loc.T("关于 MultiGitCommit"));
     }
 
     // ==================== 仓库管理首页 ====================
@@ -561,7 +561,7 @@ public partial class MainView : UserControl
         string? root = RepoLocator.FindRepoAncestor(trimmed) ?? (RepoScanner.IsRepoRoot(trimmed) ? trimmed : null);
         if (root == null)
         {
-            Log($"该目录不是 Git 仓库（未找到 .git 或 multigitcommit.config.json）：{trimmed}");
+            Log(Loc.F($"该目录不是 Git 仓库（未找到 .git 或 multigitcommit.config.json）：{trimmed}"));
             return;
         }
 
@@ -584,7 +584,7 @@ public partial class MainView : UserControl
             : Environment.CurrentDirectory;
 
         var cloneView = new CloneView(initialDir);
-        if (await UiDialogs.ShowAsync<bool?>(this, cloneView, "克隆项目") != true) return;
+        if (await UiDialogs.ShowAsync<bool?>(this, cloneView, Loc.T("克隆项目")) != true) return;
 
         // 去掉粘贴时可能带上的引号 / 空白，否则 git clone 会拿到变形的 URL
         string url = GitCredentials.NormalizeUrl(cloneView.RepoUrl);
@@ -593,7 +593,7 @@ public partial class MainView : UserControl
 
         if (url.Length == 0)
         {
-            Log("克隆地址为空，已取消。");
+            Log(Loc.T("克隆地址为空，已取消。"));
             return;
         }
 
@@ -604,16 +604,16 @@ public partial class MainView : UserControl
             string fullArgs = GitCloneArguments.Build(
                 cloneView.BranchName, cloneView.Recursive, cloneView.Shallow, url, targetDir);
 
-            Log($"========== 开始克隆仓库：{url} ==========");
-            Log($"目标目录：{targetDir}");
+            Log(Loc.F($"========== 开始克隆仓库：{url} =========="));
+            Log(Loc.F($"目标目录：{targetDir}"));
             var clone = await _commands.CloneAsync(parentDir, fullArgs, $"git {fullArgs}");
             if (!clone.Success)
             {
-                Log("克隆失败：请查看上方日志（常见原因：URL 无效或无权限、目标目录已存在且非空、网络/ssh 配置问题）。");
+                Log(Loc.T("克隆失败：请查看上方日志（常见原因：URL 无效或无权限、目标目录已存在且非空、网络/ssh 配置问题）。"));
                 return;
             }
 
-            Log($"克隆成功：{targetDir}");
+            Log(Loc.F($"克隆成功：{targetDir}"));
 
             // 克隆完成后切换到该仓库并加载其独立配置
             TxtRepoPath.Text = targetDir;
@@ -625,27 +625,27 @@ public partial class MainView : UserControl
             {
                 if (_config == null)
                 {
-                    Log("警告：项目配置未加载，未能将该 URL 写入推送远端列表。");
+                    Log(Loc.T("警告：项目配置未加载，未能将该 URL 写入推送远端列表。"));
                 }
                 else if (_config.RemoteUrls.Contains(url))
                 {
-                    Log($"推送远端列表中已存在该 URL：{url}");
+                    Log(Loc.F($"推送远端列表中已存在该 URL：{url}"));
                 }
                 else
                 {
                     _config.RemoteUrls.Add(url);
                     RefreshRemoteList();
                     SaveConfig();
-                    Log($"已将该 URL 添加到推送远端列表：{url}");
+                    Log(Loc.F($"已将该 URL 添加到推送远端列表：{url}"));
                 }
             }
 
             await GetCurrentBranchAsync(_repoRoot ?? targetDir);
-            Log("========== 克隆流程完成 ==========");
+            Log(Loc.T("========== 克隆流程完成 =========="));
         }
         catch (Exception ex)
         {
-            Log("克隆异常：" + ex);
+            Log(Loc.T("克隆异常：") + ex);
         }
         finally
         {
@@ -662,34 +662,44 @@ public partial class MainView : UserControl
         // 传入仓库根目录：在设置对话框里可直接写入 / 读取仓库级提交身份
         // 传入会话：子视图复用同一套执行器 / 身份服务 / git 环境，不再自行 new
         var settingsView = new GitSettingsView(_settings.Current, _config?.RemoteUrls, _repoRoot, _app);
-        if (await UiDialogs.ShowAsync<bool?>(this, settingsView, "Git 环境设置") != true) return;
+        if (await UiDialogs.ShowAsync<bool?>(this, settingsView, Loc.T("Git 环境设置")) != true) return;
 
         _settings.Current.GitSource = settingsView.SelectedSource;
         _settings.Current.CustomGitPath = settingsView.SelectedCustomPath;
         _settings.Current.CredentialSource = settingsView.SelectedCredentialSource;
         _settings.Current.StartupRepo = settingsView.SelectedStartupRepo;
         _settings.Current.StageMode = settingsView.SelectedStageMode;
+        _settings.Current.Language = settingsView.SelectedLanguage;
         try
         {
             _settings.Save();
-            Log($"已保存 Git 环境设置：{_settings.Current.SettingsFilePath}");
+            Log(Loc.F($"已保存 Git 环境设置：{_settings.Current.SettingsFilePath}"));
         }
         catch (Exception ex)
         {
-            Log($"保存 Git 环境设置失败：{ex.Message}");
+            Log(Loc.F($"保存 Git 环境设置失败：{ex.Message}"));
         }
 
+        // 语言必须先落盘再切换：SetLanguage 会通知 App 重写 XAML 资源字典，整页文案立即刷新；
+        // 已输出的日志属于历史记录，保持原语言不回译。
+        if (Loc.Current != _settings.Current.Language)
+        {
+            Loc.SetLanguage(_settings.Current.Language);
+            Log(Loc.T("界面语言已保存为：") +
+                (_settings.Current.Language == AppLanguage.English ? "English" : "简体中文"));
+        }
+        RefreshIdentityStatus();
         RefreshGitEnvironment();
         Log(_settings.Current.StartupRepo switch
         {
-            StartupRepoMode.LastUsed => "启动时加载的仓库：上次使用的仓库优先（下次启动生效）。",
+            StartupRepoMode.LastUsed => Loc.T("启动时加载的仓库：上次使用的仓库优先（下次启动生效）。"),
             StartupRepoMode.CurrentDirectoryThenLastUsed =>
-                "启动时加载的仓库：当前目录优先，找不到时回退上次项目（下次启动生效）。",
-            _ => "启动时加载的仓库：只读取当前目录，不自动加载上次项目（下次启动生效）。"
+                Loc.T("启动时加载的仓库：当前目录优先，找不到时回退上次项目（下次启动生效）。"),
+            _ => Loc.T("启动时加载的仓库：只读取当前目录，不自动加载上次项目（下次启动生效）。")
         });
         Log(_settings.Current.StageMode == StageMode.Select
-            ? "执行 git add 时的文件添加方式：可选提交（提交前勾选要添加的文件）。"
-            : "执行 git add 时的文件添加方式：全提交（git add .）。");
+            ? Loc.T("执行 git add 时的文件添加方式：可选提交（提交前勾选要添加的文件）。")
+            : Loc.T("执行 git add 时的文件添加方式：全提交（git add .）。"));
     }
 
     /// <summary>按当前设置重新解析 git，更新状态栏显示并输出日志。</summary>
@@ -703,8 +713,8 @@ public partial class MainView : UserControl
         ToolTip.SetTip(TxtGitStatus, env.ToolTipText);
 
         Log(env.Available
-            ? $"Git 环境：{env.Description}"
-            : "未找到可用的 git：请点击【Git 环境】按钮选择环境 git（系统 PATH）或指定路径 / 内嵌 Git。");
+            ? Loc.F($"Git 环境：{env.Description}")
+            : Loc.T("未找到可用的 git：请点击【Git 环境】按钮选择环境 git（系统 PATH）或指定路径 / 内嵌 Git。"));
     }
 
     /// <summary>确保 git 可用（已解析成功）；不可用时输出日志并返回 false。</summary>
@@ -712,7 +722,7 @@ public partial class MainView : UserControl
     {
         if (_environment.IsAvailable) return true;
 
-        Log("流程终止：未找到可用的 git，请点击【Git 环境】按钮配置（自动检测 / 系统 PATH / 指定路径 / 内嵌 Git）。");
+        Log(Loc.T("流程终止：未找到可用的 git，请点击【Git 环境】按钮配置（自动检测 / 系统 PATH / 指定路径 / 内嵌 Git）。"));
         return false;
     }
 
@@ -733,7 +743,7 @@ public partial class MainView : UserControl
             string path = TxtRepoPath.Text?.Trim() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(path))
             {
-                Log("请先选择或输入要初始化的仓库目录。");
+                Log(Loc.T("请先选择或输入要初始化的仓库目录。"));
                 return;
             }
 
@@ -741,36 +751,36 @@ public partial class MainView : UserControl
 
             if (!Directory.Exists(path))
             {
-                bool create = await Dialogs.ConfirmAsync(this, "初始化仓库",
-                    $"目录不存在，是否新建该目录？{Environment.NewLine}{path}");
+                bool create = await Dialogs.ConfirmAsync(this, Loc.T("初始化仓库"),
+                    Loc.F($"目录不存在，是否新建该目录？{Environment.NewLine}{path}"));
                 if (!create) return;
 
                 try
                 {
                     Directory.CreateDirectory(path);
-                    Log($"已新建目录：{path}");
+                    Log(Loc.F($"已新建目录：{path}"));
                 }
                 catch (Exception ex)
                 {
-                    Log($"新建目录失败：{ex.Message}");
+                    Log(Loc.F($"新建目录失败：{ex.Message}"));
                     return;
                 }
             }
 
             if (_repoLocator.IsWorkTree(path))
             {
-                Log($"该目录已经是 git 仓库，无需重复初始化：{path}");
+                Log(Loc.F($"该目录已经是 git 仓库，无需重复初始化：{path}"));
                 return;
             }
 
-            string? branch = await PromptBranchName("初始化仓库", "请输入默认分支名（例如 main / master）：");
+            string? branch = await PromptBranchName(Loc.T("初始化仓库"), Loc.T("请输入默认分支名（例如 main / master）："));
             if (branch == null) return;
 
-            Log($"========== 初始化 git 仓库：{path} ==========");
+            Log(Loc.F($"========== 初始化 git 仓库：{path} =========="));
             var init = await _commands.InitAsync(path);
             if (!init.Success)
             {
-                Log("git init 执行失败，初始化终止。");
+                Log(Loc.T("git init 执行失败，初始化终止。"));
                 return;
             }
 
@@ -779,11 +789,11 @@ public partial class MainView : UserControl
 
             _pathDebounce.Stop();
             LoadConfigFromPath();
-            Log("========== 仓库初始化完成 ==========");
+            Log(Loc.T("========== 仓库初始化完成 =========="));
         }
         catch (Exception ex)
         {
-            Log("初始化仓库异常：" + ex);
+            Log(Loc.T("初始化仓库异常：") + ex);
         }
         finally
         {
@@ -803,31 +813,31 @@ public partial class MainView : UserControl
             string path = TxtRepoPath.Text?.Trim() ?? string.Empty;
             if (!Directory.Exists(path))
             {
-                Log($"目录不存在：{path}");
+                Log(Loc.F($"目录不存在：{path}"));
                 return;
             }
 
             if (!_repoLocator.IsWorkTree(path))
             {
-                Log("该目录不是 git 仓库，请先点击【初始化仓库】。");
+                Log(Loc.T("该目录不是 git 仓库，请先点击【初始化仓库】。"));
                 return;
             }
 
-            string? branch = await PromptBranchName("创建默认分支", "请输入要创建/切换的默认分支名：");
+            string? branch = await PromptBranchName(Loc.T("创建默认分支"), Loc.T("请输入要创建/切换的默认分支名："));
             if (branch == null) return;
 
-            Log($"========== 创建默认分支：{branch} ==========");
+            Log(Loc.F($"========== 创建默认分支：{branch} =========="));
             await SetDefaultBranchAsync(path, branch);
 
             _pathDebounce.Stop();
             LoadConfigFromPath();
             _repoRoot ??= path;
             await GetCurrentBranchAsync(_repoRoot);
-            Log("========== 默认分支处理完成 ==========");
+            Log(Loc.T("========== 默认分支处理完成 =========="));
         }
         catch (Exception ex)
         {
-            Log("创建默认分支异常：" + ex);
+            Log(Loc.T("创建默认分支异常：") + ex);
         }
         finally
         {
@@ -855,14 +865,14 @@ public partial class MainView : UserControl
             text = text.Trim();
             if (string.IsNullOrEmpty(text))
             {
-                await Dialogs.ShowMessageAsync(this, title, "分支名不能为空。");
+                await Dialogs.ShowMessageAsync(this, title, Loc.T("分支名不能为空。"));
                 continue;
             }
 
             if (!GitRefName.IsValidBranchName(text))
             {
                 await Dialogs.ShowMessageAsync(this, title,
-                    "分支名不合法：不能包含空格或 ~ ^ : ? * [ \\ .. // 等字符，且不能以 - / . 开头或结尾。");
+                    Loc.T("分支名不合法：不能包含空格或 ~ ^ : ? * [ \\ .. // 等字符，且不能以 - / . 开头或结尾。"));
                 continue;
             }
 
@@ -883,44 +893,44 @@ public partial class MainView : UserControl
     /// <summary>添加远端 URL，并自动保存到项目目录 multigitcommit.config.json。</summary>
     private async void BtnAddRemote_Click(object? sender, RoutedEventArgs e)
     {
-        if (_config == null) { Log("请先选择有效的 git 仓库目录。"); return; }
+        if (_config == null) { Log(Loc.T("请先选择有效的 git 仓库目录。")); return; }
 
-        var text = await Dialogs.PromptAsync(this, "添加远端",
-            "请输入推送远端 URL（支持 ssh/https 格式，例如 https://gitee.com/user/repo.git）：", string.Empty);
+        var text = await Dialogs.PromptAsync(this, Loc.T("添加远端"),
+            Loc.T("请输入推送远端 URL（支持 ssh/https 格式，例如 https://gitee.com/user/repo.git）："), string.Empty);
         if (text == null) return;
 
         // 去掉粘贴时可能带上的引号 / 空白，避免写入脏 URL 后推送与验证都失败
         string url = GitCredentials.NormalizeUrl(text);
-        if (url.Length == 0) { Log("远端 URL 不能为空。"); return; }
-        if (_config.RemoteUrls.Contains(url)) { Log($"远端 URL 已存在：{url}"); return; }
+        if (url.Length == 0) { Log(Loc.T("远端 URL 不能为空。")); return; }
+        if (_config.RemoteUrls.Contains(url)) { Log(Loc.F($"远端 URL 已存在：{url}")); return; }
 
         _config.RemoteUrls.Add(url);
         RefreshRemoteList();
-        Log($"已添加远端：{url}");
+        Log(Loc.F($"已添加远端：{url}"));
         SaveConfig();
     }
 
     /// <summary>编辑选中的远端 URL，并自动保存。</summary>
     private async void BtnEditRemote_Click(object? sender, RoutedEventArgs e)
     {
-        if (_config == null) { Log("请先选择有效的 git 仓库目录。"); return; }
+        if (_config == null) { Log(Loc.T("请先选择有效的 git 仓库目录。")); return; }
         if (ListRemotes.SelectedIndex < 0 || ListRemotes.SelectedIndex >= _config.RemoteUrls.Count)
         {
-            Log("请先选中要编辑的远端。");
+            Log(Loc.T("请先选中要编辑的远端。"));
             return;
         }
 
         int index = ListRemotes.SelectedIndex;
         string oldUrl = _config.RemoteUrls[index];
-        var text = await Dialogs.PromptAsync(this, "编辑远端", "修改远端 URL：", oldUrl);
+        var text = await Dialogs.PromptAsync(this, Loc.T("编辑远端"), Loc.T("修改远端 URL："), oldUrl);
         if (text == null) return;
 
         string url = GitCredentials.NormalizeUrl(text);
-        if (url.Length == 0) { Log("远端 URL 不能为空。"); return; }
+        if (url.Length == 0) { Log(Loc.T("远端 URL 不能为空。")); return; }
 
         _config.RemoteUrls[index] = url;
         RefreshRemoteList();
-        Log($"已修改远端：{oldUrl} → {url}");
+        Log(Loc.F($"已修改远端：{oldUrl} → {url}"));
         SaveConfig();
     }
 
@@ -929,13 +939,13 @@ public partial class MainView : UserControl
     {
         if (ListRemotes.SelectedItem is not string selected)
         {
-            Log("请先选中要打开的远端。");
+            Log(Loc.T("请先选中要打开的远端。"));
             return;
         }
 
         if (string.IsNullOrWhiteSpace(selected))
         {
-            Log("远端 URL 为空，无法打开。");
+            Log(Loc.T("远端 URL 为空，无法打开。"));
             return;
         }
 
@@ -945,34 +955,34 @@ public partial class MainView : UserControl
             var topLevel = TopLevel.GetTopLevel(this);
             if (topLevel == null || !Uri.TryCreate(selected, UriKind.Absolute, out var uri))
             {
-                Log("无法打开：当前环境不支持外部链接。");
+                Log(Loc.T("无法打开：当前环境不支持外部链接。"));
                 return;
             }
 
             if (await topLevel.Launcher.LaunchUriAsync(uri))
-                Log($"已在浏览器中打开：{selected}");
+                Log(Loc.F($"已在浏览器中打开：{selected}"));
             else
-                Log("系统没有能处理该 URL 的程序。");
+                Log(Loc.T("系统没有能处理该 URL 的程序。"));
         }
         catch (Exception ex)
         {
-            Log($"打开浏览器失败：{ex.Message}");
+            Log(Loc.F($"打开浏览器失败：{ex.Message}"));
         }
     }
 
     /// <summary>删除选中的远端 URL，并自动保存。</summary>
     private void BtnDeleteRemote_Click(object? sender, RoutedEventArgs e)
     {
-        if (_config == null) { Log("请先选择有效的 git 仓库目录。"); return; }
+        if (_config == null) { Log(Loc.T("请先选择有效的 git 仓库目录。")); return; }
         if (ListRemotes.SelectedItem is not string selected)
         {
-            Log("请先选中要删除的远端。");
+            Log(Loc.T("请先选中要删除的远端。"));
             return;
         }
 
         _config.RemoteUrls.Remove(selected);
         RefreshRemoteList();
-        Log($"已删除远端：{selected}");
+        Log(Loc.F($"已删除远端：{selected}"));
         SaveConfig();
     }
 
@@ -1008,8 +1018,8 @@ public partial class MainView : UserControl
 
     private async void BtnCommitPush_Click(object? sender, RoutedEventArgs e)
     {
-        string idleText = BtnCommitPush.Content?.ToString() ?? "执行提交并推送全部远端";
-        BtnCommitPush.Content = "执行中…";
+        string idleText = BtnCommitPush.Content?.ToString() ?? Loc.T("执行提交并推送全部远端");
+        BtnCommitPush.Content = Loc.T("执行中…");
         BtnCommitPush.IsEnabled = false;
         try
         {
@@ -1023,7 +1033,7 @@ public partial class MainView : UserControl
 
             if (_repoRoot == null || _config == null)
             {
-                Log("流程终止：请先选择有效的 git 仓库目录。");
+                Log(Loc.T("流程终止：请先选择有效的 git 仓库目录。"));
                 return;
             }
 
@@ -1045,12 +1055,12 @@ public partial class MainView : UserControl
                     ? SelectFilesToStageAsync
                     : null,
                 EnsureIdentity = EnsureIdentityInteractiveAsync,
-                OnBranchDetected = branch => TxtBranchInfo.Text = $"当前分支：{branch}"
+                OnBranchDetected = branch => TxtBranchInfo.Text = Loc.F($"当前分支：{branch}")
             }, Log);
         }
         catch (Exception ex)
         {
-            Log("发生异常：" + ex);
+            Log(Loc.T("发生异常：") + ex);
         }
         finally
         {
@@ -1066,14 +1076,14 @@ public partial class MainView : UserControl
     private async Task<IReadOnlyList<string>?> SelectFilesToStageAsync(IReadOnlyList<WorkingTreeFile> files)
     {
         var stageView = new StageFilesView(_repoRoot ?? string.Empty, files);
-        if (await UiDialogs.ShowAsync<bool?>(this, stageView, "选择要添加的文件") != true)
+        if (await UiDialogs.ShowAsync<bool?>(this, stageView, Loc.T("选择要添加的文件")) != true)
         {
-            Log("已取消选择要添加的文件。");
+            Log(Loc.T("已取消选择要添加的文件。"));
             return null;
         }
 
         IReadOnlyList<string> selected = stageView.SelectedPaths;
-        Log($"已勾选 {selected.Count} / {files.Count} 个文件执行 git add。");
+        Log(Loc.F($"已勾选 {selected.Count} / {files.Count} 个文件执行 git add。"));
         return selected;
     }
 
@@ -1088,13 +1098,13 @@ public partial class MainView : UserControl
         if (_pullCts != null)
         {
             _pullCts.Cancel(); // 正在拉取：再点一次就是取消
-            Log("正在取消拉取…");
+            Log(Loc.T("正在取消拉取…"));
             return;
         }
 
         if (_repoRoot == null)
         {
-            Log("请先选择有效的 git 仓库目录，再拉取更新。");
+            Log(Loc.T("请先选择有效的 git 仓库目录，再拉取更新。"));
             return;
         }
 
@@ -1103,34 +1113,34 @@ public partial class MainView : UserControl
         var remotes = _remotes.Where(u => !string.IsNullOrWhiteSpace(u)).ToList();
         if (remotes.Count == 0)
         {
-            Log("尚未配置推送远端地址，请先在【推送远端地址管理】中添加远端 URL。");
+            Log(Loc.T("尚未配置推送远端地址，请先在【推送远端地址管理】中添加远端 URL。"));
             return;
         }
 
         string? branch = await GetCurrentBranchAsync(_repoRoot);
         if (branch == null)
         {
-            Log("无法确定当前分支（可能处于 detached HEAD 状态），已取消拉取。");
+            Log(Loc.T("无法确定当前分支（可能处于 detached HEAD 状态），已取消拉取。"));
             return;
         }
 
         var pullView = new PullView(_repoRoot, remotes, branch);
-        if (await UiDialogs.ShowAsync<bool?>(this, pullView, "拉取更新") != true) return;
+        if (await UiDialogs.ShowAsync<bool?>(this, pullView, Loc.T("拉取更新")) != true) return;
 
         // 工作区有未提交改动时给出提示（不阻止：能否拉取最终由 git 判断）
         int changed = await _commands.CountChangedFilesAsync(_repoRoot);
         if (changed > 0)
         {
-            bool keepGoing = await Dialogs.ConfirmAsync(this, "拉取更新",
-                $"当前工作区有 {changed} 项未提交的改动。" + Environment.NewLine +
-                "如果远端改动涉及这些文件，git 会拒绝拉取或产生冲突。" + Environment.NewLine + Environment.NewLine +
-                "仍要继续拉取吗？（建议先提交或暂存）");
+            bool keepGoing = await Dialogs.ConfirmAsync(this, Loc.T("拉取更新"),
+                Loc.F($"当前工作区有 {changed} 项未提交的改动。") + Environment.NewLine +
+                Loc.T("如果远端改动涉及这些文件，git 会拒绝拉取或产生冲突。") + Environment.NewLine + Environment.NewLine +
+                Loc.T("仍要继续拉取吗？（建议先提交或暂存）"));
             if (!keepGoing) return;
         }
 
         _pullCts = new CancellationTokenSource();
-        string idleText = BtnPull.Content?.ToString() ?? "拉取更新";
-        BtnPull.Content = "取消拉取";
+        string idleText = BtnPull.Content?.ToString() ?? Loc.T("拉取更新");
+        BtnPull.Content = Loc.T("取消拉取");
 
         try
         {
@@ -1143,17 +1153,17 @@ public partial class MainView : UserControl
             }, Log, _pullCts.Token);
 
             if (result.Cancelled)
-                Log("拉取已取消。");
+                Log(Loc.T("拉取已取消。"));
             else if (result.TimedOut)
-                Log("拉取超时，已终止 git 进程。");
+                Log(Loc.T("拉取超时，已终止 git 进程。"));
             else if (result.Success)
-                Log("拉取完成。");
+                Log(Loc.T("拉取完成。"));
             else
-                Log("拉取失败，请查看上方 git 输出与提示。");
+                Log(Loc.T("拉取失败，请查看上方 git 输出与提示。"));
         }
         catch (Exception ex)
         {
-            Log("拉取发生异常：" + ex.Message);
+            Log(Loc.T("拉取发生异常：") + ex.Message);
         }
         finally
         {
@@ -1171,7 +1181,7 @@ public partial class MainView : UserControl
     private async Task<string?> GetCurrentBranchAsync(string repoDir)
     {
         string? branch = await _commitPush.GetCurrentBranchAsync(repoDir, Log);
-        if (branch != null) TxtBranchInfo.Text = $"当前分支：{branch}";
+        if (branch != null) TxtBranchInfo.Text = Loc.F($"当前分支：{branch}");
         return branch;
     }
 
@@ -1182,13 +1192,13 @@ public partial class MainView : UserControl
     {
         if (_repoRoot == null)
         {
-            Log("请先选择有效的 git 仓库目录，再查看提交历史。");
+            Log(Loc.T("请先选择有效的 git 仓库目录，再查看提交历史。"));
             return;
         }
 
         if (!EnsureGitAvailable()) return;
 
-        await UiDialogs.ShowAsync(this, new HistoryView(_repoRoot, _app.History), "提交历史");
+        await UiDialogs.ShowAsync(this, new HistoryView(_repoRoot, _app.History), Loc.T("提交历史"));
 
         // 对话框内可能执行过 reset：关闭后重新读取分支信息，保持界面与仓库一致
         if (_repoRoot != null)
@@ -1218,7 +1228,7 @@ public partial class MainView : UserControl
         string command = TxtCommand.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrEmpty(command))
         {
-            Log("请输入要执行的命令。");
+            Log(Loc.T("请输入要执行的命令。"));
             return;
         }
 
@@ -1228,7 +1238,7 @@ public partial class MainView : UserControl
             if (string.IsNullOrWhiteSpace(workDir) || !Directory.Exists(workDir))
                 workDir = Environment.CurrentDirectory;
 
-            Log($"执行命令：{command}（目录：{workDir}）");
+            Log(Loc.F($"执行命令：{command}（目录：{workDir}）"));
             ManualCommandResult r = await _commands.RunManualCommandAsync(workDir, command);
             if (r.Error != null)
             {
@@ -1236,11 +1246,11 @@ public partial class MainView : UserControl
                 return;
             }
 
-            Log($"命令退出码：{r.Result?.ExitCode ?? -1}");
+            Log(Loc.F($"命令退出码：{r.Result?.ExitCode ?? -1}"));
         }
         catch (Exception ex)
         {
-            Log("命令执行异常：" + ex);
+            Log(Loc.T("命令执行异常：") + ex);
         }
     }
 
@@ -1258,7 +1268,7 @@ public partial class MainView : UserControl
         string text = TxtLog.Text ?? string.Empty;
         if (text.Length == 0)
         {
-            Log("日志为空，没有内容可复制。");
+            Log(Loc.T("日志为空，没有内容可复制。"));
             return;
         }
 
@@ -1267,16 +1277,16 @@ public partial class MainView : UserControl
             var topLevel = TopLevel.GetTopLevel(this);
             if (topLevel?.Clipboard == null)
             {
-                Log("当前环境不支持系统剪贴板，无法复制日志。");
+                Log(Loc.T("当前环境不支持系统剪贴板，无法复制日志。"));
                 return;
             }
 
             await topLevel.Clipboard.SetTextAsync(text);
-            Log($"已复制日志到剪贴板（{text.Length} 字符）。");
+            Log(Loc.F($"已复制日志到剪贴板（{text.Length} 字符）。"));
         }
         catch (Exception ex)
         {
-            Log($"复制日志失败：{ex.Message}");
+            Log(Loc.F($"复制日志失败：{ex.Message}"));
         }
     }
 
@@ -1307,7 +1317,7 @@ public partial class MainView : UserControl
         // 设置里选了「上次使用的仓库优先」：直接沿用，不再看当前目录
         if (mode == StartupRepoMode.LastUsed && hasLast)
         {
-            message = $"已载入上次使用的仓库目录（设置：上次使用的仓库优先）：{last}";
+            message = Loc.F($"已载入上次使用的仓库目录（设置：上次使用的仓库优先）：{last}");
             return last;
         }
 
@@ -1315,7 +1325,7 @@ public partial class MainView : UserControl
         string? cwdRepo = RepoLocator.FindRepoAncestor(cwdFull.Length > 0 ? cwdFull : baseDir);
         if (cwdRepo != null)
         {
-            message = $"已载入当前目录所在的仓库：{cwdRepo}";
+            message = Loc.F($"已载入当前目录所在的仓库：{cwdRepo}");
             return cwdRepo;
         }
 
@@ -1323,17 +1333,17 @@ public partial class MainView : UserControl
         // 默认的「只读取当前目录」不会把上个项目带进来
         if (mode == StartupRepoMode.CurrentDirectoryThenLastUsed && hasLast)
         {
-            message = $"当前目录不是 Git 仓库，已载入上次使用的仓库目录（设置：找不到时回退）：{last}";
+            message = Loc.F($"当前目录不是 Git 仓库，已载入上次使用的仓库目录（设置：找不到时回退）：{last}");
             return last;
         }
 
         string hint = OperatingSystem.IsAndroid()
-            ? "请点【选择文件夹】选取 Git 仓库根目录（需授予「所有文件访问」才能读写共享存储），" +
-              "或先用【克隆项目】/【初始化仓库】创建仓库；如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。"
-            : "请点击【浏览…】选择 Git 仓库根目录；" +
-              "如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。";
+            ? Loc.T("请点【选择文件夹】选取 Git 仓库根目录（需授予「所有文件访问」才能读写共享存储），") +
+              Loc.T("或先用【克隆项目】/【初始化仓库】创建仓库；如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。")
+            : Loc.T("请点击【浏览…】选择 Git 仓库根目录；") +
+              Loc.T("如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。");
 
-        message = $"当前目录及上级目录中未找到 Git 仓库，按设置不自动加载上次项目，已留空仓库目录：{hint}";
+        message = Loc.F($"当前目录及上级目录中未找到 Git 仓库，按设置不自动加载上次项目，已留空仓库目录：{hint}");
         return null;
     }
 
@@ -1375,14 +1385,14 @@ public partial class MainView : UserControl
     {
         if (_repoRoot == null)
         {
-            TxtIdentity.Text = "提交身份：未选择仓库";
+            TxtIdentity.Text = Loc.T("提交身份：未选择仓库");
             TxtIdentity.Foreground = Brush.Parse("#666666");
             return;
         }
 
         var (name, email) = _identity.Read(_repoRoot);
         bool ok = name.Length > 0 && email.Length > 0;
-        TxtIdentity.Text = ok ? $"提交身份：{name} <{email}>" : "提交身份：未设置（提交前必须设置）";
+        TxtIdentity.Text = ok ? Loc.F($"提交身份：{name} <{email}>") : Loc.T("提交身份：未设置（提交前必须设置）");
         TxtIdentity.Foreground = ok
             ? Brush.Parse("#666666")
             : Brush.Parse("#B00020");
@@ -1394,7 +1404,7 @@ public partial class MainView : UserControl
     /// </summary>
     private async Task<bool> EnsureIdentityInteractiveAsync(string repoDir)
     {
-        Log("未检测到 git 提交身份（user.name / user.email）：这是生成 commit 的前置条件，缺失时 git 会直接报错。");
+        Log(Loc.T("未检测到 git 提交身份（user.name / user.email）：这是生成 commit 的前置条件，缺失时 git 会直接报错。"));
 
         var saved = _settings.Current.CommitIdentity;
         GitIdentity identity;
@@ -1402,14 +1412,14 @@ public partial class MainView : UserControl
         if (saved != null && saved.IsComplete)
         {
             identity = saved;
-            Log($"套用已保存的提交身份：{identity.Name} <{identity.Email}>");
+            Log(Loc.F($"套用已保存的提交身份：{identity.Name} <{identity.Email}>"));
         }
         else
         {
             var identityView = new IdentityView(saved);
-            if (await UiDialogs.ShowAsync<bool?>(this, identityView, "提交身份（git user.name / user.email）") != true)
+            if (await UiDialogs.ShowAsync<bool?>(this, identityView, Loc.T("提交身份（git user.name / user.email）")) != true)
             {
-                Log("已取消设置提交身份，无法生成 commit。");
+                Log(Loc.T("已取消设置提交身份，无法生成 commit。"));
                 return false;
             }
 
@@ -1418,11 +1428,11 @@ public partial class MainView : UserControl
             try
             {
                 _settings.Save();
-                Log($"已保存提交身份到：{_settings.Current.SettingsFilePath}");
+                Log(Loc.F($"已保存提交身份到：{_settings.Current.SettingsFilePath}"));
             }
             catch (Exception ex)
             {
-                Log("保存提交身份失败：" + ex.Message);
+                Log(Loc.T("保存提交身份失败：") + ex.Message);
             }
         }
 
@@ -1434,11 +1444,11 @@ public partial class MainView : UserControl
     {
         if (!_identity.TryApply(identity, repoDir, out string error))
         {
-            Log($"写入提交身份失败：{error}");
+            Log(Loc.F($"写入提交身份失败：{error}"));
             return false;
         }
 
-        Log($"已写入提交身份（{(identity.Scope == IdentityScope.Global ? "全局 --global" : "本仓库 --local")}）：" +
+        Log(Loc.F($"已写入提交身份（{(identity.Scope == IdentityScope.Global ? Loc.T("全局 --global") : Loc.T("本仓库 --local"))}）：") +
             $"{identity.Name} <{identity.Email}>");
         RefreshIdentityStatus();
         return true;
@@ -1458,7 +1468,7 @@ public partial class MainView : UserControl
         };
 
         var identityView = new IdentityView(current);
-        if (await UiDialogs.ShowAsync<bool?>(this, identityView, "提交身份（git user.name / user.email）") != true) return;
+        if (await UiDialogs.ShowAsync<bool?>(this, identityView, Loc.T("提交身份（git user.name / user.email）")) != true) return;
 
         _settings.Current.CommitIdentity = identityView.SelectedIdentity;
         try
@@ -1467,7 +1477,7 @@ public partial class MainView : UserControl
         }
         catch (Exception ex)
         {
-            Log("保存提交身份失败：" + ex.Message);
+            Log(Loc.T("保存提交身份失败：") + ex.Message);
         }
 
         string dir = _repoRoot ?? TxtRepoPath.Text?.Trim() ?? string.Empty;

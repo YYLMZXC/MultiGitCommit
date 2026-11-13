@@ -69,6 +69,10 @@ public class AppSettings
     [JsonPropertyName("DefaultStartPage")]
     public StartPageMode DefaultStartPage { get; set; } = StartPageMode.RepoPage;
 
+    /// <summary>界面语言，默认简体中文；切换后立即生效并随设置持久化。</summary>
+    [JsonPropertyName("Language")]
+    public AppLanguage Language { get; set; } = AppLanguage.Chinese;
+
     /// <summary>设置文件完整路径（加载时填充）。</summary>
     [JsonIgnore]
     public string SettingsFilePath { get; private set; } = string.Empty;
@@ -139,6 +143,9 @@ public class AppSettings
 
                     if (!Enum.IsDefined(loaded.DefaultStartPage))
                         loaded.DefaultStartPage = StartPageMode.RepoPage;
+
+                    if (!Enum.IsDefined(loaded.Language))
+                        loaded.Language = AppLanguage.Chinese;
 
                     return loaded;
                 }

@@ -47,7 +47,7 @@ public sealed class GitCliRunner : IGitCliRunner
         // iOS 沙盒禁止创建子进程（Process.Start 在 iOS 上抛 PlatformNotSupportedException）：
         // 直接返回失败结果，让上层（EnsureGitAvailable 等）以「未找到 git」的常规路径提示，而不是崩溃。
         if (OperatingSystem.IsIOS())
-            return GitCommandResult.Failure("iOS 沙盒禁止执行外部进程，git 命令在本平台不可用。");
+            return GitCommandResult.Failure(Loc.T("iOS 沙盒禁止执行外部进程，git 命令在本平台不可用。"));
 
         Process? process = null;
         try
@@ -56,7 +56,7 @@ public sealed class GitCliRunner : IGitCliRunner
             process = new Process { StartInfo = psi };
 
             if (!process.Start())
-                return GitCommandResult.Failure($"无法启动进程：{psi.FileName}");
+                return GitCommandResult.Failure(Loc.F($"无法启动进程：{psi.FileName}"));
 
             await WriteInputAndCloseAsync(process, request.StandardInput).ConfigureAwait(false);
 
@@ -78,7 +78,7 @@ public sealed class GitCliRunner : IGitCliRunner
                 return finished == cancelTask
                     ? GitCommandResult.Canceled()
                     : GitCommandResult.Timeout(
-                        $"命令执行超时（{Describe(request.Timeout)}），已终止：{Describe(request, psi)}");
+                        Loc.F($"命令执行超时（{Describe(request.Timeout)}），已终止：{Describe(request, psi)}"));
             }
 
             await ioTask.ConfigureAwait(false);
@@ -261,8 +261,8 @@ public sealed class GitCliRunner : IGitCliRunner
     /// <summary>超时的人话描述（秒 / 分钟）。</summary>
     private static string Describe(TimeSpan timeout)
         => timeout.TotalSeconds < 60
-            ? $"{timeout.TotalSeconds:0} 秒"
-            : $"{timeout.TotalMinutes:0.##} 分钟";
+            ? Loc.F($"{timeout.TotalSeconds:0} 秒")
+            : Loc.F($"{timeout.TotalMinutes:0.##} 分钟");
 
     /// <summary>完整命令文本（用于日志与错误提示）。</summary>
     private static string Describe(GitCommandRequest request, ProcessStartInfo psi)

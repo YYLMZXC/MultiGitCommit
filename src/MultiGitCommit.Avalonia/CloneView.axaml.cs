@@ -95,7 +95,7 @@ public partial class CloneView : DialogView<bool>
             {
                 var folders = await topLevel.StorageProvider.OpenFolderPickerAsync(new FolderPickerOpenOptions
                 {
-                    Title = "请选择要把仓库克隆到的父目录",
+                    Title = Loc.T("请选择要把仓库克隆到的父目录"),
                     AllowMultiple = false
                 });
 
@@ -108,8 +108,8 @@ public partial class CloneView : DialogView<bool>
                 {
                     if (OperatingSystem.IsAndroid() && !Dialogs.TryEnsureWritable(path, out string error))
                     {
-                        await Warn($"该目录不可写：{path}{Environment.NewLine}{error}{Environment.NewLine}" +
-                                   "请先在系统设置中授予本应用「所有文件访问」权限。");
+                        await Warn(Loc.F($"该目录不可写：{path}{Environment.NewLine}{error}{Environment.NewLine}") +
+                                   Loc.T("请先在系统设置中授予本应用「所有文件访问」权限。"));
                         return;
                     }
 
@@ -118,20 +118,20 @@ public partial class CloneView : DialogView<bool>
                     return;
                 }
 
-                await Warn("该位置无法转换为本地目录（仅支持「内部存储 / SD 卡」中的文件夹），请手动输入父目录路径。");
+                await Warn(Loc.T("该位置无法转换为本地目录（仅支持「内部存储 / SD 卡」中的文件夹），请手动输入父目录路径。"));
             }
             catch (Exception ex)
             {
                 // 个别 ROM 的 SAF 实现会抛异常：不能让 async void 事件处理器把应用带崩
-                await Warn($"系统文件夹选择器不可用：{ex.Message}，请手动输入父目录路径。");
+                await Warn(Loc.F($"系统文件夹选择器不可用：{ex.Message}，请手动输入父目录路径。"));
             }
         }
 
         // 兜底：手输绝对路径，可自动新建
-        string? picked = await Dialogs.PickFolderAsync(this, "输入克隆父目录",
-            "请输入要把仓库克隆到的父目录绝对路径，例如：" + Environment.NewLine +
+        string? picked = await Dialogs.PickFolderAsync(this, Loc.T("输入克隆父目录"),
+            Loc.T("请输入要把仓库克隆到的父目录绝对路径，例如：") + Environment.NewLine +
             "/storage/emulated/0/GitRepos" + Environment.NewLine +
-            "目录不存在时会询问是否新建；仓库目录名在下方单独填写。",
+            Loc.T("目录不存在时会询问是否新建；仓库目录名在下方单独填写。"),
             string.IsNullOrWhiteSpace(TxtParentDir.Text)
                 ? AndroidGitPlatform.SuggestRepoParent()
                 : TxtParentDir.Text!.Trim());
@@ -151,12 +151,12 @@ public partial class CloneView : DialogView<bool>
         string folder = TxtFolderName.Text?.Trim() ?? string.Empty;
 
         string target = string.IsNullOrEmpty(parent) || string.IsNullOrEmpty(folder)
-            ? "（请先填写远端 URL 与本地目录）"
+            ? Loc.T("（请先填写远端 URL 与本地目录）")
             : Path.Combine(parent, folder);
 
         TxtTargetPath.Text = target;
         TxtCommandPreview.Text = string.IsNullOrEmpty(url)
-            ? "（请先填写远端 URL）"
+            ? Loc.T("（请先填写远端 URL）")
             : $"git {GitCloneArguments.Build(TxtBranch.Text?.Trim() ?? string.Empty, ChkRecursive.IsChecked == true, ChkShallow.IsChecked == true, url, target)}";
     }
 
@@ -200,14 +200,14 @@ public partial class CloneView : DialogView<bool>
         string url = TxtUrl.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(url))
         {
-            await Warn("请填写远端仓库 URL。");
+            await Warn(Loc.T("请填写远端仓库 URL。"));
             TxtUrl.Focus();
             return;
         }
 
         if (url.Contains('"'))
         {
-            await Warn("远端 URL 不能包含双引号。");
+            await Warn(Loc.T("远端 URL 不能包含双引号。"));
             TxtUrl.Focus();
             return;
         }
@@ -215,15 +215,15 @@ public partial class CloneView : DialogView<bool>
         string parent = TxtParentDir.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(parent))
         {
-            await Warn("请填写要克隆到的本地目录。");
+            await Warn(Loc.T("请填写要克隆到的本地目录。"));
             TxtParentDir.Focus();
             return;
         }
 
         if (!Directory.Exists(parent))
         {
-            bool create = await Dialogs.ConfirmAsync(this, "克隆项目",
-                $"父目录不存在，是否新建？{Environment.NewLine}{parent}");
+            bool create = await Dialogs.ConfirmAsync(this, Loc.T("克隆项目"),
+                Loc.F($"父目录不存在，是否新建？{Environment.NewLine}{parent}"));
             if (!create) return;
 
             try
@@ -232,7 +232,7 @@ public partial class CloneView : DialogView<bool>
             }
             catch (Exception ex)
             {
-                await Warn($"新建目录失败：{ex.Message}");
+                await Warn(Loc.F($"新建目录失败：{ex.Message}"));
                 return;
             }
         }
@@ -246,14 +246,14 @@ public partial class CloneView : DialogView<bool>
 
         if (string.IsNullOrEmpty(folder))
         {
-            await Warn("无法确定目录名，请手动填写【目录名】。");
+            await Warn(Loc.T("无法确定目录名，请手动填写【目录名】。"));
             TxtFolderName.Focus();
             return;
         }
 
         if (folder.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
-            await Warn("目录名包含非法字符（\\ / : * ? \" < > | 等）。");
+            await Warn(Loc.T("目录名包含非法字符（\\ / : * ? \" < > | 等）。"));
             TxtFolderName.Focus();
             return;
         }
@@ -261,7 +261,7 @@ public partial class CloneView : DialogView<bool>
         string target = Path.Combine(parent, folder);
         if (Directory.Exists(target) && Directory.EnumerateFileSystemEntries(target).Any())
         {
-            await Warn($"目标目录已存在且不为空：{target}{Environment.NewLine}请修改【目录名】或选择其他本地目录。");
+            await Warn(Loc.F($"目标目录已存在且不为空：{target}{Environment.NewLine}请修改【目录名】或选择其他本地目录。"));
             TxtFolderName.Focus();
             return;
         }
@@ -269,7 +269,7 @@ public partial class CloneView : DialogView<bool>
         string branch = TxtBranch.Text?.Trim() ?? string.Empty;
         if (branch.Length > 0 && !GitRefName.IsValidBranchName(branch))
         {
-            await Warn("分支名不合法：不能包含空格或 ~ ^ : ? * [ \\ .. // 等字符，且不能以 - / . 开头或结尾。");
+            await Warn(Loc.T("分支名不合法：不能包含空格或 ~ ^ : ? * [ \\ .. // 等字符，且不能以 - / . 开头或结尾。"));
             TxtBranch.Focus();
             return;
         }
@@ -292,5 +292,5 @@ public partial class CloneView : DialogView<bool>
     private void BtnCancel_Click(object? sender, RoutedEventArgs e) => Close(false);
 
     private Task Warn(string message) =>
-        Dialogs.ShowMessageAsync(this, "克隆项目", message);
+        Dialogs.ShowMessageAsync(this, Loc.T("克隆项目"), message);
 }

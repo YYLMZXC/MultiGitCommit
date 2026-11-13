@@ -126,19 +126,19 @@ public static class GitCredentialHelper
         var configured = Configured();
 
         string configuredText = configured.Count == 0
-            ? "未配置"
-            : string.Join("、", configured.Select(c => c.Trim().Length == 0 ? "（留空/禁用）" : c.Trim()));
+            ? Loc.T("未配置")
+            : string.Join("、", configured.Select(c => c.Trim().Length == 0 ? Loc.T("（留空/禁用）") : c.Trim()));
 
         if (available.Count == 0)
-            return $"当前 git 未发现任何 credential 助手（配置：{configuredText}）：https 推送请手动填写账号。";
+            return Loc.F($"当前 git 未发现任何 credential 助手（配置：{configuredText}）：https 推送请手动填写账号。");
 
         if (ConfiguredUsable())
-            return $"凭据助手正常：配置 {configuredText}；可用 {string.Join("、", available)}。";
+            return Loc.F($"凭据助手正常：配置 {configuredText}；可用 {string.Join("、", available)}。");
 
         string? best = Best();
         return best == null
-            ? $"凭据助手不可用（配置：{configuredText}），且无可用替代项。"
-            : $"凭据助手不可用（配置：{configuredText}，当前 git 缺少对应程序），已自动改用 {best}。";
+            ? Loc.F($"凭据助手不可用（配置：{configuredText}），且无可用替代项。")
+            : Loc.F($"凭据助手不可用（配置：{configuredText}，当前 git 缺少对应程序），已自动改用 {best}。");
     }
 
     // ==================== 内部实现 ====================

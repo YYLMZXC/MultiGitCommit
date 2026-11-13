@@ -96,7 +96,7 @@ public partial class StageFilesView : DialogView<bool>
     private void RefreshCount()
     {
         int selected = _items.Count(i => i.Selected);
-        TxtCount.Text = $"已勾选 {selected} / {_items.Count} 个文件";
+        TxtCount.Text = Loc.F($"已勾选 {selected} / {_items.Count} 个文件");
         BtnOk.IsEnabled = _items.Count > 0;
     }
 
@@ -106,7 +106,7 @@ public partial class StageFilesView : DialogView<bool>
     {
         if (SelectedPaths.Count == 0)
         {
-            ShowStatus("请至少勾选一个要添加的文件；如果本次不想执行 git add，请点【取消】返回。");
+            ShowStatus(Loc.T("请至少勾选一个要添加的文件；如果本次不想执行 git add，请点【取消】返回。"));
             return;
         }
 

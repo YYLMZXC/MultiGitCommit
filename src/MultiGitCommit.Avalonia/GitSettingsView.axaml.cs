@@ -34,6 +34,9 @@ public partial class GitSettingsView : DialogView<bool>
     /// <summary>用户点击确定后选定的「执行 git add 的文件添加方式」。</summary>
     public StageMode SelectedStageMode { get; private set; } = StageMode.AddAll;
 
+    /// <summary>用户点击确定后选定的界面语言。</summary>
+    public AppLanguage SelectedLanguage { get; private set; } = AppLanguage.Chinese;
+
     /// <summary>传入的全局设置对象；点确定时把凭据写回它。</summary>
     private readonly AppSettings _settings;
 
@@ -103,9 +106,15 @@ public partial class GitSettingsView : DialogView<bool>
         InitializeComponent();
         _suppress = false;
 
+        // 界面语言：语言名一律用各语言自己的写法，不做翻译；说明文字由 Loc 提供
+        TxtLanguageTitle.Text = Loc.T("界面语言");
+        TxtLanguageHint.Text = Loc.T("切换后立即生效；已输出的日志与提示保持原语言，重新打开窗口后完全更新。");
+        CmbLanguage.ItemsSource = new[] { "简体中文", "English" };
+        CmbLanguage.SelectedIndex = current.Language == AppLanguage.English ? 1 : 0;
+
         // 安卓 SAF 文件选择器拿不到本地路径，按钮改为直接输入 git 路径
         if (OperatingSystem.IsAndroid())
-            BtnBrowse.Content = "输入路径";
+            BtnBrowse.Content = Loc.T("输入路径");
 
         // 窄屏响应式：宽度变化时切换身份输入与凭据输入的行列布局
         SizeChanged += (_, _) => ApplyResponsiveLayout();
@@ -117,7 +126,7 @@ public partial class GitSettingsView : DialogView<bool>
         {
             CmbIdentityScopeLocal.IsEnabled = false;
             CmbIdentityScope.SelectedIndex = 1;
-            TxtIdentityScopeHint.Text = "未加载仓库：身份将写入全局配置（--global）。";
+            TxtIdentityScopeHint.Text = Loc.T("未加载仓库：身份将写入全局配置（--global）。");
         }
 
         // 高级面板默认收起：首次展开时才做 git 来源 / 凭据助手检测（都要启动外部进程）
@@ -193,7 +202,7 @@ public partial class GitSettingsView : DialogView<bool>
             catch (Exception ex)
             {
                 // async void 事件处理器异常会终止进程，这里兜底显示在基础面板可见的结果区
-                ShowIdentityResult("× 读取提交身份失败：" + ex.Message, false);
+                ShowIdentityResult(Loc.T("× 读取提交身份失败：") + ex.Message, false);
             }
         };
     }
@@ -210,13 +219,13 @@ public partial class GitSettingsView : DialogView<bool>
     {
         ["gitee.com"] = new("gitee.com", null,
             "https://gitee.com/profile/personal_access_tokens",
-            "Gitee：用户名填 Gitee 账号名，密码填「私人令牌」（勾选 projects 权限）。令牌页面：gitee.com/profile/personal_access_tokens"),
+            Loc.T("Gitee：用户名填 Gitee 账号名，密码填「私人令牌」（勾选 projects 权限）。令牌页面：gitee.com/profile/personal_access_tokens")),
         ["github.com"] = new("github.com", null,
             "https://github.com/settings/tokens",
-            "GitHub：用户名填 GitHub 账号名，密码填 Personal Access Token（勾选 repo 权限）。令牌页面：github.com/settings/tokens"),
+            Loc.T("GitHub：用户名填 GitHub 账号名，密码填 Personal Access Token（勾选 repo 权限）。令牌页面：github.com/settings/tokens")),
         ["cnb.cool"] = new("cnb.cool", "cnb",
             "https://cnb.cool/profile/token",
-            "CNB（cnb.cool）：用户名固定填 cnb，密码填访问令牌；CNB 只支持 HTTPS + 令牌，不支持 ssh。令牌页面：cnb.cool/profile/token")
+            Loc.T("CNB（cnb.cool）：用户名固定填 cnb，密码填访问令牌；CNB 只支持 HTTPS + 令牌，不支持 ssh。令牌页面：cnb.cool/profile/token"))
     };
 
     /// <summary>选择平台：自动填主机名，CNB 额外固定用户名，并显示该平台的令牌说明。</summary>
@@ -235,7 +244,7 @@ public partial class GitSettingsView : DialogView<bool>
     {
         if (hostTag.Length == 0 || !Platforms.TryGetValue(hostTag, out PlatformPreset? preset))
         {
-            TxtPlatformHint.Text = "自定义：手动填写主机名（可直接粘贴完整 URL，如 https://git.example.com/group/repo）。";
+            TxtPlatformHint.Text = Loc.T("自定义：手动填写主机名（可直接粘贴完整 URL，如 https://git.example.com/group/repo）。");
             BtnPlatformToken.IsEnabled = false;
             return;
         }
@@ -272,7 +281,7 @@ public partial class GitSettingsView : DialogView<bool>
     {
         if (!Platforms.TryGetValue(SelectedPlatformHost, out PlatformPreset? preset))
         {
-            ShowCredResult("× 当前平台没有固定的令牌页面，请手动在该平台的设置中创建访问令牌。", false);
+            ShowCredResult(Loc.T("× 当前平台没有固定的令牌页面，请手动在该平台的设置中创建访问令牌。"), false);
             return;
         }
 
@@ -282,16 +291,16 @@ public partial class GitSettingsView : DialogView<bool>
             if (topLevel != null &&
                 await topLevel.Launcher.LaunchUriAsync(new Uri(preset.TokenUrl)))
             {
-                ShowCredResult($"已在浏览器中打开 {preset.Host} 的访问令牌页面。", null);
+                ShowCredResult(Loc.F($"已在浏览器中打开 {preset.Host} 的访问令牌页面。"), null);
             }
             else
             {
-                ShowCredResult($"× 未能打开浏览器，请手动访问：{preset.TokenUrl}", false);
+                ShowCredResult(Loc.F($"× 未能打开浏览器，请手动访问：{preset.TokenUrl}"), false);
             }
         }
         catch (Exception ex)
         {
-            ShowCredResult("× 打开浏览器失败：" + ex.Message, false);
+            ShowCredResult(Loc.T("× 打开浏览器失败：") + ex.Message, false);
         }
     }
 
@@ -343,7 +352,7 @@ public partial class GitSettingsView : DialogView<bool>
 
         if (host.Length == 0)
         {
-            ShowCredResult("× 请先填写远端主机（如 cnb.cool），或直接粘贴完整 URL。", false);
+            ShowCredResult(Loc.T("× 请先填写远端主机（如 cnb.cool），或直接粘贴完整 URL。"), false);
             return;
         }
 
@@ -351,7 +360,7 @@ public partial class GitSettingsView : DialogView<bool>
 
         if (user.Length == 0 || token.Length == 0)
         {
-            ShowCredResult("× 请同时填写用户名与访问令牌。", false);
+            ShowCredResult(Loc.T("× 请同时填写用户名与访问令牌。"), false);
             return;
         }
 
@@ -362,20 +371,20 @@ public partial class GitSettingsView : DialogView<bool>
         {
             string reason = string.IsNullOrWhiteSpace(result.Detail)
                 ? result.Message
-                : result.Message + "\n\n服务端返回：" + result.Detail;
+                : result.Message + Loc.T("\n\n服务端返回：") + result.Detail;
 
-            bool keep = await Dialogs.ConfirmAsync(this, "账号验证",
-                reason + "\n\n该账号未验证通过，仍要保存吗？（未验证的账号推送时很可能失败）");
+            bool keep = await Dialogs.ConfirmAsync(this, Loc.T("账号验证"),
+                reason + Loc.T("\n\n该账号未验证通过，仍要保存吗？（未验证的账号推送时很可能失败）"));
             if (!keep)
             {
-                ShowCredResult("已放弃保存，该账号未写入列表。", null);
+                ShowCredResult(Loc.T("已放弃保存，该账号未写入列表。"), null);
                 return;
             }
         }
 
         SaveCredential(host, user, token);
-        ShowCredResult((result.Success ? "√ 验证通过：" : "! 未验证通过但已保存：") +
-                       $" {host} 的推送凭据（点【确定】后生效）。", result.Success);
+        ShowCredResult((result.Success ? Loc.T("√ 验证通过：") : Loc.T("! 未验证通过但已保存：")) +
+                       Loc.F($" {host} 的推送凭据（点【确定】后生效）。"), result.Success);
     }
 
     /// <summary>按主机查找编辑中的凭据（主机归一规则只在这里写一次）。</summary>
@@ -424,13 +433,13 @@ public partial class GitSettingsView : DialogView<bool>
 
         if (host.Length == 0)
         {
-            ShowCredResult("× 请先填写远端主机（如 cnb.cool），或直接粘贴完整 URL。", false);
+            ShowCredResult(Loc.T("× 请先填写远端主机（如 cnb.cool），或直接粘贴完整 URL。"), false);
             return;
         }
 
         if (user.Length == 0 || token.Length == 0)
         {
-            ShowCredResult("× 请同时填写用户名与访问令牌。", false);
+            ShowCredResult(Loc.T("× 请同时填写用户名与访问令牌。"), false);
             return;
         }
 
@@ -448,7 +457,7 @@ public partial class GitSettingsView : DialogView<bool>
         string? exe = _environment.Preview(CurrentMode, TxtCustomPath.Text?.Trim() ?? string.Empty, out _);
         if (exe == null)
         {
-            ShowCredResult("× 当前 git 来源下未找到可用的 git，请先配置 git 来源再验证账号。", false);
+            ShowCredResult(Loc.T("× 当前 git 来源下未找到可用的 git，请先配置 git 来源再验证账号。"), false);
             return null;
         }
 
@@ -456,9 +465,9 @@ public partial class GitSettingsView : DialogView<bool>
         _credTestCts = new CancellationTokenSource();
         var ct = _credTestCts.Token;
 
-        BtnCredTest.Content = "取消验证";
+        BtnCredTest.Content = Loc.T("取消验证");
         BtnCredAdd.IsEnabled = false;
-        ShowCredResult($"正在验证 {user}@{host}（git ls-remote 实测，最多 {CredentialTester.DefaultTimeoutSeconds} 秒，可点【取消验证】中止）…", null);
+        ShowCredResult(Loc.F($"正在验证 {user}@{host}（git ls-remote 实测，最多 {CredentialTester.DefaultTimeoutSeconds} 秒，可点【取消验证】中止）…"), null);
 
         try
         {
@@ -473,12 +482,12 @@ public partial class GitSettingsView : DialogView<bool>
         }
         catch (Exception ex)
         {
-            ShowCredResult("× 验证账号失败：" + ex.Message, false);
+            ShowCredResult(Loc.T("× 验证账号失败：") + ex.Message, false);
             return null;
         }
         finally
         {
-            BtnCredTest.Content = "验证账号";
+            BtnCredTest.Content = Loc.T("验证账号");
             BtnCredAdd.IsEnabled = true;
             _credTestCts?.Dispose();
             _credTestCts = null;
@@ -521,7 +530,7 @@ public partial class GitSettingsView : DialogView<bool>
     {
         if (ListCred.SelectedItem is not GitCredential cred)
         {
-            ShowCredResult("× 请先在上方列表中选中要删除的凭据。", false);
+            ShowCredResult(Loc.T("× 请先在上方列表中选中要删除的凭据。"), false);
             return;
         }
 
@@ -530,7 +539,7 @@ public partial class GitSettingsView : DialogView<bool>
         TxtCredHost.Text = string.Empty;
         TxtCredUser.Text = string.Empty;
         TxtCredToken.Text = string.Empty;
-        ShowCredResult($"已删除 {cred.Host} 的凭据（点【确定】后生效）。", null);
+        ShowCredResult(Loc.F($"已删除 {cred.Host} 的凭据（点【确定】后生效）。"), null);
     }
 
     /// <summary>InitializeComponent / 初始化过程中抑制事件。</summary>
@@ -581,9 +590,9 @@ public partial class GitSettingsView : DialogView<bool>
         // 安卓：SAF 返回 content:// URI，TryGetLocalPath 为 null，改为手输绝对路径
         if (OperatingSystem.IsAndroid())
         {
-            string? typed = await Dialogs.PromptAsync(this, "输入 git 路径",
-                "请输入 git 可执行文件（或 Git 根目录）的绝对路径。" + Environment.NewLine +
-                "Android 已内嵌 git，一般保持默认的「自动检测」即可，无需在此指定。",
+            string? typed = await Dialogs.PromptAsync(this, Loc.T("输入 git 路径"),
+                Loc.T("请输入 git 可执行文件（或 Git 根目录）的绝对路径。") + Environment.NewLine +
+                Loc.T("Android 已内嵌 git，一般保持默认的「自动检测」即可，无需在此指定。"),
                 TxtCustomPath.Text?.Trim() ?? string.Empty);
             if (string.IsNullOrWhiteSpace(typed)) return;
 
@@ -597,7 +606,7 @@ public partial class GitSettingsView : DialogView<bool>
 
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "选择 git 可执行文件（macOS 常在 /opt/homebrew/bin/git，Linux 常在 /usr/bin/git）",
+            Title = Loc.T("选择 git 可执行文件（macOS 常在 /opt/homebrew/bin/git，Linux 常在 /usr/bin/git）"),
             AllowMultiple = false
         });
 
@@ -627,13 +636,13 @@ public partial class GitSettingsView : DialogView<bool>
 
         if (mode == GitSourceMode.Custom && string.IsNullOrWhiteSpace(custom))
         {
-            TxtResult.Text = "× 请先填写 git 路径或 Git 根目录。";
+            TxtResult.Text = Loc.T("× 请先填写 git 路径或 Git 根目录。");
             TxtResult.Foreground = ResultBrush(false);
             return;
         }
 
         int seq = ++_testSeq;
-        TxtResult.Text = "正在检测当前所选 git 配置…";
+        TxtResult.Text = Loc.T("正在检测当前所选 git 配置…");
         TxtResult.Foreground = ResultBrush(null);
 
         var (exe, description) = await Task.Run(() =>
@@ -664,7 +673,7 @@ public partial class GitSettingsView : DialogView<bool>
         }
         catch (Exception ex)
         {
-            ShowResult("× 检测 git 配置失败：" + ex.Message, false);
+            ShowResult(Loc.T("× 检测 git 配置失败：") + ex.Message, false);
         }
     }
 
@@ -688,11 +697,11 @@ public partial class GitSettingsView : DialogView<bool>
         TxtStartupHint.Text = CurrentStartupRepo switch
         {
             StartupRepoMode.LastUsed =>
-                $"启动时直接打开上次成功加载的仓库，不看当前目录。当前目录：{cwd}",
+                Loc.F($"启动时直接打开上次成功加载的仓库，不看当前目录。当前目录：{cwd}"),
             StartupRepoMode.CurrentDirectoryThenLastUsed =>
-                $"启动时先在当前目录及其上级目录找仓库，找不到再打开上次使用的仓库。当前目录：{cwd}",
+                Loc.F($"启动时先在当前目录及其上级目录找仓库，找不到再打开上次使用的仓库。当前目录：{cwd}"),
             _ =>
-                $"启动时只看当前目录及其上级目录里有没有仓库；找不到就留空由你手选。当前目录：{cwd}"
+                Loc.F($"启动时只看当前目录及其上级目录里有没有仓库；找不到就留空由你手选。当前目录：{cwd}")
         };
     }
 
@@ -713,8 +722,8 @@ public partial class GitSettingsView : DialogView<bool>
     private void RefreshStageHint()
     {
         TxtStageHint.Text = CurrentStageMode == StageMode.Select
-            ? "提交前先列出变更文件，由你勾选这次要提交哪些（默认全部勾选，可取消）。仅在主界面勾选【执行 git add】时生效。"
-            : "提交前自动把工作区里的全部变更加入本次提交，不用每次确认。仅在主界面勾选【执行 git add】时生效。";
+            ? Loc.T("提交前先列出变更文件，由你勾选这次要提交哪些（默认全部勾选，可取消）。仅在主界面勾选【执行 git add】时生效。")
+            : Loc.T("提交前自动把工作区里的全部变更加入本次提交，不用每次确认。仅在主界面勾选【执行 git add】时生效。");
     }
 
     // ==================== 凭据（账号）来源 ====================
@@ -739,16 +748,16 @@ public partial class GitSettingsView : DialogView<bool>
         switch (CurrentCredentialSource)
         {
             case CredentialSourceMode.System:
-                ShowCredResult("将只使用系统凭据：每次推送时实时索取，令牌不写入配置文件。", null);
+                ShowCredResult(Loc.T("将只使用系统凭据：每次推送时实时索取，令牌不写入配置文件。"), null);
                 break;
             case CredentialSourceMode.Custom:
-                ShowCredResult("将只使用下方自定义账号：不会访问系统凭据库。", null);
+                ShowCredResult(Loc.T("将只使用下方自定义账号：不会访问系统凭据库。"), null);
                 break;
             case CredentialSourceMode.None:
-                ShowCredResult("将不使用任何账号：适用于 ssh 远端或 URL 中自带凭据的情况。", null);
+                ShowCredResult(Loc.T("将不使用任何账号：适用于 ssh 远端或 URL 中自带凭据的情况。"), null);
                 break;
             default:
-                ShowCredResult("自动检测：优先使用已保存的账号，找不到时自动从系统凭据获取。", null);
+                ShowCredResult(Loc.T("自动检测：优先使用已保存的账号，找不到时自动从系统凭据获取。"), null);
                 break;
         }
     }
@@ -763,21 +772,21 @@ public partial class GitSettingsView : DialogView<bool>
         {
             if (_environment.Preview(CurrentMode, TxtCustomPath.Text?.Trim() ?? string.Empty, out _) == null)
             {
-                ShowCredResult("× 当前 git 来源未找到可用的 git，请先配置 git 来源再检测系统凭据。", false);
+                ShowCredResult(Loc.T("× 当前 git 来源未找到可用的 git，请先配置 git 来源再检测系统凭据。"), false);
                 return;
             }
 
             var detectView = new CredentialDetectView(_remoteUrls, _environment);
-            if (await UiDialogs.ShowAsync<bool?>(this, detectView, "检测系统 git 凭据") != true)
+            if (await UiDialogs.ShowAsync<bool?>(this, detectView, Loc.T("检测系统 git 凭据")) != true)
             {
-                ShowCredResult("已取消，未导入任何系统账号。", null);
+                ShowCredResult(Loc.T("已取消，未导入任何系统账号。"), null);
                 return;
             }
 
             var found = detectView.SelectedCredentials;
             if (found.Count == 0)
             {
-                ShowCredResult("未勾选任何账号，未导入。", null);
+                ShowCredResult(Loc.T("未勾选任何账号，未导入。"), null);
                 return;
             }
 
@@ -807,11 +816,11 @@ public partial class GitSettingsView : DialogView<bool>
             }
 
             RefreshCredList();
-            ShowCredResult($"√ 已从系统导入 {imported} 个账号（点【确定】后生效）。", true);
+            ShowCredResult(Loc.F($"√ 已从系统导入 {imported} 个账号（点【确定】后生效）。"), true);
         }
         catch (Exception ex)
         {
-            ShowCredResult("× 检测系统凭据失败：" + ex.Message, false);
+            ShowCredResult(Loc.T("× 检测系统凭据失败：") + ex.Message, false);
         }
     }
 
@@ -845,7 +854,7 @@ public partial class GitSettingsView : DialogView<bool>
     private async Task RefreshIdentityInfoAsync()
     {
         var saved = _settings.CommitIdentity;
-        string savedText = saved != null && saved.IsComplete ? $"已保存：{saved}" : "尚未保存";
+        string savedText = saved != null && saved.IsComplete ? Loc.F($"已保存：{saved}") : Loc.T("尚未保存");
 
         var (name, email) = await Task.Run(() => _identityService.Read(_repoPath));
 
@@ -860,8 +869,8 @@ public partial class GitSettingsView : DialogView<bool>
         }
 
         TxtIdentityInfo.Text = (name.Length > 0 && email.Length > 0)
-            ? $"当前生效：{name} <{email}>（{savedText}）"
-            : $"当前生效：未设置（{savedText}）";
+            ? Loc.F($"当前生效：{name} <{email}>（{savedText}）")
+            : Loc.F($"当前生效：未设置（{savedText}）");
 
         bool complete = name.Length > 0 && email.Length > 0;
         TxtIdentityInfo.Foreground = ResultBrush(complete);
@@ -875,14 +884,14 @@ public partial class GitSettingsView : DialogView<bool>
 
         if (name.Length == 0)
         {
-            await Dialogs.ShowMessageAsync(this, "提交身份", "请填写用户名（git config user.name）。");
+            await Dialogs.ShowMessageAsync(this, Loc.T("提交身份"), Loc.T("请填写用户名（git config user.name）。"));
             TxtIdentityName.Focus();
             return;
         }
 
         if (email.Length == 0 || !email.Contains('@'))
         {
-            await Dialogs.ShowMessageAsync(this, "提交身份", "请填写有效的邮箱（git config user.email）。");
+            await Dialogs.ShowMessageAsync(this, Loc.T("提交身份"), Loc.T("请填写有效的邮箱（git config user.email）。"));
             TxtIdentityEmail.Focus();
             return;
         }
@@ -910,7 +919,7 @@ public partial class GitSettingsView : DialogView<bool>
         if (!ok)
         {
             string detail = error.Length > 0 ? $"{Environment.NewLine}{error}" : string.Empty;
-            ShowIdentityResult("× 写入提交身份失败，请确认 git 可用且该仓库目录可写。" + detail, false);
+            ShowIdentityResult(Loc.T("× 写入提交身份失败，请确认 git 可用且该仓库目录可写。") + detail, false);
             return false;
         }
 
@@ -919,7 +928,7 @@ public partial class GitSettingsView : DialogView<bool>
         _identityInitialEmail = email;
         await RefreshIdentityInfoAsync();
         ShowIdentityResult(
-            $"√ 已写入提交身份（{(identity.Scope == IdentityScope.Global ? "全局 --global" : "本仓库 --local")}）：" +
+            Loc.F($"√ 已写入提交身份（{(identity.Scope == IdentityScope.Global ? Loc.T("全局 --global") : Loc.T("本仓库 --local"))}）：") +
             $"{identity.Name} <{identity.Email}>", true);
         return true;
     }
@@ -949,8 +958,8 @@ public partial class GitSettingsView : DialogView<bool>
             }
             else
             {
-                await Dialogs.ShowMessageAsync(this, "提交身份",
-                    "用户名或邮箱填写不完整，身份不会写入；可补全后点【设置】，其它设置仍会保存。");
+                await Dialogs.ShowMessageAsync(this, Loc.T("提交身份"),
+                    Loc.T("用户名或邮箱填写不完整，身份不会写入；可补全后点【设置】，其它设置仍会保存。"));
             }
         }
 
@@ -961,15 +970,15 @@ public partial class GitSettingsView : DialogView<bool>
         {
             if (string.IsNullOrWhiteSpace(SelectedCustomPath))
             {
-                await Dialogs.ShowMessageAsync(this, "Git 环境设置", "请填写 git 路径或 Git 根目录。");
+                await Dialogs.ShowMessageAsync(this, Loc.T("Git 环境设置"), Loc.T("请填写 git 路径或 Git 根目录。"));
                 return;
             }
 
             // 路径无效时给出确认，避免静默保存一个用不了的配置
             if (_environment.ResolveCustomPath(SelectedCustomPath) == null)
             {
-                bool keep = await Dialogs.ConfirmAsync(this, "Git 环境设置",
-                    "指定路径中未找到可用的 git，仍保存该设置吗？");
+                bool keep = await Dialogs.ConfirmAsync(this, Loc.T("Git 环境设置"),
+                    Loc.T("指定路径中未找到可用的 git，仍保存该设置吗？"));
                 if (!keep) return;
             }
         }
@@ -984,6 +993,9 @@ public partial class GitSettingsView : DialogView<bool>
         // git add 的文件添加方式：全提交 / 可选提交
         SelectedStageMode = CurrentStageMode;
         _settings.StageMode = SelectedStageMode;
+
+        // 界面语言由调用方在点确定后统一应用（Loc.SetLanguage 会刷新全部 XAML 文案）
+        SelectedLanguage = CmbLanguage.SelectedIndex == 1 ? AppLanguage.English : AppLanguage.Chinese;
 
         Close(true);
     }

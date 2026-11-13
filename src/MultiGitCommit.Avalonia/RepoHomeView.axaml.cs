@@ -120,7 +120,7 @@ public partial class RepoHomeView : UserControl
         List<string> roots = ResolveScanRoots();
         _discovered.Clear();
         TxtDiscoveredEmpty.IsVisible = false;
-        TxtScanStatus.Text = $"正在扫描本地 Git 仓库（深度 {ScanMaxDepth}，上限 {ScanLimit}）…";
+        TxtScanStatus.Text = Loc.F($"正在扫描本地 Git 仓库（深度 {ScanMaxDepth}，上限 {ScanLimit}）…");
 
         try
         {
@@ -129,8 +129,8 @@ public partial class RepoHomeView : UserControl
 
             foreach (string repo in found) _discovered.Add(repo);
             TxtScanStatus.Text = found.Count >= ScanLimit
-                ? $"已发现 {found.Count} 个仓库（达到上限，可能未扫全）"
-                : $"共发现 {found.Count} 个本地仓库";
+                ? Loc.F($"已发现 {found.Count} 个仓库（达到上限，可能未扫全）")
+                : Loc.F($"共发现 {found.Count} 个本地仓库");
             TxtDiscoveredEmpty.IsVisible = found.Count == 0;
         }
         catch (OperationCanceledException)
@@ -139,7 +139,7 @@ public partial class RepoHomeView : UserControl
         }
         catch (Exception ex)
         {
-            TxtScanStatus.Text = "扫描失败：" + ex.Message;
+            TxtScanStatus.Text = Loc.T("扫描失败：") + ex.Message;
             TxtDiscoveredEmpty.IsVisible = true;
         }
     }

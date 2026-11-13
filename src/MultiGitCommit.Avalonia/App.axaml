@@ -6,6 +6,11 @@
          桌面与移动端跟随系统深色时，FluentTheme 的文字与控件会变成浅色，白底卡片上会白字白按钮。
          Android 的 styles.xml 本来也是 AppCompat.Light，这里让 Avalonia 侧与之保持一致；
          ComboBox 下拉、ToolTip 等由主题绘制的浮层也一并覆盖。 -->
+    <!-- 本地化字典：App 启动时按 settings.json 里的 Language 把当前语言文案写进这里，
+         XAML 统一用 DynamicResource 引用 L.xxx 键；切换语言时原地改值即可整页刷新。 -->
+    <Application.Resources>
+        <ResourceDictionary />
+    </Application.Resources>
     <Application.Styles>
         <FluentTheme />
     </Application.Styles>

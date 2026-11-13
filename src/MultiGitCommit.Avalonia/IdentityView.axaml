@@ -8,37 +8,37 @@
     <DockPanel Margin="14">
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="0,14,0,0">
-            <Button Content="确定" Width="90" IsDefault="True" Padding="8,2" Click="BtnOk_Click"/>
-            <Button Content="取消" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2" Click="BtnCancel_Click"/>
+            <Button Content="{DynamicResource L.IdentityView.L011.Content}" Width="90" IsDefault="True" Padding="8,2" Click="BtnOk_Click"/>
+            <Button Content="{DynamicResource L.IdentityView.L012.Content}" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2" Click="BtnCancel_Click"/>
         </StackPanel>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
-                <TextBlock Text="git 生成 commit 的前置条件：必须配置 user.name 与 user.email，否则 git 直接报错（Please tell me who you are / unable to auto-detect email address），根本生成不了提交。"
+                <TextBlock Text="{DynamicResource L.IdentityView.L017.Text}"
                            TextWrapping="Wrap" Margin="0,0,0,10"/>
 
                 <Grid Margin="0,0,0,8" ColumnDefinitions="80,*" RowDefinitions="Auto,Auto">
-                    <TextBlock Grid.Row="0" Grid.Column="0" Text="用户名" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource L.IdentityView.L021.Text}" VerticalAlignment="Center"/>
                     <TextBox x:Name="TxtName" Grid.Row="0" Grid.Column="1" VerticalContentAlignment="Center" Margin="6,3"
-                             ToolTip.Tip="git config user.name，提交记录里显示的作者名"/>
+                             ToolTip.Tip="{DynamicResource L.IdentityView.L023.ToolTip_Tip}"/>
 
-                    <TextBlock Grid.Row="1" Grid.Column="0" Text="邮箱" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource L.IdentityView.L025.Text}" VerticalAlignment="Center"/>
                     <TextBox x:Name="TxtEmail" Grid.Row="1" Grid.Column="1" VerticalContentAlignment="Center" Margin="6,3"
-                             ToolTip.Tip="git config user.email，提交记录里显示的作者邮箱"/>
+                             ToolTip.Tip="{DynamicResource L.IdentityView.L027.ToolTip_Tip}"/>
                 </Grid>
 
-                <TextBlock Text="写入位置" FontWeight="SemiBold" Margin="0,4,0,2"/>
+                <TextBlock Text="{DynamicResource L.IdentityView.L030.Text}" FontWeight="SemiBold" Margin="0,4,0,2"/>
                 <StackPanel>
                     <RadioButton x:Name="RbLocal" Margin="0,3" IsChecked="True">
-                        <TextBlock Text="仅当前仓库（git config，写入该仓库的 .git/config）" TextWrapping="Wrap"/>
+                        <TextBlock Text="{DynamicResource L.IdentityView.L033.Text}" TextWrapping="Wrap"/>
                     </RadioButton>
                     <RadioButton x:Name="RbGlobal" Margin="0,3">
-                        <TextBlock Text="全局（git config --global，对所有仓库生效）" TextWrapping="Wrap"/>
+                        <TextBlock Text="{DynamicResource L.IdentityView.L036.Text}" TextWrapping="Wrap"/>
                     </RadioButton>
                 </StackPanel>
 
                 <TextBlock TextWrapping="Wrap" Margin="0,10,0,0" Foreground="#666" FontSize="11"
-                           Text="用户名与邮箱都会写入提交记录（git log 可见），邮箱建议与代码平台注册邮箱一致，便于平台关联贡献者。"/>
+                           Text="{DynamicResource L.IdentityView.L041.Text}"/>
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

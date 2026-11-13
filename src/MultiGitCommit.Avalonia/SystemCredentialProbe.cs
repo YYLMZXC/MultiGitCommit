@@ -98,16 +98,16 @@ public static class SystemCredentialProbe
 
         if (extraHosts != null)
         {
-            foreach (string h in extraHosts) Add(h, "当前项目远端", true);
+            foreach (string h in extraHosts) Add(h, Loc.T("当前项目远端"), true);
         }
 
         // 系统凭据库：Windows 用 cmdkey 枚举凭据管理器目标；
         // macOS / Linux 不枚举钥匙串 / Secret Service（逐个查询很慢，违背「不全量扫描」原则），
         // 改由 git credential fill 经 osxkeychain / libsecret 按需索取。
-        foreach (string h in WindowsCredentialManagerHosts()) Add(h, "Windows 凭据管理器", true);
+        foreach (string h in WindowsCredentialManagerHosts()) Add(h, Loc.T("Windows 凭据管理器"), true);
 
-        foreach (var c in ReadCredentialsFile()) Add(c.Host, "凭据文件 .git-credentials", true);
-        foreach (string h in DefaultHosts) Add(h, "常用平台（默认不检测）", false);
+        foreach (var c in ReadCredentialsFile()) Add(c.Host, Loc.T("凭据文件 .git-credentials"), true);
+        foreach (string h in DefaultHosts) Add(h, Loc.T("常用平台（默认不检测）"), false);
 
         return list;
     }
@@ -170,7 +170,7 @@ public static class SystemCredentialProbe
             Host = GitCredentials.GetHost(host) ?? host.ToLowerInvariant(),
             Username = user,
             Token = token,
-            Source = "凭据文件 ~/.git-credentials"
+            Source = Loc.T("凭据文件 ~/.git-credentials")
         };
     }
 
@@ -282,7 +282,7 @@ public static class SystemCredentialProbe
                 Host = host,
                 Username = username,
                 Token = password,
-                Source = "系统凭据（git credential helper）"
+                Source = Loc.T("系统凭据（git credential helper）")
             };
         }
         catch (OperationCanceledException)

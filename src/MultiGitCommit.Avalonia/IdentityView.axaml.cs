@@ -38,14 +38,14 @@ public partial class IdentityView : DialogView<bool>
 
         if (name.Length == 0)
         {
-            await Dialogs.ShowMessageAsync(this, "提交身份", "请填写用户名（git config user.name）。");
+            await Dialogs.ShowMessageAsync(this, Loc.T("提交身份"), Loc.T("请填写用户名（git config user.name）。"));
             TxtName.Focus();
             return;
         }
 
         if (email.Length == 0 || !email.Contains('@'))
         {
-            await Dialogs.ShowMessageAsync(this, "提交身份", "请填写有效的邮箱（git config user.email）。");
+            await Dialogs.ShowMessageAsync(this, Loc.T("提交身份"), Loc.T("请填写有效的邮箱（git config user.email）。"));
             TxtEmail.Focus();
             return;
         }

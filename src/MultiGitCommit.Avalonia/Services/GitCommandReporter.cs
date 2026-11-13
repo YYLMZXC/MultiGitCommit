@@ -61,8 +61,8 @@ public sealed class GitCommandReporter : ILoggedGitRunner
 
         if (result.TimedOut)
         {
-            _log($"[超时] 命令执行超过 {limit.TotalMinutes:0.##} 分钟仍未结束，已强制终止：{logLabel ?? arguments}");
-            _log("       常见原因：远端要求输入用户名/密码或 ssh 口令（本工具为非交互执行，不会弹框输入）、网络不通、仓库过大。");
+            _log(Loc.F($"[超时] 命令执行超过 {limit.TotalMinutes:0.##} 分钟仍未结束，已强制终止：{logLabel ?? arguments}"));
+            _log(Loc.T("       常见原因：远端要求输入用户名/密码或 ssh 口令（本工具为非交互执行，不会弹框输入）、网络不通、仓库过大。"));
         }
 
         return result;
@@ -85,7 +85,7 @@ public sealed class GitCommandReporter : ILoggedGitRunner
         if (!result.Success)
         {
             if (result.TimedOut)
-                _log($"[超时] 命令执行超过 {limit.TotalMinutes:0.##} 分钟仍未结束，已强制终止：{logLabel ?? arguments}");
+                _log(Loc.F($"[超时] 命令执行超过 {limit.TotalMinutes:0.##} 分钟仍未结束，已强制终止：{logLabel ?? arguments}"));
             else if (!result.Cancelled && result.ErrorText.Length > 0)
                 _log("      " + result.ErrorText);
         }

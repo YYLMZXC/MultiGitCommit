@@ -9,8 +9,8 @@
     <DockPanel Margin="14">
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button Content="开始克隆" Width="90" IsDefault="True" Padding="8,2" Click="BtnOk_Click"/>
-            <Button Content="取消" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2" Click="BtnCancel_Click"/>
+            <Button Content="{DynamicResource L.CloneView.L012.Content}" Width="90" IsDefault="True" Padding="8,2" Click="BtnOk_Click"/>
+            <Button Content="{DynamicResource L.CloneView.L013.Content}" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,2" Click="BtnCancel_Click"/>
         </StackPanel>
 
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -29,46 +29,46 @@
                     <RowDefinition Height="Auto"/>   <!-- 预览 -->
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="远端 URL：" VerticalAlignment="Center" Margin="0,0,6,8"/>
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="{DynamicResource L.CloneView.L032.Text}" VerticalAlignment="Center" Margin="0,0,6,8"/>
                 <TextBox x:Name="TxtUrl" Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" VerticalContentAlignment="Center"
                          Margin="0,0,0,8" TextChanged="TxtUrl_TextChanged"
-                         ToolTip.Tip="支持 ssh / https / 本地路径，例如 git@gitee.com:user/repo.git、https://github.com/user/repo.git"/>
+                         ToolTip.Tip="{DynamicResource L.CloneView.L035.ToolTip_Tip}"/>
 
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="克隆到：" VerticalAlignment="Center" Margin="0,0,6,8"/>
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="{DynamicResource L.CloneView.L037.Text}" VerticalAlignment="Center" Margin="0,0,6,8"/>
                 <TextBox x:Name="TxtParentDir" Grid.Row="1" Grid.Column="1" VerticalContentAlignment="Center"
                          Margin="0,0,0,8" TextChanged="Input_Changed"
-                         ToolTip.Tip="本地父目录，仓库将被克隆到该目录下的【目录名】子文件夹"/>
-                <Button x:Name="BtnBrowseParent" Grid.Row="1" Grid.Column="2" Content="浏览..." Margin="6,0,0,8" Padding="10,2"
-                        Click="BtnBrowseParent_Click" ToolTip.Tip="选择本地父目录"/>
+                         ToolTip.Tip="{DynamicResource L.CloneView.L040.ToolTip_Tip}"/>
+                <Button x:Name="BtnBrowseParent" Grid.Row="1" Grid.Column="2" Content="{DynamicResource L.CloneView.L041.Content}" Margin="6,0,0,8" Padding="10,2"
+                        Click="BtnBrowseParent_Click" ToolTip.Tip="{DynamicResource L.CloneView.L042.ToolTip_Tip}"/>
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="目录名：" VerticalAlignment="Center" Margin="0,0,6,8"/>
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="{DynamicResource L.CloneView.L044.Text}" VerticalAlignment="Center" Margin="0,0,6,8"/>
                 <TextBox x:Name="TxtFolderName" Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" VerticalContentAlignment="Center"
                          Margin="0,0,0,8" TextChanged="TxtFolderName_TextChanged"
-                         ToolTip.Tip="目标文件夹名，默认根据远端 URL 自动推导，可手动修改"/>
+                         ToolTip.Tip="{DynamicResource L.CloneView.L047.ToolTip_Tip}"/>
 
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="分支：" VerticalAlignment="Center" Margin="0,0,6,8"/>
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="{DynamicResource L.CloneView.L049.Text}" VerticalAlignment="Center" Margin="0,0,6,8"/>
                 <TextBox x:Name="TxtBranch" Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" VerticalContentAlignment="Center"
                          Margin="0,0,0,8" TextChanged="Input_Changed"
-                         ToolTip.Tip="可选：指定要克隆并检出的分支（--branch）；留空则使用远端默认分支"/>
+                         ToolTip.Tip="{DynamicResource L.CloneView.L052.ToolTip_Tip}"/>
 
                 <StackPanel Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,8">
                     <CheckBox x:Name="ChkRecursive" Margin="0,2" IsCheckedChanged="Input_Changed">
-                        <TextBlock Text="递归克隆子模块 --recursive" TextWrapping="Wrap"/>
+                        <TextBlock Text="{DynamicResource L.CloneView.L056.Text}" TextWrapping="Wrap"/>
                     </CheckBox>
                     <CheckBox x:Name="ChkShallow" Margin="0,2" IsCheckedChanged="Input_Changed">
-                        <TextBlock Text="浅克隆 --depth 1（仅拉取最近一次提交，速度快）" TextWrapping="Wrap"/>
+                        <TextBlock Text="{DynamicResource L.CloneView.L059.Text}" TextWrapping="Wrap"/>
                     </CheckBox>
                     <CheckBox x:Name="ChkAddRemote" Margin="0,2">
-                        <TextBlock Text="克隆后把该 URL 添加到本项目的推送远端列表" TextWrapping="Wrap"/>
+                        <TextBlock Text="{DynamicResource L.CloneView.L062.Text}" TextWrapping="Wrap"/>
                     </CheckBox>
                 </StackPanel>
 
                 <Border Grid.Row="5" Grid.Column="0" Grid.ColumnSpan="3" BorderBrush="#CCCCCC" BorderThickness="1"
                         CornerRadius="4" Margin="0,0,0,10">
                     <StackPanel Margin="8">
-                        <TextBlock Text="目标路径：" Foreground="#666"/>
+                        <TextBlock Text="{DynamicResource L.CloneView.L069.Text}" Foreground="#666"/>
                         <TextBlock x:Name="TxtTargetPath" TextWrapping="Wrap" Margin="0,0,0,6" Foreground="#2B579A"/>
-                        <TextBlock Text="将执行命令：" Foreground="#666"/>
+                        <TextBlock Text="{DynamicResource L.CloneView.L071.Text}" Foreground="#666"/>
                         <TextBlock x:Name="TxtCommandPreview" TextWrapping="Wrap" FontFamily="Consolas,Menlo,DejaVu Sans Mono,Noto Sans Mono" FontSize="12" Foreground="#2B579A"/>
                     </StackPanel>
                 </Border>

@@ -32,13 +32,13 @@ public sealed class RepoLocator
 
         if (string.IsNullOrWhiteSpace(path))
         {
-            error = "未指定目录";
+            error = Loc.T("未指定目录");
             return null;
         }
 
         if (!Directory.Exists(path))
         {
-            error = $"目录不存在：{path}";
+            error = Loc.F($"目录不存在：{path}");
             return null;
         }
 

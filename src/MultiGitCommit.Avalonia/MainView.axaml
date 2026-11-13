@@ -51,25 +51,25 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="仓库目录：" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBlock Grid.Column="0" Text="{DynamicResource L.MainView.L054.Text}" VerticalAlignment="Center" Margin="0,0,6,0"/>
             <TextBox x:Name="TxtRepoPath" Grid.Column="1" VerticalContentAlignment="Center"
                      TextChanged="TxtRepoPath_TextChanged"
-                     ToolTip.Tip="Git 仓库本地根目录路径，与 .git 文件夹同级"/>
-            <Button x:Name="BtnBrowse" Grid.Column="2" Content="选择文件夹" Click="BtnBrowse_Click" Margin="6,2,4,2"/>
-            <Button x:Name="BtnClone" Grid.Column="3" Content="克隆项目" Click="BtnClone_Click" Margin="4,2,0,2"
-                    ToolTip.Tip="从远端 URL 克隆仓库到本地目录，完成后自动切换为该仓库并可写入推送远端列表"/>
-            <Button x:Name="BtnInitRepo" Grid.Column="4" Content="初始化仓库" Click="BtnInitRepo_Click" Margin="4,2,0,2"
-                    ToolTip.Tip="对当前目录执行 git init 初始化仓库，并创建默认分支（目录不存在时提示新建）"/>
-            <Button x:Name="BtnCreateBranch" Grid.Column="5" Content="创建默认分支" Click="BtnCreateBranch_Click" Margin="4,2,0,2"
-                    ToolTip.Tip="为当前仓库创建/切换默认分支；空仓库直接设置 HEAD 指向该分支"/>
-            <Button x:Name="BtnLoadConfig" Grid.Column="6" Content="重新加载配置" Click="BtnLoadConfig_Click" Margin="4,2,0,2"
-                    ToolTip.Tip="重新读取当前目录下的 multigitcommit.config.json"/>
-            <Button x:Name="BtnAbout" Grid.Column="7" Content="关于" Click="BtnAbout_Click" Margin="4,2,0,2"
-                    ToolTip.Tip="关于 MultiGitCommit 及项目地址"/>
-            <Button x:Name="BtnGitEnv" Grid.Column="8" Content="Git 环境" Click="BtnGitEnv_Click" Margin="4,2,0,2"
-                    ToolTip.Tip="配置 git 来源：自动检测 / 系统 PATH（环境 git）/ 指定路径 / 软件内嵌 Git"/>
-            <Button x:Name="BtnRepoHome" Grid.Column="9" Content="仓库管理" Click="BtnRepoHome_Click" Margin="4,2,0,2"
-                    ToolTip.Tip="打开仓库管理首页：最近打开的项目与本地 Git 仓库自动发现"/>
+                     ToolTip.Tip="{DynamicResource L.MainView.L057.ToolTip_Tip}"/>
+            <Button x:Name="BtnBrowse" Grid.Column="2" Content="{DynamicResource L.MainView.L058.Content}" Click="BtnBrowse_Click" Margin="6,2,4,2"/>
+            <Button x:Name="BtnClone" Grid.Column="3" Content="{DynamicResource L.MainView.L059.Content}" Click="BtnClone_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="{DynamicResource L.MainView.L060.ToolTip_Tip}"/>
+            <Button x:Name="BtnInitRepo" Grid.Column="4" Content="{DynamicResource L.MainView.L061.Content}" Click="BtnInitRepo_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="{DynamicResource L.MainView.L062.ToolTip_Tip}"/>
+            <Button x:Name="BtnCreateBranch" Grid.Column="5" Content="{DynamicResource L.MainView.L063.Content}" Click="BtnCreateBranch_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="{DynamicResource L.MainView.L064.ToolTip_Tip}"/>
+            <Button x:Name="BtnLoadConfig" Grid.Column="6" Content="{DynamicResource L.MainView.L065.Content}" Click="BtnLoadConfig_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="{DynamicResource L.MainView.L066.ToolTip_Tip}"/>
+            <Button x:Name="BtnAbout" Grid.Column="7" Content="{DynamicResource L.MainView.L067.Content}" Click="BtnAbout_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="{DynamicResource L.MainView.L068.ToolTip_Tip}"/>
+            <Button x:Name="BtnGitEnv" Grid.Column="8" Content="{DynamicResource L.MainView.L069.Content}" Click="BtnGitEnv_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="{DynamicResource L.MainView.L070.ToolTip_Tip}"/>
+            <Button x:Name="BtnRepoHome" Grid.Column="9" Content="{DynamicResource L.MainView.L071.Content}" Click="BtnRepoHome_Click" Margin="4,2,0,2"
+                    ToolTip.Tip="{DynamicResource L.MainView.L072.ToolTip_Tip}"/>
             </Grid>
             <WrapPanel x:Name="RepoHeaderNarrow" IsVisible="False"/>
         </StackPanel>
@@ -83,17 +83,17 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Classes="sectionTitle" TextWrapping="Wrap"
-                           Text="推送远端地址管理（每个项目独立保存到 multigitcommit.config.json）" Margin="0,0,0,6"/>
+                           Text="{DynamicResource L.MainView.L086.Text}" Margin="0,0,0,6"/>
                 <WrapPanel Grid.Row="1" HorizontalAlignment="Right">
-                    <Button x:Name="BtnAddRemote" Content="添加远端" Click="BtnAddRemote_Click"/>
-                    <Button x:Name="BtnEditRemote" Content="编辑选中" IsEnabled="False" Click="BtnEditRemote_Click"/>
-                    <Button x:Name="BtnDeleteRemote" Content="删除选中" IsEnabled="False" Click="BtnDeleteRemote_Click"/>
-                    <Button x:Name="BtnOpenRemote" Content="在浏览器中打开" IsEnabled="False" Click="BtnOpenRemote_Click"
-                            ToolTip.Tip="使用系统默认浏览器打开选中的远端 URL"/>
+                    <Button x:Name="BtnAddRemote" Content="{DynamicResource L.MainView.L088.Content}" Click="BtnAddRemote_Click"/>
+                    <Button x:Name="BtnEditRemote" Content="{DynamicResource L.MainView.L089.Content}" IsEnabled="False" Click="BtnEditRemote_Click"/>
+                    <Button x:Name="BtnDeleteRemote" Content="{DynamicResource L.MainView.L090.Content}" IsEnabled="False" Click="BtnDeleteRemote_Click"/>
+                    <Button x:Name="BtnOpenRemote" Content="{DynamicResource L.MainView.L091.Content}" IsEnabled="False" Click="BtnOpenRemote_Click"
+                            ToolTip.Tip="{DynamicResource L.MainView.L092.ToolTip_Tip}"/>
                 </WrapPanel>
                 <ListBox x:Name="ListRemotes" Grid.Row="2" Height="120" Margin="0,4,0,0"
                          SelectionChanged="ListRemotes_SelectionChanged"
-                         ToolTip.Tip="当前项目保存的全部远端 URL（ssh/https 均支持）"/>
+                         ToolTip.Tip="{DynamicResource L.MainView.L096.ToolTip_Tip}"/>
             </Grid>
         </Border>
 
@@ -105,28 +105,28 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Classes="sectionTitle" Text="提交设置" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="0" Classes="sectionTitle" Text="{DynamicResource L.MainView.L108.Text}" Margin="0,0,0,6"/>
                 <Grid Grid.Row="1" Margin="0,0,0,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="提交备注：" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                    <TextBlock Grid.Column="0" Text="{DynamicResource L.MainView.L114.Text}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                     <TextBox x:Name="TxtCommitMessage" Grid.Column="1" VerticalContentAlignment="Center"
-                             ToolTip.Tip="留空时 commit 消息仅使用本地时间，格式：yyyy-MM-dd HH:mm:ss 用户备注"/>
+                             ToolTip.Tip="{DynamicResource L.MainView.L116.ToolTip_Tip}"/>
                 </Grid>
                 <!-- WrapPanel：四个复选框总宽超过默认窗口宽度，窄窗口时自动换行，避免【强制推送】被裁掉 -->
                 <WrapPanel Grid.Row="2">
-                    <CheckBox x:Name="ChkAddAll" Content="执行 git add（全提交 / 可选提交见【Git 环境】设置）" Margin="0,2,20,2"
-                              ToolTip.Tip="勾选后提交前会先执行 git add：默认全提交（git add .，添加全部变更）；可在【Git 环境】→「执行 git add 时的文件添加方式」改为可选提交（弹窗勾选要添加的文件）"
+                    <CheckBox x:Name="ChkAddAll" Content="{DynamicResource L.MainView.L120.Content}" Margin="0,2,20,2"
+                              ToolTip.Tip="{DynamicResource L.MainView.L121.ToolTip_Tip}"
                               IsCheckedChanged="ChkAddAll_Changed"/>
-                    <CheckBox x:Name="ChkPushTags" Content="推送标签 --tags（默认不勾选）" Margin="0,2,20,2"
+                    <CheckBox x:Name="ChkPushTags" Content="{DynamicResource L.MainView.L123.Content}" Margin="0,2,20,2"
                               IsCheckedChanged="ChkPushTags_Changed"/>
-                    <CheckBox x:Name="ChkForceCommit" Content="强制提交 --allow-empty（无变更也生成空提交）" Margin="0,2,20,2"
-                              ToolTip.Tip="勾选后即使工作区无变更也执行 git commit --allow-empty，忽略空提交防护"
+                    <CheckBox x:Name="ChkForceCommit" Content="{DynamicResource L.MainView.L125.Content}" Margin="0,2,20,2"
+                              ToolTip.Tip="{DynamicResource L.MainView.L126.ToolTip_Tip}"
                               IsCheckedChanged="ChkForceCommit_Changed"/>
-                    <CheckBox x:Name="ChkForcePush" Content="强制推送 --force（覆盖远端历史，谨慎使用）" Margin="0,2,0,2" Foreground="#C00000"
-                              ToolTip.Tip="勾选后推送命令追加 --force，可解决非快进被拒；会覆盖远端提交历史，请谨慎使用"
+                    <CheckBox x:Name="ChkForcePush" Content="{DynamicResource L.MainView.L128.Content}" Margin="0,2,0,2" Foreground="#C00000"
+                              ToolTip.Tip="{DynamicResource L.MainView.L129.ToolTip_Tip}"
                               IsCheckedChanged="ChkForcePush_Changed"/>
                 </WrapPanel>
             </Grid>
@@ -134,22 +134,22 @@
 
         <!-- ============ 四、主执行按钮 ============ -->
         <WrapPanel Grid.Row="3" Margin="0,0,0,8">
-            <Button x:Name="BtnCommitPush" Content="执行提交并推送全部远端" Width="250" Height="38"
+            <Button x:Name="BtnCommitPush" Content="{DynamicResource L.MainView.L137.Content}" Width="250" Height="38"
                     FontSize="15" FontWeight="Bold" Click="BtnCommitPush_Click"/>
-            <Button x:Name="BtnPull" Content="拉取更新" Height="38" Padding="12,4" Margin="8,2,0,2"
+            <Button x:Name="BtnPull" Content="{DynamicResource L.MainView.L139.Content}" Height="38" Padding="12,4" Margin="8,2,0,2"
                     Click="BtnPull_Click"
-                    ToolTip.Tip="从配置的远端拉取当前分支的最新提交（支持 ff-only / rebase / merge，执行中可取消）"/>
+                    ToolTip.Tip="{DynamicResource L.MainView.L141.ToolTip_Tip}"/>
             <TextBlock x:Name="TxtBranchInfo" VerticalAlignment="Center" Margin="12,0,0,0" Foreground="#666"
                        MaxWidth="160" TextTrimming="CharacterEllipsis"/>
             <!-- 提交身份：git 生成 commit 的前置条件，未设置时提交前会自动弹窗引导填写 -->
             <TextBlock x:Name="TxtIdentity" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#666"
                        MaxWidth="240" TextTrimming="CharacterEllipsis"
-                       Text="提交身份：未选择仓库"
-                       ToolTip.Tip="git commit 需要 user.name 与 user.email，缺失时 git 直接报错（Please tell me who you are）"/>
-            <Button x:Name="BtnIdentity" Content="提交身份…" Click="BtnIdentity_Click" Padding="10,2" Margin="8,0,0,0"
-                    ToolTip.Tip="设置并提交 git 的 user.name / user.email（可写入本仓库或全局）"/>
-            <Button x:Name="BtnHistory" Content="历史记录…" Click="BtnHistory_Click" Padding="10,2" Margin="8,0,0,0"
-                    ToolTip.Tip="浏览当前分支的历史提交记录，并可重置（soft / mixed / hard）到指定提交"/>
+                       Text="{DynamicResource L.MainView.L147.Text}"
+                       ToolTip.Tip="{DynamicResource L.MainView.L148.ToolTip_Tip}"/>
+            <Button x:Name="BtnIdentity" Content="{DynamicResource L.MainView.L149.Content}" Click="BtnIdentity_Click" Padding="10,2" Margin="8,0,0,0"
+                    ToolTip.Tip="{DynamicResource L.MainView.L150.ToolTip_Tip}"/>
+            <Button x:Name="BtnHistory" Content="{DynamicResource L.MainView.L151.Content}" Click="BtnHistory_Click" Padding="10,2" Margin="8,0,0,0"
+                    ToolTip.Tip="{DynamicResource L.MainView.L152.ToolTip_Tip}"/>
         </WrapPanel>
 
         <!-- ============ 五、手动命令执行区 ============ -->
@@ -160,16 +160,16 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <TextBlock Grid.Row="0" Classes="sectionTitle" TextWrapping="Wrap"
-                           Text="手动命令执行区（在当前仓库目录执行任意 git/shell 命令）" Margin="0,0,0,6"/>
+                           Text="{DynamicResource L.MainView.L163.Text}" Margin="0,0,0,6"/>
                 <Grid Grid.Row="1">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="TxtCommand" Grid.Column="0" VerticalContentAlignment="Center"
-                             ToolTip.Tip="例如：git status / git log --oneline -5 / ls -la（Windows 可用 dir；Linux / macOS 走登录 shell，可用环境变量与管道）"
+                             ToolTip.Tip="{DynamicResource L.MainView.L170.ToolTip_Tip}"
                              KeyDown="TxtCommand_KeyDown"/>
-                    <Button x:Name="BtnRunCommand" Grid.Column="1" Content="执行命令" Click="BtnRunCommand_Click" Margin="6,2,0,2"/>
+                    <Button x:Name="BtnRunCommand" Grid.Column="1" Content="{DynamicResource L.MainView.L172.Content}" Click="BtnRunCommand_Click" Margin="6,2,0,2"/>
                 </Grid>
             </Grid>
         </Border>
@@ -182,7 +182,7 @@
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <TextBlock Grid.Row="0" Classes="sectionTitle" Text="日志输出" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="0" Classes="sectionTitle" Text="{DynamicResource L.MainView.L185.Text}" Margin="0,0,0,6"/>
                 <Border x:Name="LogFrame" Grid.Row="1" BorderBrush="#444" BorderThickness="1" Background="#1E1E1E">
                     <!-- TextWrapping 默认 NoWrap（桌面列对齐）；窄屏（手机竖屏）由
                          ApplyResponsiveLayout 在运行时切为 Wrap，长行自动折行 -->
@@ -215,13 +215,13 @@
                     </TextBox>
                 </Border>
                 <WrapPanel Grid.Row="2" Margin="0,4,0,0" HorizontalAlignment="Left">
-                    <Button x:Name="BtnCopyLog" Content="复制日志" Click="BtnCopyLog_Click" Padding="10,2"
-                            ToolTip.Tip="把日志区当前全部内容复制到系统剪贴板"/>
-                    <Button x:Name="BtnClearLog" Content="清空日志" Click="BtnClearLog_Click" Padding="10,2"/>
-                    <CheckBox x:Name="ChkAutoScroll" Content="自动滚动到底部" IsChecked="True" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                    <Button x:Name="BtnCopyLog" Content="{DynamicResource L.MainView.L218.Content}" Click="BtnCopyLog_Click" Padding="10,2"
+                            ToolTip.Tip="{DynamicResource L.MainView.L219.ToolTip_Tip}"/>
+                    <Button x:Name="BtnClearLog" Content="{DynamicResource L.MainView.L220.Content}" Click="BtnClearLog_Click" Padding="10,2"/>
+                    <CheckBox x:Name="ChkAutoScroll" Content="{DynamicResource L.MainView.L221.Content}" IsChecked="True" VerticalAlignment="Center" Margin="12,0,0,0"/>
                     <TextBlock x:Name="TxtGitStatus" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#666"
                                TextTrimming="CharacterEllipsis" MaxWidth="560"
-                               ToolTip.Tip="当前生效的 git（点击上方【Git 环境】按钮可修改来源）"/>
+                               ToolTip.Tip="{DynamicResource L.MainView.L224.ToolTip_Tip}"/>
                 </WrapPanel>
             </Grid>
         </Border>

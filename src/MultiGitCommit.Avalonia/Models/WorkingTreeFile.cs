@@ -37,8 +37,8 @@ public sealed class WorkingTreeFile
 
     /// <summary>暂存区状态说明：未暂存 / 已暂存 / 部分暂存。</summary>
     public string StageLabel => IsStaged
-        ? (HasUnstagedChange ? "部分暂存" : "已暂存")
-        : "未暂存";
+        ? (HasUnstagedChange ? Loc.T("部分暂存") : Loc.T("已暂存"))
+        : Loc.T("未暂存");
 
     /// <summary>列表显示文本：重命名显示「旧路径 → 新路径」。</summary>
     public string Display => string.IsNullOrEmpty(OriginalPath) ? Path : $"{OriginalPath} → {Path}";
@@ -48,15 +48,15 @@ public sealed class WorkingTreeFile
     /// <summary>状态字符 → 中文说明。</summary>
     private static string Describe(char status) => status switch
     {
-        'M' => "修改",
-        'A' => "新增",
-        'D' => "删除",
-        'R' => "重命名",
-        'C' => "复制",
-        'T' => "类型变更",
-        'U' => "冲突",
-        '?' => "未跟踪",
-        _ => "变更"
+        'M' => Loc.T("修改"),
+        'A' => Loc.T("新增"),
+        'D' => Loc.T("删除"),
+        'R' => Loc.T("重命名"),
+        'C' => Loc.T("复制"),
+        'T' => Loc.T("类型变更"),
+        'U' => Loc.T("冲突"),
+        '?' => Loc.T("未跟踪"),
+        _ => Loc.T("变更")
     };
 
     /// <summary>

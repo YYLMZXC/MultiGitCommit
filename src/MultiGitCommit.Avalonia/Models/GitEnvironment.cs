@@ -44,7 +44,7 @@ public sealed class GitEnvironment
 
     /// <inheritdoc />
     public override string ToString()
-        => IsResolved ? Description : "git 未解析";
+        => IsResolved ? Description : Loc.T("git 未解析");
 }
 
 

@@ -93,7 +93,7 @@ public partial class HistoryView : DialogView<bool>
     {
         int seq = ++_loadSeq;
         BtnRefresh.IsEnabled = false;
-        SetStatus("正在读取提交历史…", null);
+        SetStatus(Loc.T("正在读取提交历史…"), null);
 
         try
         {
@@ -109,10 +109,10 @@ public partial class HistoryView : DialogView<bool>
                 RefreshList();
 
                 SetStatus(result.TimedOut
-                        ? "× 读取提交历史超时，已终止 git 进程（仓库过大或磁盘响应慢）。"
+                        ? Loc.T("× 读取提交历史超时，已终止 git 进程（仓库过大或磁盘响应慢）。")
                         : result.EmptyRepository
-                            ? "当前仓库还没有任何提交（执行一次提交后即可在这里查看历史）。"
-                            : "× 读取提交历史失败：" + result.Error,
+                            ? Loc.T("当前仓库还没有任何提交（执行一次提交后即可在这里查看历史）。")
+                            : Loc.T("× 读取提交历史失败：") + result.Error,
                     false);
                 return;
             }
@@ -122,8 +122,8 @@ public partial class HistoryView : DialogView<bool>
             RefreshList();
 
             SetStatus(_commits.Count == 0
-                    ? "当前仓库还没有任何提交（执行一次提交后即可在这里查看历史）。"
-                    : $"共显示最近 {_commits.Count} 条提交（最多 {MaxCommits} 条）。选中一条后可重置到该提交。",
+                    ? Loc.T("当前仓库还没有任何提交（执行一次提交后即可在这里查看历史）。")
+                    : Loc.F($"共显示最近 {_commits.Count} 条提交（最多 {MaxCommits} 条）。选中一条后可重置到该提交。"),
                 null);
         }
         catch (OperationCanceledException)
@@ -133,7 +133,7 @@ public partial class HistoryView : DialogView<bool>
         catch (Exception ex)
         {
             if (seq != _loadSeq || _lifetime.IsCancellationRequested) return;
-            SetStatus("× 读取提交历史失败：" + ex.Message, false);
+            SetStatus(Loc.T("× 读取提交历史失败：") + ex.Message, false);
         }
         finally
         {
@@ -170,14 +170,14 @@ public partial class HistoryView : DialogView<bool>
 
         if (commit == null)
         {
-            TxtFilesTitle.Text = "修改的文件（选中提交后显示）";
+            TxtFilesTitle.Text = Loc.T("修改的文件（选中提交后显示）");
             return;
         }
 
         // 链接视图生命周期：关闭时一并取消
         var cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _fileCts = cts;
-        TxtFilesTitle.Text = $"修改的文件 — {commit.ShortHash}（读取中…）";
+        TxtFilesTitle.Text = Loc.F($"修改的文件 — {commit.ShortHash}（读取中…）");
 
         try
         {
@@ -189,8 +189,8 @@ public partial class HistoryView : DialogView<bool>
             if (!result.Success)
             {
                 TxtFilesTitle.Text = result.TimedOut
-                    ? $"修改的文件 — {commit.ShortHash}（读取超时）"
-                    : $"修改的文件 — {commit.ShortHash}（读取失败：{result.ErrorText}）";
+                    ? Loc.F($"修改的文件 — {commit.ShortHash}（读取超时）")
+                    : Loc.F($"修改的文件 — {commit.ShortHash}（读取失败：{result.ErrorText}）");
                 return;
             }
 
@@ -198,8 +198,8 @@ public partial class HistoryView : DialogView<bool>
             RefreshFileList();
 
             TxtFilesTitle.Text = _files.Count == 0
-                ? $"修改的文件 — {commit.ShortHash}（无文件变更，可能是合并提交）"
-                : $"修改的文件 — {commit.ShortHash}（{_files.Count} 个）";
+                ? Loc.F($"修改的文件 — {commit.ShortHash}（无文件变更，可能是合并提交）")
+                : Loc.F($"修改的文件 — {commit.ShortHash}（{_files.Count} 个）");
         }
         catch (OperationCanceledException)
         {
@@ -208,7 +208,7 @@ public partial class HistoryView : DialogView<bool>
         catch (Exception ex)
         {
             if (!cts.IsCancellationRequested && !_lifetime.IsCancellationRequested)
-                TxtFilesTitle.Text = $"修改的文件 — {commit.ShortHash}（读取失败：{ex.Message}）";
+                TxtFilesTitle.Text = Loc.F($"修改的文件 — {commit.ShortHash}（读取失败：{ex.Message}）");
         }
         finally
         {
@@ -280,14 +280,14 @@ public partial class HistoryView : DialogView<bool>
 
         if (!File.Exists(fullPath))
         {
-            SetStatus($"× 文件已不在工作区（{file.StatusLabel} {file.Display}），可点【打开所在文件夹】查看目录。", false);
+            SetStatus(Loc.F($"× 文件已不在工作区（{file.StatusLabel} {file.Display}），可点【打开所在文件夹】查看目录。"), false);
             return;
         }
 
         if (FileOpener.TryOpen(fullPath, out string openError))
-            SetStatus($"已用系统默认程序打开：{fullPath}", true);
+            SetStatus(Loc.F($"已用系统默认程序打开：{fullPath}"), true);
         else
-            SetStatus("× 打开文件失败：" + openError, false);
+            SetStatus(Loc.T("× 打开文件失败：") + openError, false);
     }
 
     /// <summary>在文件管理器中定位选中文件；文件已删除时打开其所在目录。</summary>
@@ -302,9 +302,9 @@ public partial class HistoryView : DialogView<bool>
         }
 
         if (FileOpener.TryReveal(fullPath, out string revealError))
-            SetStatus($"已在文件管理器中定位：{fullPath}", true);
+            SetStatus(Loc.F($"已在文件管理器中定位：{fullPath}"), true);
         else
-            SetStatus("× 打开所在文件夹失败：" + revealError, false);
+            SetStatus(Loc.T("× 打开所在文件夹失败：") + revealError, false);
     }
 
     /// <summary>根据是否选中提交、是否正在重置，同步按钮可用状态与提示。</summary>
@@ -314,7 +314,7 @@ public partial class HistoryView : DialogView<bool>
         BtnReset.IsEnabled = selected != null && !_busy;
 
         TxtHint.Text = selected == null
-            ? "请先在列表中选择要重置到的提交。"
+            ? Loc.T("请先在列表中选择要重置到的提交。")
             : $"{selected.ShortHash}  {selected.Subject}";
     }
 
@@ -349,18 +349,18 @@ public partial class HistoryView : DialogView<bool>
             if (changed > 0)
             {
                 dirty = $"{Environment.NewLine}{Environment.NewLine}" +
-                        $"注意：当前工作区有 {changed} 个文件存在未提交改动，执行 hard 重置后将全部丢失。";
+                        Loc.F($"注意：当前工作区有 {changed} 个文件存在未提交改动，执行 hard 重置后将全部丢失。");
             }
         }
 
         string message =
-            $"确定要把当前分支重置到提交 {commit.ShortHash} 吗？{Environment.NewLine}{Environment.NewLine}" +
-            $"时间：{commit.Date}    作者：{commit.Author}{Environment.NewLine}" +
-            $"说明：{commit.Subject}{Environment.NewLine}{Environment.NewLine}" +
-            $"重置方式：{modeArg}（{effect}）{dirty}{Environment.NewLine}{Environment.NewLine}" +
-            "重置只影响本地分支，不会改动远端；若远端已包含这些提交，普通推送会被拒绝，需要强制推送。";
+            Loc.F($"确定要把当前分支重置到提交 {commit.ShortHash} 吗？{Environment.NewLine}{Environment.NewLine}") +
+            Loc.F($"时间：{commit.Date}    作者：{commit.Author}{Environment.NewLine}") +
+            Loc.F($"说明：{commit.Subject}{Environment.NewLine}{Environment.NewLine}") +
+            Loc.F($"重置方式：{modeArg}（{effect}）{dirty}{Environment.NewLine}{Environment.NewLine}") +
+            Loc.T("重置只影响本地分支，不会改动远端；若远端已包含这些提交，普通推送会被拒绝，需要强制推送。");
 
-        if (!await Dialogs.ConfirmAsync(this, "重置分支", message)) return;
+        if (!await Dialogs.ConfirmAsync(this, Loc.T("重置分支"), message)) return;
         if (_lifetime.IsCancellationRequested) return;
 
         bool succeeded = false;
@@ -369,8 +369,8 @@ public partial class HistoryView : DialogView<bool>
         _busy = true;
         BtnReset.IsEnabled = false;
         BtnRefresh.IsEnabled = false;
-        TxtProgress.Text = "正在重置…";
-        SetStatus($"正在执行 git reset {modeArg} {commit.ShortHash}…", null);
+        TxtProgress.Text = Loc.T("正在重置…");
+        SetStatus(Loc.F($"正在执行 git reset {modeArg} {commit.ShortHash}…"), null);
 
         try
         {
@@ -381,21 +381,21 @@ public partial class HistoryView : DialogView<bool>
 
             if (result.Cancelled)
             {
-                SetStatus("已取消重置。", null);
+                SetStatus(Loc.T("已取消重置。"), null);
                 return;
             }
 
             if (!result.Success)
             {
                 SetStatus(result.TimedOut
-                        ? "× 重置超时，已终止 git 进程。"
-                        : "× 重置失败：" + result.ErrorText,
+                        ? Loc.T("× 重置超时，已终止 git 进程。")
+                        : Loc.T("× 重置失败：") + result.ErrorText,
                     false);
                 return;
             }
 
             succeeded = true;
-            successText = $"√ 已重置到 {commit.ShortHash}（{modeArg}）：{result.Output}";
+            successText = Loc.F($"√ 已重置到 {commit.ShortHash}（{modeArg}）：{result.Output}");
             SetStatus(successText, true);
         }
         catch (OperationCanceledException)
@@ -405,7 +405,7 @@ public partial class HistoryView : DialogView<bool>
         catch (Exception ex)
         {
             if (!_lifetime.IsCancellationRequested)
-                SetStatus("× 重置失败：" + ex.Message, false);
+                SetStatus(Loc.T("× 重置失败：") + ex.Message, false);
         }
         finally
         {
