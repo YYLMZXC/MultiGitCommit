@@ -157,6 +157,12 @@ public partial class MainView : UserControl
             }
             else
                 Log(Loc.T("      当前未获得存储权限：请在系统权限弹框中允许存储权限，否则共享存储目录会不可写。"));
+
+            // 内嵌 git 的辅助程序链接（含 https 传输所需的 git / git-remote-https）必须齐备：
+            // 以前这类失败只在克隆时报 "unable to find remote helper"，启动日志里看不到原因
+            IReadOnlyList<string> brokenHelpers = AndroidGitPlatform.GetBrokenHelpers();
+            if (brokenHelpers.Count > 0)
+                Log(Loc.F($"警告：Android 内嵌 Git 辅助程序不可用（{string.Join("、", brokenHelpers)}），https 克隆 / 推送会失败；请重装应用。"));
         }
 
         // 解析 git 来源（内嵌 / 自动检测 / 系统 PATH / 指定路径），不依赖系统安装 git

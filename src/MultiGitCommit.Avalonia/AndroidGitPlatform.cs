@@ -17,6 +17,11 @@ namespace MultiGitCommit;
 ///    且 Android 上无法通过 PATH 直接执行 —— 因此首次使用时在应用私有目录建 gitbin/ 符号链接
 ///    目录（链接指回原生库目录），作为 GIT_EXEC_PATH 提供给子进程。符号链接的 execve 只校验
 ///    最终目标的 SELinux 标签（apk 原生库），不会被 app_data_file 的执行禁令拦截。
+///    remote helper 以 git_cmd 方式启动（git remote-https &lt;name&gt; &lt;url&gt;），git 需要
+///    先从 PATH 找到名为 git 的可执行文件，再由它去 git_exec_path() 找 git-remote-https，
+///    所以 gitbin/ 里必须同时有 git 这个链接，否则统一报 "unable to find remote helper for 'https'"。
+///    每次访问都会校验链接目标：应用更新 / 重装后 nativeLibraryDir 的随机路径会变，
+///    旧链接会悬空，必须重建，不能只判断「链接已存在」。
 /// 2. Termux 构建的 git 默认前缀硬编码为 Termux 私有目录，系统级配置 / 属性 / 模板文件均不存在，
 ///    需要显式关掉（GIT_CONFIG_NOSYSTEM / GIT_ATTR_NOSYSTEM）；TLS 根证书打包为 raw 资源，
 ///    首次使用时复制到 gitbin/ 并通过 GIT_SSL_CAINFO 指定。
@@ -39,6 +44,8 @@ public static class AndroidGitPlatform
     /// </summary>
     private static readonly (string Helper, string Lib)[] Helpers =
     {
+        // git_cmd 启动 helper 时先 exec PATH 里的 git（见类注释），原生库目录只有 libgit.so
+        ("git", "libgit.so"),
         ("git-remote-http", "libgitremotehttp.so"),
         ("git-remote-https", "libgitremotehttp.so"),
         ("git-remote-ftp", "libgitremotehttp.so"),
@@ -329,19 +336,30 @@ public static class AndroidGitPlatform
         foreach (var (helper, lib) in Helpers)
         {
             string target = Path.Combine(nativeDir, lib);
-            if (!File.Exists(target)) continue;
-
             string link = Path.Combine(dir, helper);
             try
             {
+                // 目标库缺失（旧版 APK 未打包）时，也要清掉可能指向旧安装路径的残留链接
+                if (!File.Exists(target))
+                {
+                    File.Delete(link);
+                    continue;
+                }
+
                 var info = new FileInfo(link);
-                if (info.LinkTarget != null) continue;            // 符号链接已就位
-                if (info.Exists) info.Delete();                   // 残留的普通文件（异常中断产物）
+                // 应用更新 / 重装后 nativeLibraryDir 的随机目录名会变，旧链接仍在但已悬空；
+                // File.Exists(link) 会解析符号链接，可同时识别出这种「链接存在却不可用」的情况。
+                if (string.Equals(info.LinkTarget, target, StringComparison.Ordinal) && File.Exists(link))
+                    continue;
+
+                // File.Delete 走 unlink，对悬空符号链接同样有效（不解析目标）
+                File.Delete(link);
                 File.CreateSymbolicLink(link, target);
             }
             catch
             {
-                // 单个链接失败不致命：对应传输方式（https 等）不可用，其余功能不受影响
+                // 单个链接失败不致命：对应传输方式（https 等）不可用，其余功能不受影响；
+                // 启动日志会通过 GetBrokenHelpers 把缺失的辅助程序报出来
             }
         }
 
@@ -349,6 +367,29 @@ public static class AndroidGitPlatform
         return dir;
 #else
         return null;
+#endif
+    }
+
+    /// <summary>
+    /// 校验 gitbin/ 里的辅助程序链接是否正常（顺便完成首次创建 / 更新后的重建），
+    /// 返回不可用的名字列表；为空表示齐备。供启动日志诊断，非 Android 恒为空。
+    /// </summary>
+    public static IReadOnlyList<string> GetBrokenHelpers()
+    {
+#if ANDROID
+        string? dir = ExecPathDir;
+        if (string.IsNullOrEmpty(dir))
+            return Helpers.Select(h => h.Helper).ToArray();
+
+        var broken = new List<string>();
+        foreach (var (helper, _) in Helpers)
+        {
+            // File.Exists 解析符号链接：能同时查出「链接不存在」与「链接悬空」
+            if (!File.Exists(Path.Combine(dir, helper))) broken.Add(helper);
+        }
+        return broken;
+#else
+        return Array.Empty<string>();
 #endif
     }
 
