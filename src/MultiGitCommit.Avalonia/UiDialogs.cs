@@ -307,8 +307,11 @@ public class DialogOverlay : Panel
         void ApplySize()
         {
             Thickness safe = GetSafeArea(layer);
-            double w = Math.Max(240, layer.Bounds.Width - safe.Left - safe.Right - EdgeMargin * 2);
-            double h = Math.Max(200, layer.Bounds.Height - safe.Top - safe.Bottom - EdgeMargin * 2);
+            // 覆盖层弹窗同样不超过默认主界面大小：平板 / 大屏视口下卡片居中留白，手机视口本来就小于该上限
+            double w = Math.Max(240, Math.Min(MainWindow.DefaultWidth,
+                layer.Bounds.Width - safe.Left - safe.Right - EdgeMargin * 2));
+            double h = Math.Max(200, Math.Min(MainWindow.DefaultHeight,
+                layer.Bounds.Height - safe.Top - safe.Bottom - EdgeMargin * 2));
 
             card.Margin = new Thickness(safe.Left + EdgeMargin, safe.Top + EdgeMargin,
                                         safe.Right + EdgeMargin, safe.Bottom + EdgeMargin);
