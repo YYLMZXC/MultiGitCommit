@@ -9,7 +9,8 @@ namespace MultiGitCommit;
 /// Windows → <c>%APPDATA%\MultiGitCommit\settings.json</c>；
 /// macOS   → <c>~/Library/Application Support/MultiGitCommit/settings.json</c>；
 /// Linux   → <c>$XDG_CONFIG_HOME/MultiGitCommit/settings.json</c>（未设置时为 <c>~/.config/MultiGitCommit/settings.json</c>）。
-/// 各平台字段完全一致，配置文件可通用。
+/// 各平台字段完全一致；但凭据（账号 / 令牌）落盘为密文且与当前用户 / 本机密钥绑定，
+/// 配置文件跨机器、跨用户复制后需要重新填写凭据，其余字段仍可通用。
 /// </summary>
 public class AppSettings
 {
@@ -77,6 +78,17 @@ public class AppSettings
     [JsonIgnore]
     public string SettingsFilePath { get; private set; } = string.Empty;
 
+    /// <summary>软件数据目录（settings.json 与凭据密钥文件所在目录），供设置页直接打开。</summary>
+    [JsonIgnore]
+    public string DataDirectory => SettingsDir;
+
+    /// <summary>非 Windows 平台的凭据主密钥文件；Windows 用 DPAPI 由系统保管密钥，不生成此文件。</summary>
+    private string CredentialKeyPath => Path.Combine(SettingsDir, "credential.key");
+
+    /// <summary>加载时有凭据解密失败（密钥文件丢失 / 换了用户或机器），设置页提示重新填写。</summary>
+    [JsonIgnore]
+    public bool CredentialsDecryptFailed { get; private set; }
+
     /// <summary>
     /// 设置目录，按各平台惯例：
     /// Windows 用 %APPDATA%；macOS 用 ~/Library/Application Support；
@@ -134,6 +146,9 @@ public class AppSettings
                     loaded.RecentRepoPaths ??= new List<string>();
                     loaded.RepoScanRoots ??= new List<string>();
 
+                    // 凭据密文还原成内存明文；旧版明文配置原样读取，下次保存时自动升级为密文
+                    loaded.CredentialsDecryptFailed = DecryptCredentials(loaded.Credentials, loaded.CredentialKeyPath);
+
                     // 历史配置或手改文件可能带来非法值，统一回落到默认（当前目录优先 / 全提交）
                     if (!Enum.IsDefined(loaded.StartupRepo))
                         loaded.StartupRepo = StartupRepoMode.CurrentDirectory;
@@ -163,10 +178,11 @@ public class AppSettings
     public void Save()
     {
         Directory.CreateDirectory(SettingsDir);
-        string json = JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+
+        string json = SerializeEncrypted();
         File.WriteAllText(SettingsFilePath, json, new UTF8Encoding(false));
 
-        // 凭据以明文保存，收紧为仅当前用户可读写（chmod 600），避免同机其他账号读取
+        // 设置文件仍收紧为仅当前用户可读写（chmod 600），避免同机其他账号读取
         if (!OperatingSystem.IsWindows())
         {
             try
@@ -177,6 +193,47 @@ public class AppSettings
             {
                 // 文件系统不支持权限位时忽略
             }
+        }
+    }
+
+    /// <summary>
+    /// 反序列化后把凭据密文还原成内存明文；无 enc: 前缀的旧版明文配置原样保留。
+    /// 返回是否存在解密失败（密钥文件丢失 / 换了用户或机器）。
+    /// </summary>
+    internal static bool DecryptCredentials(IEnumerable<GitCredential> credentials, string keyFilePath)
+    {
+        int failuresBefore = CredentialProtector.UnprotectFailureCount;
+        foreach (var cred in credentials)
+        {
+            if (cred is null) continue;
+            cred.Username = CredentialProtector.Unprotect(cred.Username ?? string.Empty, keyFilePath);
+            cred.Token = CredentialProtector.Unprotect(cred.Token ?? string.Empty, keyFilePath);
+        }
+        return CredentialProtector.UnprotectFailureCount > failuresBefore;
+    }
+
+    /// <summary>
+    /// 序列化为 JSON：只在序列化期间把账号 / 令牌替换成密文，返回后立即还原。
+    /// 内存中始终是明文，界面编辑与 git 注入 URL 都无需感知加密。
+    /// </summary>
+    internal string SerializeEncrypted()
+    {
+        var original = Credentials ?? new List<GitCredential>();
+        try
+        {
+            Credentials = original.Where(c => c != null)
+                .Select(c => new GitCredential
+                {
+                    Host = c.Host ?? string.Empty,
+                    Username = CredentialProtector.Protect(c.Username ?? string.Empty, CredentialKeyPath),
+                    Token = CredentialProtector.Protect(c.Token ?? string.Empty, CredentialKeyPath)
+                })
+                .ToList();
+            return JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true });
+        }
+        finally
+        {
+            Credentials = original;
         }
     }
 }

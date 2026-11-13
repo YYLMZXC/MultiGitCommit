@@ -102,10 +102,12 @@ internal static class LocStringsEn
             { "L.GitSettingsView.L364.Content", "Delete" },
             { "L.GitSettingsView.L365.Content", "Detect system credentials..." },
             { "L.GitSettingsView.L366.ToolTip_Tip", "Open the detection window: choose hosts to scan and import what you need (can be stopped at any time, no full scan)" },
-            { "L.GitSettingsView.L370.Text", "Credentials are stored in plaintext in settings.json under the application settings directory; use only on your own machine." },
+            { "L.GitSettingsView.L370.Text", "Account names and tokens are encrypted in settings.json under the application data folder (keys are tied to the current user / this machine). Do not share the data folder." },
             { "L.GitSettingsView.L378.Text", "Credential helper" },
             { "L.GitSettingsView.L380.Text", "Whether system credentials are available depends on the current git having a usable helper; it is re-detected after saving a new git source with OK." },
             { "L.GitSettingsView.L383.ToolTip_Tip", "The helper git relies on to read system-stored accounts. If the configured helper is missing from the current git (common with minimal portable builds), pushing fails with 'credential-manager' is not a git command" },
+            { "L.GitSettingsView.OpenDataDir.Content", "Open data folder" },
+            { "L.GitSettingsView.OpenDataDir.ToolTip_Tip", "Open the application data folder (where settings.json and the credential key live) in the system file manager" },
             { "L.HistoryView.L028.Content", "Reset to selected commit" },
             { "L.HistoryView.L029.ToolTip_Tip", "Run git reset to move the current branch back to the selected commit (a confirmation is required)" },
             { "L.HistoryView.L030.Content", "Close" },
@@ -701,6 +703,7 @@ internal static class LocStringsEn
             { "仓库根目录不存在：{0}", "Repository root does not exist: {0}" },
             { "界面语言", "Language" },
             { "切换后立即生效；已输出的日志与提示保持原语言，重新打开窗口后完全更新。", "Applies immediately; existing log output and hints keep their original language and refresh fully when the window is reopened." },
-            { "界面语言已保存为：", "Language saved as: " },
+            { "界面语言已保存为：", "Language saved as:" },
+            { "！ 部分账号或令牌无法解密（密钥文件丢失或被更换），请重新填写后点【确定】保存。", "! Some accounts or tokens could not be decrypted (the key file is missing or has changed). Re-enter them and click OK to save." },
         };
 }

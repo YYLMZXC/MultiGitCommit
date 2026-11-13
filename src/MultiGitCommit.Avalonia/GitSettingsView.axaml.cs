@@ -116,6 +116,11 @@ public partial class GitSettingsView : DialogView<bool>
         if (OperatingSystem.IsAndroid())
             BtnBrowse.Content = Loc.T("输入路径");
 
+        // 数据目录：桌面可用系统文件管理器打开；移动端不支持，仍显示路径方便手动查找
+        BtnOpenDataDir.IsVisible = !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
+        TxtDataDirPath.Text = current.DataDirectory;
+        ToolTip.SetTip(TxtDataDirPath, current.DataDirectory);
+
         // 窄屏响应式：宽度变化时切换身份输入与凭据输入的行列布局
         SizeChanged += (_, _) => ApplyResponsiveLayout();
 
@@ -185,6 +190,10 @@ public partial class GitSettingsView : DialogView<bool>
         RefreshCredList();
         UpdateEnabled();
         UpdateCredEditEnabled();
+
+        // 密钥文件丢失 / 换了用户或机器时，密文解不开会被清空，提醒用户重新填写而不是静默丢失
+        if (current.CredentialsDecryptFailed)
+            ShowCredResult(Loc.T("！ 部分账号或令牌无法解密（密钥文件丢失或被更换），请重新填写后点【确定】保存。"), false);
 
         // 默认“自定义”：只显示说明，不改变用户已填内容
         ApplyPlatform(string.Empty);
@@ -931,6 +940,24 @@ public partial class GitSettingsView : DialogView<bool>
             Loc.F($"√ 已写入提交身份（{(identity.Scope == IdentityScope.Global ? Loc.T("全局 --global") : Loc.T("本仓库 --local"))}）：") +
             $"{identity.Name} <{identity.Email}>", true);
         return true;
+    }
+
+    /// <summary>【打开数据目录】：打开 settings.json 与凭据密钥文件所在目录，不改动任何设置。</summary>
+    private async void BtnOpenDataDir_Click(object? sender, RoutedEventArgs e)
+    {
+        string dir = _settings.DataDirectory;
+        try
+        {
+            // 首次运行尚未保存过设置时目录可能不存在，先建出来再交给文件管理器
+            Directory.CreateDirectory(dir);
+        }
+        catch (Exception)
+        {
+            // 建不了目录时由 TryOpenFolder 给出具体错误
+        }
+
+        if (FileOpener.TryOpenFolder(dir, out string error)) return;
+        await Dialogs.ShowMessageAsync(this, Loc.T("打开文件夹"), Loc.T("× 打开文件夹失败：") + error);
     }
 
     /// <summary>

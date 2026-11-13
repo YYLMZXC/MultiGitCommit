@@ -92,10 +92,21 @@
 
         <!-- 底部按钮栏：始终可见，不随内容滚动 -->
         <Border DockPanel.Dock="Bottom" BorderBrush="#D8DEE6" BorderThickness="0,1,0,0" Padding="18,10">
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button Content="{DynamicResource L.GitSettingsView.L096.Content}" Width="88" IsDefault="True" Padding="8,3" Click="BtnOk_Click"/>
-                <Button Content="{DynamicResource L.GitSettingsView.L097.Content}" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,3" Click="BtnCancel_Click"/>
-            </StackPanel>
+            <Grid ColumnDefinitions="*,Auto">
+                <!-- 左侧：数据目录入口（移动端不支持系统文件管理器，隐藏按钮但仍显示路径） -->
+                <Grid Grid.Column="0" ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                    <Button x:Name="BtnOpenDataDir" Content="{DynamicResource L.GitSettingsView.OpenDataDir.Content}"
+                            Padding="8,3" Click="BtnOpenDataDir_Click"
+                            ToolTip.Tip="{DynamicResource L.GitSettingsView.OpenDataDir.ToolTip_Tip}"/>
+                    <!-- 用 Grid 的 * 列约束宽度，长路径只省略显示，不会挤到右侧的确定/取消按钮 -->
+                    <TextBlock x:Name="TxtDataDirPath" Grid.Column="1" Classes="hint" Margin="8,0,0,0" VerticalAlignment="Center"
+                               TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                </Grid>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="{DynamicResource L.GitSettingsView.L096.Content}" Width="88" IsDefault="True" Padding="8,3" Click="BtnOk_Click"/>
+                    <Button Content="{DynamicResource L.GitSettingsView.L097.Content}" Width="80" IsCancel="True" Margin="8,0,0,0" Padding="8,3" Click="BtnCancel_Click"/>
+                </StackPanel>
+            </Grid>
         </Border>
 
         <ScrollViewer x:Name="ContentScroll"

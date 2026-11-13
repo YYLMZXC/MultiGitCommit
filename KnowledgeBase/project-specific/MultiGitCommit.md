@@ -27,7 +27,7 @@
 ## 3. 业务规则（换项目即失效）
 
 - 提交消息固定 `yyyy-MM-dd HH:mm:ss 用户备注`；备注为空时仅时间戳；工作区无变更跳过 `git commit`，【强制提交】用 `--allow-empty`。
-- 每仓库远端列表 / 复选框状态存仓库根目录 `multigitcommit.config.json`；全局设置 `settings.json` 字段三平台一致，可直接互相拷贝。
+- 每仓库远端列表 / 复选框状态存仓库根目录 `multigitcommit.config.json`；全局设置 `settings.json` 字段三平台一致，其它字段可直接互相拷贝，但 `Credentials` 的账号 / 令牌是密文（Windows DPAPI / 其他平台 AES + 本机 `credential.key`），换机器、换用户或跨平台复制后必须重新填写。
 - 启动定位仓库：默认只读取当前目录（向上最多 12 层找 `.git` 或 `multigitcommit.config.json`），找不到不自动打开上次项目、提示手选；【Git 环境】可改为「上次使用的仓库优先」或「当前目录优先，找不到时回退上次项目」（`StartupRepo`：`0`/`1`/`2`）。
 - git 来源四选一：自动检测（内嵌 → 常见安装位置 → PATH）/ 仅内嵌 / 仅系统 PATH / 指定路径；切换来源时凭据助手缓存失效。
 - 凭据来源四选一：自动检测（自定义优先）/ 仅系统 / 仅自定义 / 不使用；账号实测使用一次 `git ls-remote`；`credential.helper` 不可用时临时 `-c credential.helper=xxx` 覆盖，不改用户配置。

@@ -26,10 +26,11 @@
 - **远端快速操作**：远端列表支持添加 / 编辑 / 删除，并可【在浏览器中打开】选中的远端 URL。
 - **提交历史与打开文件**：查看当前分支最近 200 条提交，可把本地分支重置到任意提交（soft / mixed / hard，执行前二次确认）；选中提交后列出该提交改动的文件，双击列表项（或按回车 / 点【打开选中文件】）即用系统默认关联程序打开对应文件，【打开所在文件夹】在资源管理器 / Finder / 文件管理器中定位——已删除的文件也能打开其所在目录（Windows 走 ShellExecute + `explorer /select`，macOS 走 `open` / `open -R`，Linux 走 `xdg-open` / `gio open`）。
 - **提交身份（user.name / user.email）**：提交的前置条件，界面实时显示当前生效身份；提交前自动校验，缺失时套用已保存身份或弹窗引导填写并写入 git config（可选仓库级 / 全局），未设置则终止提交而不是静默失败（详见下方【提交身份】）。
-- **推送凭据（账号）**：像【Git 环境】选择 git 来源一样，账号也可**选择来源**——自动检测（自定义优先，缺失时取系统）/ 仅系统凭据 / 仅自定义 / 不使用；系统账号可按需**检测并导入**（先选主机再检测，可随时停止），填写后可用一次 `git ls-remote` 实测账号是否可用（详见下方【推送凭据】）。
+- **推送凭据（账号）**：像【Git 环境】选择 git 来源一样，账号也可**选择来源**——自动检测（自定义优先，缺失时取系统）/ 仅系统凭据 / 仅自定义 / 不使用；系统账号可按需**检测并导入**（先选主机再检测，可随时停止），填写后可用一次 `git ls-remote` 实测账号是否可用（详见下方【推送凭据】）；账号与令牌在 `settings.json` 中加密保存。
 - **凭据助手自动适配**：自动扫描当前 git 真正可用的 `credential.helper`（Windows：manager / wincred / store；macOS：manager / osxkeychain / store；Linux：manager / libsecret / gnome-keyring / store）；配置里的助手在当前 git 中不存在时（精简便携版常见），临时用 `-c credential.helper=xxx` 覆盖，不改动用户 git 配置。
 - **非交互执行 + 超时兜底**：不弹窗等待账号/口令，快速命令 20 秒、普通 git 命令 10 分钟、克隆 30 分钟超时即终止，按钮必定恢复（详见下方【非交互执行与超时保护】）。
 - **多语言界面**：内置简体中文（默认）与 English，【Git 环境】→「界面语言」切换后立即生效；界面、弹窗提示与运行日志同步翻译，语言选择保存在 `settings.json` 的 `Language` 字段（详见下方【多语言（i18n）】）。
+- **数据目录直达**：【Git 环境】设置窗口底部显示数据目录完整路径，点【打开数据目录】即可用系统文件管理器打开（移动端不支持系统文件管理器，仅显示路径供手动查找）。
 - **中文不乱码**：进程调用统一 UTF-8 编码。
 - **不依赖系统 git**：内置【Git 环境】设置，支持四种来源——自动检测（软件内嵌便携版 Git → 常见安装位置 → 系统 PATH）、仅软件内嵌 Git、仅系统 PATH（环境 git）、指定 git 可执行文件 / Git 目录；配置保存到各自平台的应用设置目录，切换来源无需重装系统 git。
 
@@ -297,11 +298,15 @@ fatal: could not read Username for 'https://cnb.cool': terminal prompts disabled
 并会注明该凭据来自「已保存」还是「系统凭据管理器」。
 ssh 远端（`git@host:...`）不走凭据，使用 ssh 密钥。
 
-> **凭据不会被提交到仓库**：它只保存在**仓库之外**的应用设置目录的 `settings.json`
-> （Windows：`%APPDATA%\MultiGitCommit\settings.json`；macOS：`~/Library/Application Support/MultiGitCommit/settings.json`；
-> Linux：`$XDG_CONFIG_HOME/MultiGitCommit/settings.json`，未设置 XDG_CONFIG_HOME 时为 `~/.config/MultiGitCommit/settings.json`，权限 600），
+> **凭据不会被提交到仓库**：它只保存在**仓库之外**的应用设置目录的 `settings.json`（路径见下方【配置文件说明】），
 > 仓库内的 `multigitcommit.config.json` 不含任何凭据字段，日志里的令牌一律显示为 `***`。
-> 因此 `git add .` 与 `git push` 都不会把账号或令牌带到远端；注意不要手工把该文件复制进仓库。
+> 因此 `git add .` 与 `git push` 都不会把账号或令牌带到远端。
+>
+> **账号与令牌加密保存**：`Credentials[].Username` / `Token` 落盘为密文（旧版明文配置在首次保存时自动升级，无需迁移）：
+> Windows 用 DPAPI 绑定当前 Windows 用户，密钥由系统保管；macOS / Linux / 移动端用 AES-256-CBC + HMAC-SHA256，
+> 密钥是数据目录里的 `credential.key`（Unix 权限 600，移动端依赖应用沙盒隔离）。`Host` 保持明文以便按主机匹配。
+> 密文与当前用户 / 本机绑定，配置文件换机器、换用户或跨平台复制后凭据会解不开（设置页会提示重新填写），其余字段不受影响。
+> 请勿把整个数据目录（`settings.json` + `credential.key`）复制给别人，也不要手工把配置文件放进仓库。
 
 ## 配置文件说明
 
@@ -323,11 +328,14 @@ Git 来源等全局设置（与仓库无关）保存在 **`settings.json`**，�
 | macOS | `~/Library/Application Support/MultiGitCommit/settings.json`（权限 600） |
 | Linux | `$XDG_CONFIG_HOME/MultiGitCommit/settings.json`（默认 `~/.config/MultiGitCommit/settings.json`，权限 600） |
 
+【Git 环境】设置窗口底部显示数据目录（即上表 `settings.json` 所在目录），点【打开数据目录】可直接用系统文件管理器打开；
+非 Windows 平台的凭据密钥 `credential.key` 也在该目录（权限 600），Windows 由 DPAPI 保管密钥、不生成此文件。
+
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `GitSource` | int | git 来源：`0` 自动检测 / `1` 系统 PATH / `2` 指定路径 / `3` 软件内嵌 Git |
 | `CustomGitPath` | string | 指定模式下的 git 可执行文件或 Git 根目录路径（支持 `~` 与环境变量） |
-| `Credentials` | object[] | https 推送凭据列表：`{ "Host": "cnb.cool", "Username": "...", "Token": "..." }`（按主机匹配，明文保存） |
+| `Credentials` | object[] | https 推送凭据列表：`{ "Host": "cnb.cool", "Username": "enc:...", "Token": "enc:..." }`（按主机匹配；`Host` 明文，账号与令牌加密保存，详见上方【推送凭据】） |
 | `CredentialSource` | int | 账号来源：`0` 自动检测（自定义优先）/ `1` 仅系统凭据 / `2` 仅自定义 / `3` 不使用 |
 | `CommitIdentity` | object | 提交身份：`{ "Name": "...", "Email": "...", "Scope": 0 }`（`Scope`：`0` 仅当前仓库 / `1` 全局） |
 | `LastRepoPath` | string | 上次成功加载的仓库根目录；仅在启动模式选择「上次使用的仓库优先」或「回退上次项目」时用于自动载入 |
