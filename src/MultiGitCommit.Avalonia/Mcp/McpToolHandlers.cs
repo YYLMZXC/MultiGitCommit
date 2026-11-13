@@ -79,41 +79,8 @@ internal static class McpToolHandlers
         int maxDepth = Args.Int(args, "max_depth", 2, 0, 5);
         int limit = Args.Int(args, "limit", 50, 1, 200);
 
-        var skipped = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "node_modules", "bin", "obj", "packages", "target", "dist", "build", "__pycache__",
-            ".vs", ".idea", ".vscode", ".codebuddy", ".gradle", ".git"
-        };
-
-        var found = new List<string>();
-        var queue = new Queue<(string Dir, int Depth)>();
-        queue.Enqueue((root, 0));
-        bool reachedLimit = false;
-
-        while (queue.Count > 0)
-        {
-            ct.ThrowIfCancellationRequested();
-            if (found.Count >= limit) { reachedLimit = true; break; }
-
-            (string dir, int depth) = queue.Dequeue();
-            try
-            {
-                if (IsRepoRoot(dir)) found.Add(dir);
-                if (depth >= maxDepth) continue;
-
-                // 命中仓库后仍继续向下：父目录本身是仓库时，也可能存在嵌套仓库
-                foreach (string sub in Directory.EnumerateDirectories(dir))
-                {
-                    string name = Path.GetFileName(sub);
-                    if (name.StartsWith('.') || skipped.Contains(name)) continue;
-                    queue.Enqueue((sub, depth + 1));
-                }
-            }
-            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
-            {
-                // 单个目录不可读时跳过，不影响整体扫描
-            }
-        }
+        // 扫描算法统一在 RepoScanner（仓库管理首页共用同一实现）
+        IReadOnlyList<string> found = RepoScanner.Scan(root, maxDepth, limit, ct);
 
         var repositories = new JsonArray();
         foreach (string dir in found)
@@ -131,7 +98,7 @@ internal static class McpToolHandlers
             ["root"] = root,
             ["maxDepth"] = maxDepth,
             ["count"] = repositories.Count,
-            ["truncated"] = reachedLimit || queue.Count > 0,
+            ["truncated"] = found.Count >= limit,
             ["repositories"] = repositories
         });
     }
@@ -486,7 +453,7 @@ internal static class McpToolHandlers
     {
         string path = ExpandDirectory(Args.Required(args, "path"));
         if (File.Exists(path)) throw new ToolUsageException($"目标路径是文件，不能初始化仓库：{path}");
-        if (IsRepoRoot(path)) throw new ToolUsageException($"目录已经是 Git 仓库：{path}");
+        if (RepoScanner.IsRepoRoot(path)) throw new ToolUsageException($"目录已经是 Git 仓库：{path}");
 
         Directory.CreateDirectory(path);
         GitCommandResult init = await ctx.Session.Repositories.InitAsync(path).ConfigureAwait(false);
@@ -614,11 +581,6 @@ internal static class McpToolHandlers
             throw new ToolUsageException($"目录路径无效：{path}（{ex.Message}）");
         }
     }
-
-    private static bool IsRepoRoot(string dir)
-        => Directory.Exists(Path.Combine(dir, ".git")) ||
-           File.Exists(Path.Combine(dir, ".git")) ||
-           File.Exists(Path.Combine(dir, ProjectConfig.ConfigFileName));
 
     private static void ValidateRepoRelativePath(string repoRoot, string relative)
     {

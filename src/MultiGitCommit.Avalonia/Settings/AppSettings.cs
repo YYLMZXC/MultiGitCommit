@@ -51,6 +51,24 @@ public class AppSettings
     [JsonPropertyName("StageMode")]
     public StageMode StageMode { get; set; } = StageMode.AddAll;
 
+    /// <summary>最近项目记录最大保留条数（按最近使用排序，超出后裁掉最旧的）。</summary>
+    public const int MaxRecentRepoPaths = 10;
+
+    /// <summary>最近打开的项目（仓库根目录）记录，按最近使用排序；仓库管理首页展示并支持快速跳转。</summary>
+    [JsonPropertyName("RecentRepoPaths")]
+    public List<string> RecentRepoPaths { get; set; } = new();
+
+    /// <summary>
+    /// 仓库自动发现的自定义扫描根目录；为空时使用默认根目录
+    /// （用户主目录，Windows 另加各固定磁盘，Android 另加共享存储根目录）。
+    /// </summary>
+    [JsonPropertyName("RepoScanRoots")]
+    public List<string> RepoScanRoots { get; set; } = new();
+
+    /// <summary>启动默认页面：项目页或仓库管理首页；当前目录所在仓库存在时始终优先进项目页。</summary>
+    [JsonPropertyName("DefaultStartPage")]
+    public StartPageMode DefaultStartPage { get; set; } = StartPageMode.RepoPage;
+
     /// <summary>设置文件完整路径（加载时填充）。</summary>
     [JsonIgnore]
     public string SettingsFilePath { get; private set; } = string.Empty;
@@ -109,6 +127,8 @@ public class AppSettings
                     loaded.Credentials ??= new List<GitCredential>();
                     loaded.CommitIdentity ??= new GitIdentity();
                     loaded.LastRepoPath ??= string.Empty;
+                    loaded.RecentRepoPaths ??= new List<string>();
+                    loaded.RepoScanRoots ??= new List<string>();
 
                     // 历史配置或手改文件可能带来非法值，统一回落到默认（当前目录优先 / 全提交）
                     if (!Enum.IsDefined(loaded.StartupRepo))
@@ -116,6 +136,9 @@ public class AppSettings
 
                     if (!Enum.IsDefined(loaded.StageMode))
                         loaded.StageMode = StageMode.AddAll;
+
+                    if (!Enum.IsDefined(loaded.DefaultStartPage))
+                        loaded.DefaultStartPage = StartPageMode.RepoPage;
 
                     return loaded;
                 }

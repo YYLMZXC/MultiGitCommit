@@ -123,7 +123,7 @@ public partial class MainView : UserControl
         foreach (var (button, column) in new[]
                  {
                      (BtnBrowse, 2), (BtnClone, 3), (BtnInitRepo, 4), (BtnCreateBranch, 5),
-                     (BtnLoadConfig, 6), (BtnAbout, 7), (BtnGitEnv, 8)
+                     (BtnLoadConfig, 6), (BtnAbout, 7), (BtnGitEnv, 8), (BtnRepoHome, 9)
                  })
         {
             _repoHeaderButtonColumns.Add(button, column);
@@ -164,6 +164,14 @@ public partial class MainView : UserControl
         string? startup = ResolveStartupRepoPath(out string startupMessage);
         TxtRepoPath.Text = startup ?? string.Empty;
         if (startupMessage.Length > 0) Log(startupMessage);
+
+        // 仓库管理首页注入回调（覆盖层随 XAML 创建）；当前目录无仓库且默认页设为「仓库管理页」时启动即进首页
+        HomeView.Attach(this, _settings);
+        if (startup == null && _settings.Current.DefaultStartPage == StartPageMode.RepoHome)
+        {
+            Log("已打开仓库管理首页：可从最近项目或自动发现的仓库中快速进入项目页。");
+            ShowHomePage();
+        }
     }
 
     /// <summary>
@@ -427,6 +435,13 @@ public partial class MainView : UserControl
 
     /// <summary>选择文件夹：浏览选择 git 仓库根目录，选择后自动读取该项目配置。</summary>
     private async void BtnBrowse_Click(object? sender, RoutedEventArgs e)
+        => await BrowseForRepoAsync();
+
+    /// <summary>
+    /// 唤起系统文件管理器选择 git 仓库根目录并载入（项目页【选择文件夹】与仓库管理首页共用管线）；
+    /// 系统选择器不可用 / 该位置无真实路径时回退为手输绝对路径。载入成功后自动关闭首页覆盖层。
+    /// </summary>
+    public async Task BrowseForRepoAsync()
     {
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel?.StorageProvider != null)
@@ -449,6 +464,7 @@ public partial class MainView : UserControl
                 {
                     if (!await IsUsableRepoFolderAsync(path)) return;
                     ApplyPickedFolder(path);
+                    HideHomePage();
                     return;
                 }
 
@@ -461,19 +477,21 @@ public partial class MainView : UserControl
             }
         }
 
-        await PickFolderManuallyAsync();
+        string? picked = await PickFolderManuallyAsync();
+        if (picked != null) HideHomePage();
     }
 
     /// <summary>系统选择器不可用 / 该位置无真实路径时的兜底：手输绝对路径，可自动新建。</summary>
-    private async Task PickFolderManuallyAsync()
+    private async Task<string?> PickFolderManuallyAsync()
     {
         string? picked = await Dialogs.PickFolderAsync(this, "输入仓库目录",
             "请输入 Git 仓库根目录的绝对路径（与 .git 同级），例如：" + Environment.NewLine +
             "/storage/emulated/0/GitRepos/MyRepo" + Environment.NewLine +
             "目录不存在时会询问是否新建；新建的空目录请再点【初始化仓库】。",
             AndroidGitPlatform.SuggestRepoParent());
-        if (picked == null) return;
+        if (picked == null) return null;
         ApplyPickedFolder(picked);
+        return picked;
     }
 
     /// <summary>安卓共享存储目录可能「存在但不可写」（未授予所有文件访问），先做写入探测。</summary>
@@ -507,6 +525,42 @@ public partial class MainView : UserControl
     private async void BtnAbout_Click(object? sender, RoutedEventArgs e)
     {
         await UiDialogs.ShowAsync(this, new AboutView(), "关于 MultiGitCommit");
+    }
+
+    // ==================== 仓库管理首页 ====================
+
+    /// <summary>打开仓库管理首页。</summary>
+    private void BtnRepoHome_Click(object? sender, RoutedEventArgs e) => ShowHomePage();
+
+    /// <summary>显示仓库管理首页覆盖层（最近项目 + 本地 Git 仓库自动发现 + 快速跳转）。</summary>
+    internal void ShowHomePage()
+    {
+        HomeView.OnShown();
+        HomeView.IsVisible = true;
+    }
+
+    /// <summary>关闭仓库管理首页覆盖层，回到项目页。</summary>
+    private void HideHomePage() => HomeView.IsVisible = false;
+
+    /// <summary>仓库管理首页【选择文件夹打开…】：唤起系统文件管理器选目录并载入（复用项目页选目录管线）。</summary>
+    public Task BrowseForRepoFromHomeAsync() => BrowseForRepoAsync();
+
+    /// <summary>
+    /// 仓库管理首页跳转：打开指定目录（自动上溯到仓库根目录）并载入项目页；
+    /// 目录不是 Git 仓库时仅在日志提示，不跳转。
+    /// </summary>
+    public void OpenRepoFromHome(string path)
+    {
+        string trimmed = path.Trim();
+        string? root = RepoLocator.FindRepoAncestor(trimmed) ?? (RepoScanner.IsRepoRoot(trimmed) ? trimmed : null);
+        if (root == null)
+        {
+            Log($"该目录不是 Git 仓库（未找到 .git 或 multigitcommit.config.json）：{trimmed}");
+            return;
+        }
+
+        HideHomePage();
+        ApplyPickedFolder(root);
     }
 
     // ==================== 克隆项目 ====================
@@ -1277,13 +1331,26 @@ public partial class MainView : UserControl
         return null;
     }
 
-    /// <summary>记住本次成功加载的仓库目录，下次启动自动载入其项目配置。</summary>
+    /// <summary>记住本次成功加载的仓库目录：写入「上次使用的仓库」并更新最近项目记录（仓库管理首页展示）。</summary>
     private void RememberRepoPath(string repoRoot)
     {
-        if (string.Equals(_settings.Current.LastRepoPath, repoRoot, StringComparison.Ordinal))
-            return;
+        bool changed = false;
+        if (!string.Equals(_settings.Current.LastRepoPath, repoRoot, StringComparison.Ordinal))
+        {
+            _settings.Current.LastRepoPath = repoRoot;
+            changed = true;
+        }
 
-        _settings.Current.LastRepoPath = repoRoot;
+        // 最近项目记录：去重后置于首位，超出上限裁掉最旧的
+        var recents = _settings.Current.RecentRepoPaths;
+        string before = string.Join("\n", recents);
+        recents.RemoveAll(p => string.Equals(p, repoRoot, StringComparison.Ordinal));
+        recents.Insert(0, repoRoot);
+        if (recents.Count > AppSettings.MaxRecentRepoPaths)
+            recents.RemoveRange(AppSettings.MaxRecentRepoPaths, recents.Count - AppSettings.MaxRecentRepoPaths);
+        changed |= string.Join("\n", recents) != before;
+
+        if (!changed) return;
         try
         {
             _settings.Save();

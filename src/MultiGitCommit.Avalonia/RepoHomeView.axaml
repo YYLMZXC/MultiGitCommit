@@ -1,0 +1,111 @@
+<!-- 仓库管理首页：过往访问的项目记录 + 本地 Git 仓库自动发现，支持统一管理与快速跳转。
+     以覆盖层形式嵌在 MainView 内（对话框覆盖层 Overlay 在其后声明，保证弹窗始终盖在本页之上）。 -->
+<UserControl x:Class="MultiGitCommit.RepoHomeView"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             FontFamily="Microsoft YaHei UI,PingFang SC,Noto Sans CJK SC,Source Han Sans SC,DejaVu Sans" FontSize="13">
+
+    <UserControl.Styles>
+        <Style Selector="Button">
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="4,2"/>
+        </Style>
+        <Style Selector="TextBlock.sectionTitle">
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="#2B579A"/>
+        </Style>
+        <Style Selector="Button.linkBtn">
+            <Setter Property="Padding" Value="8,2"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+        </Style>
+    </UserControl.Styles>
+
+    <!-- 不透明背景：盖住背后的项目页；跟随主题（Fluent）背景色 -->
+    <Border Background="{DynamicResource ThemeBackgroundBrush}">
+        <Grid Margin="16,14,16,12" RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+            <!-- ============ 标题 ============ -->
+            <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                <TextBlock Text="仓库管理" FontSize="20" FontWeight="Bold"/>
+                <TextBlock Foreground="#666" TextWrapping="Wrap" Margin="0,4,0,0"
+                           Text="过往访问的项目与本地 Git 仓库统一管理，点击「打开」快速跳转到对应项目页。"/>
+            </StackPanel>
+
+            <!-- ============ 一、最近打开的项目 ============ -->
+            <Border Grid.Row="1" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,0,0,10">
+                <StackPanel>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="sectionTitle" Text="最近打开的项目" VerticalAlignment="Center"
+                                   ToolTip.Tip="记录本工具成功加载过的仓库（最多 10 条，按最近使用排序），保存在应用设置中"/>
+                        <Button x:Name="BtnClearRecent" Grid.Column="1" Content="清空记录" Click="BtnClearRecent_Click"
+                                ToolTip.Tip="清空最近打开项目的记录（不影响仓库本身）"/>
+                    </Grid>
+                    <TextBlock x:Name="TxtRecentEmpty" Foreground="#999" Margin="0,6,0,0"
+                               Text="暂无记录：打开过的仓库会显示在这里"/>
+                    <ItemsControl x:Name="ListRecent" Margin="0,4,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="#DDDDDD" BorderThickness="0,0,0,1" Padding="0,4">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <TextBlock Text="{Binding}" TextWrapping="Wrap" VerticalAlignment="Center" ToolTip.Tip="{Binding}"/>
+                                        <Button Grid.Column="1" Classes="linkBtn" Content="打开" Click="OpenRepo_Click"
+                                                ToolTip.Tip="切换到该仓库的项目页（自动上溯到仓库根目录）"/>
+                                        <Button Grid.Column="2" Classes="linkBtn" Content="移除" Click="RemoveRecent_Click"
+                                                ToolTip.Tip="从最近项目记录中移除该条目"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ============ 二、本地 Git 仓库（自动发现） ============ -->
+            <Border Grid.Row="2" BorderBrush="#CCCCCC" BorderThickness="1" CornerRadius="4" Padding="10">
+                <Grid RowDefinitions="Auto,Auto,*,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                        <TextBlock Classes="sectionTitle" Text="本地 Git 仓库（自动发现）" VerticalAlignment="Center"
+                                   ToolTip.Tip="自动扫描本地磁盘上的 Git 仓库（命中 .git 或 multigitcommit.config.json 即算一个）"/>
+                        <Button x:Name="BtnRescan" Grid.Column="1" Content="刷新" Click="BtnRescan_Click"
+                                ToolTip.Tip="重新扫描本地 Git 仓库；默认扫描用户主目录与各固定磁盘（Android 为共享存储）"/>
+                    </Grid>
+                    <TextBlock x:Name="TxtScanStatus" Grid.Row="1" Foreground="#666" TextWrapping="Wrap" Margin="0,6,0,4"/>
+                    <ScrollViewer Grid.Row="2">
+                        <ItemsControl x:Name="ListDiscovered">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="#DDDDDD" BorderThickness="0,0,0,1" Padding="0,4">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="{Binding}" TextWrapping="Wrap" VerticalAlignment="Center" ToolTip.Tip="{Binding}"/>
+                                            <Button Grid.Column="1" Classes="linkBtn" Content="打开" Click="OpenRepo_Click"
+                                                    ToolTip.Tip="切换到该仓库的项目页（自动上溯到仓库根目录）"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <TextBlock x:Name="TxtDiscoveredEmpty" Grid.Row="2" Foreground="#999" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Text="未发现 Git 仓库：请确认仓库位置，或点【刷新】重扫"/>
+                </Grid>
+            </Border>
+
+            <!-- ============ 三、底部操作条 ============ -->
+            <Grid Grid.Row="4" Margin="0,10,0,0" ColumnDefinitions="Auto,Auto,*">
+                <Button x:Name="BtnPickFolder" Content="选择文件夹打开…" Click="BtnPickFolder_Click" Height="34"
+                        ToolTip.Tip="唤起系统文件管理器选择 Git 仓库根目录（与 .git 同级），选择后自动载入项目页"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                    <TextBlock Text="启动默认页面：" VerticalAlignment="Center"
+                               ToolTip.Tip="应用启动时的默认页面；当前目录所在的仓库存在时，始终优先进项目页"/>
+                    <RadioButton x:Name="RadioStartRepoPage" GroupName="StartPage" Content="项目页" VerticalAlignment="Center"
+                                 Margin="6,0,0,0" IsCheckedChanged="StartPage_Changed"
+                                 ToolTip.Tip="启动直接进入仓库提交推送界面（历史行为）"/>
+                    <RadioButton x:Name="RadioStartHome" GroupName="StartPage" Content="仓库管理页" VerticalAlignment="Center"
+                                 Margin="4,0,0,0" IsCheckedChanged="StartPage_Changed"
+                                 ToolTip.Tip="启动先进入仓库管理首页（当前目录无仓库时）"/>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>
