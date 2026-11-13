@@ -6,10 +6,9 @@
     <string>MultiGitCommit</string>
     <key>CFBundleIdentifier</key>
     <string>com.yylmzxc.multigitcommit</string>
-    <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
-    <key>CFBundleVersion</key>
-    <string>1</string>
+    <!-- 不要在这里写 CFBundleShortVersionString / CFBundleVersion：
+         plist 里的值会覆盖 csproj 的 ApplicationDisplayVersion / ApplicationVersion，
+         版本号就退化成写死的 1.0 / 1，不再是构建时自动生成的日期与 dHHmm。 -->
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>MinimumOSVersion</key>

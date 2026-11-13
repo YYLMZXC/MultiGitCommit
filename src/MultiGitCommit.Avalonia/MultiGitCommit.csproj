@@ -146,8 +146,15 @@
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
     <AndroidManifest>Platforms\Android\AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
+  <!-- iOS 应用清单：SDK 不识别 <InfoPlist> 属性，只认「文件名为 Info.plist 的 None 项 / 带 LogicalName=Info.plist 的 Link」，
+       文件又在 Platforms\iOS\ 子目录不在项目根，自动探测也找不到——必须显式声明 LogicalName，
+       否则 Info.plist 里的方向、UIDeviceFamily、MinimumOSVersion 全被丢弃（产物回落 SDK 版本并要求方向）。 -->
+  <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
+    <None Include="Platforms\iOS\Info.plist" LogicalName="Info.plist" />
+  </ItemGroup>
+  <!-- iOS 最低系统版本：不设置时等于当前 iOS SDK 版本（如 26.5），产物只能装到同版本以上的设备 -->
   <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
-    <InfoPlist>Platforms\iOS\Info.plist</InfoPlist>
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
   </PropertyGroup>
 
   <!-- 内嵌便携版 Git（随桌面版分发，开箱即用）：

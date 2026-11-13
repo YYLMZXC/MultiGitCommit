@@ -189,6 +189,24 @@ dotnet build MultiGitCommit.csproj -c Release -p:IncludeMobile=true
 > Release 才打包真机 `ios-arm64`。调试真机时用 `-p:RuntimeIdentifiers=ios-arm64` 覆盖
 > （必须是复数 `RuntimeIdentifiers`：iOS SDK 在单数/复数同时设置时会清空单数，导致回落到真机并要求预配）。
 >
+> **iOS 真机签名（Release 失败的常见原因）**：真机包必须签名，缺少描述文件时报
+> `在 iOS 上找不到 <应用名> 的任何可用预配配置文件`（`Xamarin.Shared.targets`）。
+> 本机需先在 Xcode → Settings → Accounts 登录 Apple ID，为 `com.yylmzxc.multigitcommit` 生成并安装
+> Development 描述文件（双击安装到 `~/Library/MobileDevice/Provisioning Profiles`），再显式指定证书与描述文件：
+>
+> ```bash
+> dotnet build MultiGitCommit.csproj -f net10.0-ios -c Release \
+>   -p:CodesignKey="Apple Development: <账号> (<ID>)" \
+>   -p:CodesignProvision="<描述文件名>"
+> ```
+>
+> 不想签名只想验证 Release 逻辑时，把 RID 换成模拟器：
+> `dotnet build -f net10.0-ios -c Release -p:RuntimeIdentifiers=iossimulator-arm64`。
+>
+> **iOS 清单**：`Platforms/iOS/Info.plist` 必须以 `None` + `LogicalName="Info.plist"` 声明（SDK 不识别 `<InfoPlist>` 属性，
+> 文件不在项目根时也探测不到），否则方向、`UIDeviceFamily`、`MinimumOSVersion` 会被静默丢弃；
+> 最低系统版本由 csproj 的 `SupportedOSPlatformVersion` 决定，版本号不要再写进 plist（会覆盖自动生成的日期版本）。
+>
 > **Android**：.NET 10 要求 JDK 17。若系统只装了旧 JDK（如 11），SDK / IDE 会误选并报 `AMM0000`；
 > csproj 一旦发现 `~/Library/Developer/Xamarin/jdk` 存在就强制使用它（`JavaSdkDirectory` 已设为项目内可覆盖，IDE 传入的旧路径不会生效）。
 > 缺 Android SDK 平台时可执行：
