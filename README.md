@@ -562,3 +562,6 @@ MultiGitCommit/
   同一份逻辑层，不重复实现 git 命令与配置读写；桌面 `Program.Main` 按命令行分派
   （子命令 → CLI，`--` 参数 → MCP，无参数 → GUI），CLI 直接复用 `McpToolSet.CallAsync`，
   移动 TFM 由 csproj 排除 `Mcp/`、`Cli/` 与 `ConsoleAttach.cs`。
+
+边界与适用范围见 [`docs/boundaries-and-scope.md`](docs/boundaries-and-scope.md)；实现路径、测试与可能出现的问题见
+[`docs/implementation-and-verification.md`](docs/implementation-and-verification.md)。提交前回归：`pwsh scripts/TestSmoke.ps1 -IncludeAndroid`。
