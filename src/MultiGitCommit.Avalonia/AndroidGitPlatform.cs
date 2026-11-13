@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 
 namespace MultiGitCommit;
@@ -467,6 +468,8 @@ public static class AndroidGitPlatform
         psi.EnvironmentVariables["GIT_CONFIG_NOSYSTEM"] = "1";
         psi.EnvironmentVariables["GIT_ATTR_NOSYSTEM"] = "1";
 
+        ApplySafeDirectories(psi);
+
         // 传输辅助程序同时按 PATH 查找（git 的 run_command 走 execvp 语义），把两个目录前置
         string existing = psi.EnvironmentVariables.ContainsKey("PATH")
             ? psi.EnvironmentVariables["PATH"] ?? string.Empty
@@ -475,6 +478,46 @@ public static class AndroidGitPlatform
             new[] { execDir, nativeDir }.Where(s => !string.IsNullOrEmpty(s)));
         psi.EnvironmentVariables["PATH"] =
             existing.Length > 0 ? head + ":" + existing : head;
+#endif
+    }
+
+    /// <summary>
+    /// Android 共享存储（FUSE / sdcardfs）里文件的 stat uid 由系统映射，通常不等于应用 uid，
+    /// git 2.35.2+ 会把 /storage/emulated/0 下的仓库判为 "detected dubious ownership"：
+    /// 克隆本身能完成，但随后的 rev-parse / status / branch 全部被拒绝，仓库无法加载。
+    ///
+    /// 用 GIT_CONFIG_COUNT 注入进程级 safe.directory（等价于命令行 -c，不改写用户的 ~/.gitconfig）：
+    /// 只放开共享存储根（结尾 /* 是前缀匹配，覆盖新建的克隆目标、SD 卡与任意层级子目录），
+    /// 再补一条当前工作目录的精确值兜底用户手输的其他位置，而不是无条件信任所有路径。
+    /// </summary>
+    private static void ApplySafeDirectories(ProcessStartInfo psi)
+    {
+#if ANDROID
+        var values = new List<string> { "/storage/*", "/sdcard/*" };
+
+        string? workDir = psi.WorkingDirectory;
+        if (!string.IsNullOrWhiteSpace(workDir))
+        {
+            try
+            {
+                string full = Path.GetFullPath(workDir).TrimEnd(Path.DirectorySeparatorChar);
+                if (full.Length > 0
+                    && !full.StartsWith("/storage/", StringComparison.Ordinal)
+                    && !full.StartsWith("/sdcard/", StringComparison.Ordinal))
+                    values.Add(full);
+            }
+            catch
+            {
+                // 路径不规范时仅依赖共享存储通配项，不阻断命令
+            }
+        }
+
+        for (int i = 0; i < values.Count; i++)
+        {
+            psi.EnvironmentVariables["GIT_CONFIG_KEY_" + i] = "safe.directory";
+            psi.EnvironmentVariables["GIT_CONFIG_VALUE_" + i] = values[i];
+        }
+        psi.EnvironmentVariables["GIT_CONFIG_COUNT"] = values.Count.ToString(CultureInfo.InvariantCulture);
 #endif
     }
 
