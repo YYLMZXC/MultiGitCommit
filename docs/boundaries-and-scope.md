@@ -81,7 +81,7 @@
 | 新增 4 个策略服务 | 支持 | 支持（纯托管，无 UI 依赖） | 支持（纯托管） |
 | 高级设置滚动定位优化 | 支持 | 编译通过，窄屏留白同步调整 | 编译通过 |
 
-- 构建与发布：桌面 `dotnet publish -f net10.0`；Android `net10.0-android`（minSdk 23）；iOS `net10.0-ios` 需 macOS。多目标命令必须显式 `-f`。
+- 构建与发布：桌面 `dotnet publish -f net10.0`；Android `net10.0-android`（minSdk 23）；iOS `net10.0-ios` 需 macOS。默认只构建桌面目标，移动端须显式 `-p:IncludeMobile=true` 并带 `-f`。
 - 冒烟回归脚本 `scripts/TestSmoke.ps1` 仅适用于桌面 `net10.0`（依赖 CLI / MCP 与本机可用 git），可选 `-IncludeAndroid` 追加 Android 编译检查。
 
 ## 5. 明确不在适用范围内

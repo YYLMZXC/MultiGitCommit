@@ -4,7 +4,16 @@
     <!-- 跨平台统一项目：一套代码同时支持 Windows / macOS / Linux（桌面）与 Android / iOS（移动）。
          桌面走经典窗口生命周期（MainWindow 壳 + MainView）；
          移动走单视图生命周期（Platforms/Android/MainActivity、Platforms/iOS/AppDelegate + MainView）。 -->
-    <TargetFrameworks>net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
+    <!-- 默认只构建桌面 net10.0：移动端（Android / iOS）需要本机装有 Android SDK 平台与 iOS 预配文件，
+         若不显式限定框架，「构建解决方案」/ IDE 默认构建会把三个 TFM 一起编，桌面明明成功也会因移动端环境缺失报错。
+         需要移动端时显式开启（还原与构建都要带 IncludeMobile：隐式还原看不到 -f 指定的框架，
+         只写 -f 会因资产文件里没有移动目标而报 NETSDK1005）：
+           dotnet build -p:IncludeMobile=true -f net10.0-android  （单独构建 Android，需本机 Android SDK）
+           dotnet build -p:IncludeMobile=true -f net10.0-ios      （单独构建 iOS，需 macOS 与预配文件）
+           dotnet build -p:IncludeMobile=true                    （三个 TFM 一起构建；IDE 里构建移动端配置时也用它）
+         第二个条件在 -f 已指定移动 TFM 时同样纳入移动端，仅用于已单独还原过移动目标的 no-restore 场景。 -->
+    <TargetFrameworks>net10.0</TargetFrameworks>
+    <TargetFrameworks Condition="'$(IncludeMobile)' == 'true' or '$(TargetFramework)' == 'net10.0-android' or '$(TargetFramework)' == 'net10.0-ios'">net10.0;net10.0-android;net10.0-ios</TargetFrameworks>
     <OutputType Condition="'$(TargetFramework)' == 'net10.0'">WinExe</OutputType>
     <OutputType Condition="'$(TargetFramework)' != 'net10.0'">Exe</OutputType>
     <Nullable>enable</Nullable>

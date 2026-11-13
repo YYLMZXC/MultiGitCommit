@@ -81,7 +81,7 @@ Program.Main / MainActivity / AppDelegate
 
 | ID | 用例 | 命令 / 方式 | 期望 | 本次结果 |
 | --- | --- | --- | --- | --- |
-| B1/B2 | 桌面 / Android 构建 | `dotnet build -f net10.0` / `-f net10.0-android` | 0 错误 | 通过（仅既有 `CS0169` / `XA0141` 警告） |
+| B1/B2 | 桌面 / Android 构建 | `dotnet build -f net10.0` / `-f net10.0-android -p:IncludeMobile=true` | 0 错误 | 通过（仅既有 `CS0169` / `XA0141` 警告） |
 | B3 | 桌面 exe 生成 | 文件存在性 | 存在 | 通过 |
 | C1 | MCP 自检 | `--self-test` | 退出码 0 | 通过 |
 | C2 | 工具清单数量 | `--self-test` 输出 | 14 个工具 | 通过 |

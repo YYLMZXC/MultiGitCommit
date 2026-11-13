@@ -99,6 +99,9 @@ Debug 产物：
 - Windows：`src\MultiGitCommit.Avalonia\bin\Debug\net10.0\MultiGitCommit.exe`
 - macOS / Linux：`src\MultiGitCommit.Avalonia/bin/Debug/net10.0/MultiGitCommit`（或 `dotnet MultiGitCommit.dll`）
 
+> 默认只构建桌面 `net10.0`：Android / iOS 目标需显式开启，否则在缺 Android SDK 平台或 iOS 预配文件的机器上
+> 「构建解决方案」会因移动端报错。移动端构建方式见下文「移动端构建」。
+
 JetBrains Rider 可直接使用 `src/MultiGitCommit.Avalonia/.run/` 下的共享运行配置：
 `MultiGitCommit (Windows Debug)`、`MultiGitCommit (Windows Release win-x64)`、`MultiGitCommit (macOS Debug)`、`MultiGitCommit (Linux Debug)`。
 其中 Release 配置需先在 Rider 中把解决方案配置切到 `Release`。
@@ -147,7 +150,8 @@ dotnet publish -c Release -f net10.0 -r linux-arm64
 dotnet publish -c Release -f net10.0 -p:PublishProfile=FolderProfile
 ```
 
-> **必须带 `-f net10.0`**：项目是多目标（桌面 + Android + iOS），不指定框架时 `Publish` 目标直接报 `NETSDK1129`。
+> **建议始终带 `-f net10.0`**：项目默认只构建桌面目标（Android / iOS 需 `-p:IncludeMobile=true` 才纳入），
+> 所以不带 `-f` 也只会发布桌面；显式写上可避免把发布配置的框架搞混。
 >
 > **Visual Studio 发布**：在【发布】里选择仓库自带的 `FolderProfile`（win-x64）或 `FolderProfile-osx-arm64` 配置文件，
 > 它们已固定 `TargetFramework=net10.0`，不会把桌面目标/框架混进来。若自行新建配置文件，务必把「目标框架」选成 `net10.0`——
@@ -162,16 +166,21 @@ dotnet publish -c Release -f net10.0 -p:PublishProfile=FolderProfile
 
 ### 移动端构建
 
+移动端目标默认不参与构建，所有移动端命令都要带 `-p:IncludeMobile=true`（还原与构建都靠它，隐式还原看不到 `-f` 指定的框架）：
+
 ```powershell
 # Android APK：默认只出 arm64（真机），产物 bin\Release\net10.0-android\android-arm64\*.apk
-dotnet build MultiGitCommit.csproj -f net10.0-android -c Release
+dotnet build MultiGitCommit.csproj -f net10.0-android -c Release -p:IncludeMobile=true
 
 # x64 模拟器包：显式指定 RID
-dotnet build MultiGitCommit.csproj -f net10.0-android -c Release -r android-x64
+dotnet build MultiGitCommit.csproj -f net10.0-android -c Release -r android-x64 -p:IncludeMobile=true
 
 # iOS（需在 macOS 上构建）
-dotnet build MultiGitCommit.csproj -f net10.0-ios -c Release
+dotnet build MultiGitCommit.csproj -f net10.0-ios -c Release -p:IncludeMobile=true
 ```
+
+> IDE 里构建移动端时同理：在该运行 / 构建配置的 MSBuild 属性中加上 `IncludeMobile=true`；
+> 默认的桌面运行配置不添加，保证「构建解决方案」只编桌面目标。
 
 > 命令里显式写 `MultiGitCommit.csproj`：该目录下有 `MultiGitCommit.slnx`，`dotnet build` 会优先按解决方案解析，
 > 带 `-r` 时直接报 `NETSDK1134`（解决方案不支持指定 RID）。
