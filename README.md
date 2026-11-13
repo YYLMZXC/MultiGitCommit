@@ -212,6 +212,7 @@ dotnet build MultiGitCommit.csproj -c Release -p:IncludeMobile=true
 > **iOS 清单**：`Platforms/iOS/Info.plist` 必须以 `None` + `LogicalName="Info.plist"` 声明（SDK 不识别 `<InfoPlist>` 属性，
 > 文件不在项目根时也探测不到），否则方向、`UIDeviceFamily`、`MinimumOSVersion` 会被静默丢弃；
 > 最低系统版本由 csproj 的 `SupportedOSPlatformVersion` 决定，版本号不要再写进 plist（会覆盖自动生成的日期版本）。
+> 另外 plist 必须声明 `UILaunchScreen`（空 dict 即可）：缺失时 iOS 把 App 当旧应用跑兼容模式，上下留大黑边无法全屏。
 >
 > **Android**：.NET 10 要求 JDK 17。若系统只装了旧 JDK（如 11），SDK / IDE 会误选并报 `AMM0000`；
 > csproj 一旦发现 `~/Library/Developer/Xamarin/jdk` 存在就强制使用它（`JavaSdkDirectory` 已设为项目内可覆盖，IDE 传入的旧路径不会生效）。

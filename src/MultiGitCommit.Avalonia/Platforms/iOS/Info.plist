@@ -11,6 +11,13 @@
          版本号就退化成写死的 1.0 / 1，不再是构建时自动生成的日期与 dHHmm。 -->
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <!-- 声明现代启动屏幕（空 dict 即可）：缺失时 iOS 判定 App 为旧应用，
+         进入兼容模式按旧分辨率渲染，上下留大黑边（letterbox），全屏无法铺满。 -->
+    <key>UILaunchScreen</key>
+    <dict>
+        <key>UIColorName</key>
+        <string></string>
+    </dict>
     <key>MinimumOSVersion</key>
     <string>15.0</string>
     <key>UIDeviceFamily</key>
