@@ -36,11 +36,17 @@
     <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0'">win-x64;osx-arm64;osx-x64;linux-x64;linux-arm64</RuntimeIdentifiers>
     <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-android' and '$(RuntimeIdentifier)' == ''">android-arm64</RuntimeIdentifiers>
     <!-- iOS：Debug 默认面向模拟器，本机无需证书与预配文件即可编译 / 调试；Release 仍打包真机 ios-arm64。
-         必须用 RuntimeIdentifiers（复数）而不是 RuntimeIdentifier：iOS SDK 在两者同时设置时会清空单数
-         RuntimeIdentifier（本项目 TreatAsLocalProperty 使其可被清空），导致回落到真机默认并要求预配。
+         用 RuntimeIdentifiers（复数）给出默认值，避免回落真机默认并要求预配。
+         ⚠ 必须加 '$(RuntimeIdentifier)' == '' 条件：iOS SDK（Xamarin.Shared.Sdk.DefaultItems.targets 的
+         Architecture 段）在单数/复数同时非空时会【清空单数 RuntimeIdentifier】，而本项目 TreatAsLocalProperty
+         使该清空可以生效。Rider 的 iOS 运行配置是通过命令行把单数 RuntimeIdentifier=iossimulator-arm64
+         传进来的，一旦被清空，构建产物的 evaluatedProperties 里 rid 变成空串，
+         XamarinIOSDeploymentProvider 按 (tfm, rid) 取 AppBundleDir 就只能拿到 null，
+         于是构建成功却报「部署失败 / Backend did not return application bundle path」。
+         条件化后：命令行带 RID 时以命令行为准（单数保留），不带时用下面的复数默认值。
          调试真机时用 -p:RuntimeIdentifiers=ios-arm64 覆盖。 -->
-    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-ios' and '$(Configuration)' != 'Release'">iossimulator-arm64</RuntimeIdentifiers>
-    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-ios' and '$(Configuration)' == 'Release'">ios-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-ios' and '$(RuntimeIdentifier)' == '' and '$(Configuration)' != 'Release'">iossimulator-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-ios' and '$(RuntimeIdentifier)' == '' and '$(Configuration)' == 'Release'">ios-arm64</RuntimeIdentifiers>
     <!-- 移动端应用标识：Android 包名 / iOS Bundle Identifier（与桌面 macOS 包一致） -->
     <ApplicationId>com.yylmzxc.multigitcommit</ApplicationId>
     <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>

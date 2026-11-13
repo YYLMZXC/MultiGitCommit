@@ -189,6 +189,12 @@ dotnet build MultiGitCommit.csproj -c Release -p:IncludeMobile=true
 > Release 才打包真机 `ios-arm64`。调试真机时用 `-p:RuntimeIdentifiers=ios-arm64` 覆盖
 > （必须是复数 `RuntimeIdentifiers`：iOS SDK 在单数/复数同时设置时会清空单数，导致回落到真机并要求预配）。
 >
+> **Rider 报「部署失败 / Backend did not return application bundle path」**：Rider 的 iOS 运行配置是通过命令行
+> 把单数 `RuntimeIdentifier=iossimulator-arm64` 传进来的；iOS SDK 在单数、复数同时非空时会清空单数
+> （`Xamarin.Shared.Sdk.DefaultItems.targets` 的 Architecture 段），而本项目 `TreatAsLocalProperty` 让该清空生效，
+> 于是构建产物记录里 rid 变成空串，`XamarinIOSDeploymentProvider` 按 (tfm, rid) 取 `AppBundleDir` 只能拿到 null。
+> 因此 csproj 里 iOS 的 `RuntimeIdentifiers` 默认值都带 `'$(RuntimeIdentifier)' == ''` 条件（命令行带 RID 时以命令行为准），**勿删**。
+>
 > **iOS 真机签名（Release 失败的常见原因）**：真机包必须签名，缺少描述文件时报
 > `在 iOS 上找不到 <应用名> 的任何可用预配配置文件`（`Xamarin.Shared.targets`）。
 > 本机需先在 Xcode → Settings → Accounts 登录 Apple ID，为 `com.yylmzxc.multigitcommit` 生成并安装
