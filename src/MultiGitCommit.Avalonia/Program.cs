@@ -6,8 +6,8 @@ namespace MultiGitCommit;
 /// <summary>
 /// 桌面版程序入口（Avalonia 11 跨平台桌面应用，Windows / macOS / Linux 共用）。
 /// 移动端（Android / iOS）不使用本入口：Android 由 MainActivity、iOS 由 AppDelegate 启动。
-/// 三种模式：命令行已知命令 = CLI；带 -- 开头参数 = MCP Server（--stdio 等）；
-/// 不带参数 = 图形界面。
+/// 三种模式：首参数不以 - 开头 = CLI（未知命令报用法错误退出 2）；
+/// 带 -- 开头参数 = MCP Server（--stdio 等）；不带参数 = 图形界面。
 /// </summary>
 internal static class Program
 {

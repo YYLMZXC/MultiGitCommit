@@ -50,9 +50,12 @@ internal static class CliProgram
         "identity", "run", "git", "push", "pull", "clone", "init"
     };
 
-    /// <summary>第一个参数是已知 CLI 命令（不以 - 开头）即进入 CLI 模式。</summary>
+    /// <summary>
+    /// 第一个参数存在且不以 - 开头即进入 CLI 模式：
+    /// 已知命令按命令处理，未知词元报用法错误（退出码 2），而不是静默拉起图形界面。
+    /// </summary>
     public static bool IsCliCommand(string[] args)
-        => args.Length > 0 && Commands.Contains(args[0]);
+        => args.Length > 0 && !args[0].StartsWith('-');
 
     public static async Task<int> RunAsync(string[] args)
     {

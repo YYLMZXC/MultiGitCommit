@@ -369,6 +369,31 @@ MultiGitCommit.exe --help          # 全部参数与环境变量
 - 请求串行处理，避免进程内静态单例的并发冲突；clone 上限 30 分钟，部分 MCP 客户端可能提前超时。
 - 仅桌面 `net10.0`；Android / iOS 无法执行 git 子进程，不适用 MCP。
 
+## CLI 命令行（人机直接调用）
+
+与 MCP 同一套工具处理器，命令行直接调用软件能力，输出 JSON 文本（`ok` 字段表示成败，git 日志在 `log` 字段并已脱敏）：
+
+```powershell
+MultiGitCommit.exe status D:\path\to\repo                  # 分支 / 变更文件 / 身份 / 配置摘要
+MultiGitCommit.exe push  D:\path\to\repo -m "修复登录问题"   # 提交并推送全部远端（核心流程）
+MultiGitCommit.exe history D:\path\to\repo --limit 10      # 提交历史
+MultiGitCommit.exe run   D:\path\to\repo log -n 5 --oneline # 只读白名单 git 命令
+MultiGitCommit.exe help                                    # 全部命令
+```
+
+- 可用命令：`env` / `repos` / `status` / `config` / `history` / `identity get|set` / `run` / `push` / `pull` / `clone` / `init` / `help`。
+- 写命令在命令行执行即视为人工确认（等价 MCP 的 `confirm:true`）；退出码 0=成功 / 1=失败 / 2=用法错误。
+- 一个 exe 三种模式：**无参数 = GUI；子命令 = CLI；`--` 参数 = MCP Server**。
+
+## Agent Skill（AI 技能包）
+
+`skill/multigitcommit/` 内置 Agent 技能（SKILL.md + references/cli.md），让 CodeBuddy 等 AI 客户端
+自动学会定位 CLI 并按规范调用提交推送 / 拉取 / 查询等流程：
+
+- 仓库内分发：`skill/multigitcommit.zip`（已按技能规范校验打包）；
+- 安装为用户技能：把 `skill/multigitcommit/` 复制到 `~/.codebuddy/skills/multigitcommit/`，
+  或设置环境变量 `MULTIGITCOMMIT_CLI` 指向 `MultiGitCommit.exe`。
+
 ## 技术说明
 
 - **一套代码三个平台**：`net10.0` + Avalonia 11（`Avalonia.Desktop`、`Avalonia.Themes.Fluent`），不依赖 WPF / WinForms；
@@ -423,8 +448,13 @@ MultiGitCommit/
     │   │   ├── McpToolSet.cs                # 工具清单 / JSON Schema / confirm 与只读闸
     │   │   ├── McpToolHandlers.cs           # 14 个工具实现（统一调用 AppServices 组合根）
     │   │   └── McpSupport.cs                # 参数解析、日志脱敏缓冲、工具上下文
+    │   ├── Cli/CliProgram.cs                # 【CLI】子命令分派（复用 McpToolSet / Handlers），仅桌面 TFM 编译
+    │   ├── ConsoleAttach.cs                 # WinExe 附加父控制台（CLI / MCP 人类可读输出共用）
     │   ├── Fonts/ / res/ / git/             # 安卓中文字体 / 图标 / 便携 Git
     │   └── MultiGitCommit.csproj            # 多 TFM / RID / 发布配置
+    ├── skill/
+    │   ├── multigitcommit/                  # 【Agent Skill】SKILL.md + references/cli.md（供 AI 客户端学习使用 CLI）
+    │   └── multigitcommit.zip               # 已校验打包的可分发副本
     └── old-version/                 # 已归档的旧版实现（不再更新）
         ├── MultiGitCommit.NET/      # 旧 Windows WPF 版
         └── MultiGitCommit.MACOS/    # 旧 macOS 版
@@ -437,6 +467,7 @@ MultiGitCommit/
 - 命令与规则各有一份实现：clone 参数由 `GitCloneArguments` 同时供预览与执行使用，分支名规则由 `GitRefName` 供主界面与克隆对话框共用，工作区状态解析由 `GitStatusText` 供拉取与历史共用。
 - 模型只表示数据：`ProjectConfig` 的读写交给 `IProjectConfigStore`，`AppSettings` 的访问交给 `ISettingsProvider`。
 - 生命周期收口：视图离开可视树 / 窗口关闭时统一取消后台 git 任务并退订事件；git 环境切换时由环境服务自动让凭据助手缓存失效。
-- MCP Server 与 View 平级：同样只经 `AppSession → Services → IGitCliRunner` 访问业务，与 GUI 共用同一项目、
-  同一份逻辑层，不重复实现 git 命令与配置读写；桌面 `Program.Main` 检测到命令行参数时分派给 `McpProgram`，
-  移动 TFM 由 csproj 排除 `Mcp/` 目录。
+- MCP Server / CLI 与 View 平级：同样只经 `AppSession → Services → IGitCliRunner` 访问业务，与 GUI 共用同一项目、
+  同一份逻辑层，不重复实现 git 命令与配置读写；桌面 `Program.Main` 按命令行分派
+  （子命令 → CLI，`--` 参数 → MCP，无参数 → GUI），CLI 直接复用 `McpToolSet.CallAsync`，
+  移动 TFM 由 csproj 排除 `Mcp/`、`Cli/` 与 `ConsoleAttach.cs`。
