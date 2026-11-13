@@ -20,7 +20,8 @@
 - 桌面 `PublishSingleFile` 会把依赖打进主程序；**数据目录（如内嵌 git、字体资源、配置模板）必须 `ExcludeFromSingleFile="true"`**，否则运行时找不到同级文件夹。
 - 平台专属源码目录（如 `Platforms/**`）SDK 不自动过滤：先 `<Compile Remove="Platforms/**" />`，再按 TFM `<Compile Include="Platforms\Android\**\*.cs" />`；iOS 需要显式入口文件（如 `Platforms/iOS/Main.cs`）。
 - 移动端应用元数据：`ApplicationId` 同时作 Android 包名 / iOS BundleId；macOS `CFBundleShortVersionString` 只接受纯数字三段，构建时间戳这类字符串放到 `CFBundleVersion`。
-- **全局 `RuntimeIdentifier` 会泄漏到所有 TFM**：多目标（桌面 + android/ios）项目里，VS 发布配置或命令行 `-r win-x64` 是全局属性，会让移动 TFM 去还原不存在的 `Microsoft.NETCore.App.Runtime.Mono.win-x64`（NU1102）。项目根上加 `TreatAsLocalProperty="RuntimeIdentifier"`，再用按 TFM 条件的 PropertyGroup 把非移动 RID 清零（判断时用 `$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('android'))`，避免空值上调用实例方法报 MSB4184）。另外 `dotnet publish` 对多目标项目必须带 `-f <tfm>`，否则 `NETSDK1129`——加 `-p:PublishProfile=xxx` 也不能省略 `-f`。
+- **全局 `RuntimeIdentifier` 会泄漏到所有 TFM**：多目标（桌面 + android/ios）项目里，VS 发布配置或命令行 `-r win-x64` 是全局属性，会让移动 TFM 去还原不存在的 `Microsoft.NETCore.App.Runtime.Mono.win-x64`（NU1102）。项目根上加 `TreatAsLocalProperty="RuntimeIdentifier"`，再用按 TFM 条件的 PropertyGroup 把非移动 RID 归位（android → `android-arm64`，ios 清空；判断时用 `$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('android'))`，避免空值上调用实例方法报 MSB4184）。另外 `dotnet publish` 对多目标项目必须带 `-f <tfm>`，否则 `NETSDK1129`——加 `-p:PublishProfile=xxx` 也不能省略 `-f`。
+- **Android 的 `RuntimeIdentifiers` 保持单值**：多 RID（`android-arm64;android-x64`）会触发每 RID 内层构建，`Microsoft.Android.Resource.Designer` 程序集在该路径下没有 `RuntimeIdentifier` 元数据，`_ResolveAssemblies` 抛 `XAPRAS7009`；需要 x64 包时用 `-r android-x64`（并把 `RuntimeIdentifiers` 置空，因为 Android SDK 在 `RuntimeIdentifiers` 非空时忽略 `$(RuntimeIdentifier)`）。关闭 `AndroidUseDesignerAssembly` 不可行：依赖 `_Microsoft.Android.Resource.Designer` 的库（Avalonia.Android、HarfBuzzSharp 等）会直接报 `XA1034`。
 
 ## 3. 平台编译冲突
 
@@ -32,6 +33,7 @@
 ## 4. 工具链与验证习惯
 
 - **PowerShell 5.1 读取含中文注释的 `.ps1` 必须是 UTF-8 BOM**，否则注释按 ANSI 解析导致脚本异常；无 BOM 的 UTF-8 只在 PowerShell 7+ 可靠。
+- 项目目录里同时有 `.slnx` / `.sln` 时，`dotnet build -r <rid>` 会按解决方案解析并报 `NETSDK1134`（解决方案不支持指定 RID）；命令行要显式写 `<项目>.csproj`。
 - 纯逻辑改造加一个可直接运行的冒烟入口（例如 `--smoke`），把关键分支写成断言，验证时先 build 再跑冒烟，比只靠 UI 手点可靠。
 - 生成日志里的第三方警告（如 Avalonia 的 `AVLN3001`：窗口无 public 无参构造）若确认是设计使然，用 `NoWarn` 显式静默并写明原因，不要留着淹没真实错误。
 - 版本号可由构建时间自动生成并支持 `-p:Version=...` 覆盖；需要可复现构建时显式传版本。**同时有 `netX.0-android` / `netX.0-ios` 目标时，`Version` 必须纯数字且各 TFM 一致**——移动端 SDK 有一条「`ApplicationDisplayVersion` 能解析成 `System.Version` 就覆盖 `Version`」的规则，带后缀（如 `26.11.13-1311`）会使 `PackageVersion` 各 TFM 不同，NuGet 报 NU1105、资产文件被写成空壳（`"targets": {}`）进而报 NETSDK1005；构建时刻应放 `InformationalVersion`。这种不一致只有 Visual Studio 的 NuGet 会拒绝，`dotnet restore` / Rider 常放行，不能以「命令行能过」判定还原健康。

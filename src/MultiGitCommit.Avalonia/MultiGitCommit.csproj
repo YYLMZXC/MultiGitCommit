@@ -28,7 +28,7 @@
          移动端 dotnet publish -f net10.0-android -r android-arm64 / dotnet publish -f net10.0-ios -r ios-arm64。
          RuntimeIdentifiers 必须按 TFM 分别指定：桌面 RID 泄漏进移动端会触发 XA0035 / NETSDK1206。 -->
     <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0'">win-x64;osx-arm64;osx-x64;linux-x64;linux-arm64</RuntimeIdentifiers>
-    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-android'">android-arm64;android-x64</RuntimeIdentifiers>
+    <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-android' and '$(RuntimeIdentifier)' == ''">android-arm64</RuntimeIdentifiers>
     <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-ios'">ios-arm64</RuntimeIdentifiers>
     <!-- 移动端应用标识：Android 包名 / iOS Bundle Identifier（与桌面 macOS 包一致） -->
     <ApplicationId>com.yylmzxc.multigitcommit</ApplicationId>
@@ -58,9 +58,12 @@
   <!-- 桌面 RID 防泄漏：Visual Studio 发布配置 / 命令行 -r 会把桌面 RuntimeIdentifier（win-x64 等）
        当全局属性传进来，它会连带作用到移动 TFM 的还原图，让 NuGet 去找并不存在的
        Microsoft.NETCore.App.Runtime.Mono.win-x64（NU1102，还原直接失败）。
-       Project 上的 TreatAsLocalProperty 允许项目内复位该属性，这里只保留移动端自己的 RID（android* / ios*）。 -->
-  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android' or '$(TargetFramework)' == 'net10.0-ios'">
-    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' != '' and !$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('android')) and !$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('ios'))" />
+       Project 上的 TreatAsLocalProperty 允许项目内复位：android 归位到默认的 android-arm64，ios 清空（靠 RuntimeIdentifiers 取 ios-arm64）。 -->
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-android'">
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' != '' and !$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('android'))">android-arm64</RuntimeIdentifier>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-ios'">
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' != '' and !$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('ios'))" />
   </PropertyGroup>
 
   <!-- Windows 桌面：exe 文件图标（资源管理器 / 任务栏显示），必须是 .ico；

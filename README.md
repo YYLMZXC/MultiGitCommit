@@ -151,12 +151,34 @@ dotnet publish -c Release -f net10.0 -p:PublishProfile=FolderProfile
 > 它们已固定 `TargetFramework=net10.0`，不会把桌面目标/框架混进来。若自行新建配置文件，务必把「目标框架」选成 `net10.0`——
 > VS 若在未固定框架的情况下带上 `RuntimeIdentifier=win-x64`，该 RID 会泄漏到 Android / iOS 的还原图，
 > NuGet 会去找并不存在的 `Microsoft.NETCore.App.Runtime.Mono.win-x64` 并报 `NU1102`。
-> csproj 已用 `TreatAsLocalProperty="RuntimeIdentifier"` + 条件复位把泄漏到移动 TFM 的桌面 RID 清零，但不要依赖这层兜底。
+> csproj 已用 `TreatAsLocalProperty="RuntimeIdentifier"` + 条件复位把泄漏到移动 TFM 的桌面 RID 归位到 `android-arm64` / 清空，但不要依赖这层兜底。
 
 > 目标机器需已安装 .NET 10 运行时（非自包含）。需要完全独立分发时，追加 `-p:SelfContained=true` 即可（体积会大很多）。
 >
 > Linux 产物为可执行文件 `MultiGitCommit`（publish 已带执行位，若经压缩包 / U 盘拷贝丢失权限，执行 `chmod +x MultiGitCommit` 即可），
 > 与同目录的 `git/` 子目录一起分发；桌面图标可用任意 `.desktop` 文件指向该可执行文件。
+
+### 移动端构建
+
+```powershell
+# Android APK：默认只出 arm64（真机），产物 bin\Release\net10.0-android\android-arm64\*.apk
+dotnet build MultiGitCommit.csproj -f net10.0-android -c Release
+
+# x64 模拟器包：显式指定 RID
+dotnet build MultiGitCommit.csproj -f net10.0-android -c Release -r android-x64
+
+# iOS（需在 macOS 上构建）
+dotnet build MultiGitCommit.csproj -f net10.0-ios -c Release
+```
+
+> 命令里显式写 `MultiGitCommit.csproj`：该目录下有 `MultiGitCommit.slnx`，`dotnet build` 会优先按解决方案解析，
+> 带 `-r` 时直接报 `NETSDK1134`（解决方案不支持指定 RID）。
+
+> Android 的 `RuntimeIdentifiers` **只保留单个 RID**（`android-arm64`），要 x64 时用 `-r android-x64`。
+> 不要同时声明多个 Android RID：Android SDK 36.1.118 走「每 RID 内层构建」时，资源设计器程序集
+> `_Microsoft.Android.Resource.Designer.dll` 缺少 `RuntimeIdentifier` 元数据，`_ResolveAssemblies` 会抛
+> `XAPRAS7009: Assembly ... doesn't have the required RuntimeIdentifier metadata`。
+> Avalonia.Android 强制要求 `AndroidUseDesignerAssembly=true`（关掉会报 `XA1034`），所以只能靠单 RID 规避。
 
 ## 使用说明
 
