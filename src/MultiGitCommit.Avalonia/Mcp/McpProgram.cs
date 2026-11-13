@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -5,7 +6,12 @@ using MultiGitCommit;
 
 namespace MultiGitCommit.Mcp;
 
-internal static class Program
+/// <summary>
+/// MCP Server 入口逻辑（原独立项目 MultiGitCommit.Mcp 的 Program，合并进主项目后
+/// 由桌面 Program.Main 分派：MultiGitCommit.exe --stdio 等）。
+/// 仅桌面 TFM 编译（移动端无法执行 git 子进程，不参与 MCP）。
+/// </summary>
+internal static class McpProgram
 {
     private enum Mode { Stdio, Help, ListTools, SelfTest }
 
@@ -14,17 +20,18 @@ internal static class Program
     private const string Usage = """
         MultiGitCommit MCP Server（stdio transport，供外部 AI 客户端调用软件功能）
 
+        不带参数启动本程序 = 启动图形界面；带以下参数则运行 MCP 模式：
+
         用法：
-          MultiGitCommit.Mcp                 默认 stdio 模式（由 MCP 客户端拉起，不要手动运行）
-          MultiGitCommit.Mcp --stdio        显式指定 stdio 模式
-          MultiGitCommit.Mcp --self-test    自检：协议握手、工具清单、环境探测
-          MultiGitCommit.Mcp --list-tools   打印可用工具
-          MultiGitCommit.Mcp --help         显示本帮助
+          MultiGitCommit --stdio             MCP stdio 模式（由 MCP 客户端拉起，不要手动运行）
+          MultiGitCommit --self-test         自检：协议握手、工具清单、环境探测
+          MultiGitCommit --list-tools        打印可用工具
+          MultiGitCommit --help              显示本帮助
 
         选项：
-          --readonly                       只读模式：隐藏全部写工具
-          --git <路径>                     指定 git 可执行文件 / Git 根目录（覆盖软件设置）
-          --app-dir <目录>                 GUI 安装目录，用于复用其 git\ 子目录里的便携 Git
+          --readonly                        只读模式：隐藏全部写工具
+          --git <路径>                      指定 git 可执行文件 / Git 根目录（覆盖软件设置）
+          --app-dir <目录>                  GUI 安装目录，用于复用其 git\ 子目录里的便携 Git
 
         环境变量（与命令行选项等价，便于写在 MCP 客户端配置的 env 里）：
           MULTIGITCOMMIT_MCP_READONLY=1     只读模式
@@ -32,15 +39,21 @@ internal static class Program
           MULTIGITCOMMIT_MCP_APP_DIR=<目录> GUI 安装目录
           MULTIGITCOMMIT_MCP_DEBUG=1        把诊断日志写到 stderr（stdout 始终只承载 JSON-RPC）
 
-        全局设置 settings.json、每仓库 multigitcommit.config.json 与 GUI 版共用；
+        全局设置 settings.json、每仓库 multigitcommit.config.json 与图形界面共用；
         MCP 不会读取或返回任何保存的令牌。
         """;
 
-    private static async Task<int> Main(string[] args)
+    /// <summary>命令行里出现任何已知 MCP 参数即进入 MCP 模式，否则按图形界面启动。</summary>
+    public static bool IsMcpArgs(string[] args)
+        => args.Any(static a => a.StartsWith('-'));
+
+    /// <summary>MCP 模式主流程，返回进程退出码。</summary>
+    public static async Task<int> RunAsync(string[] args)
     {
         (Mode mode, McpOptions options, string? error) = Parse(args);
         if (error != null)
         {
+            AttachParentConsole();
             Console.Error.WriteLine(error);
             Console.Error.WriteLine(Usage);
             return 2;
@@ -48,7 +61,8 @@ internal static class Program
 
         if (mode != Mode.Stdio)
         {
-            // 仅人类可读输出模式设置编码；stdio 模式绝不碰 Console.OutputEncoding
+            // 仅人类可读输出模式设置编码并附加控制台；stdio 模式绝不碰 Console.OutputEncoding
+            AttachParentConsole();
             Console.OutputEncoding = new UTF8Encoding(false);
         }
 
@@ -90,10 +104,38 @@ internal static class Program
         catch (Exception ex)
         {
             // stdio 模式下的错误只走 stderr，避免破坏协议帧
-            Console.Error.WriteLine("[MultiGitCommit.Mcp] 服务异常：" + ex);
+            Console.Error.WriteLine("[MultiGitCommit] MCP 服务异常：" + ex);
             return 1;
         }
     }
+
+    /// <summary>
+    /// 主程序是 WinExe，从终端直接运行 --help / --list-tools / --self-test 时没有自己的控制台。
+    /// Windows 下附加启动它的父控制台（PowerShell / cmd），否则输出不可见。
+    /// stdout / stderr 已被重定向（MCP 客户端、脚本捕获）时保留继承的管道句柄，不做附加。
+    /// macOS / Linux 的可执行文件天然共享终端，无需处理。
+    /// </summary>
+    private static void AttachParentConsole()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        if (Console.IsOutputRedirected || Console.IsErrorRedirected) return;
+        try
+        {
+            if (!AttachConsole(AttachParentProcess)) return;
+            // 附加成功后重开标准流，Console.WriteLine 才会写到父控制台
+            Console.SetOut(new StreamWriter(Console.OpenStandardOutput()) { AutoFlush = true });
+            Console.SetError(new StreamWriter(Console.OpenStandardError()) { AutoFlush = true });
+        }
+        catch
+        {
+            // 无父控制台（如双击启动 / 图形化拉起）时忽略
+        }
+    }
+
+    private const int AttachParentProcess = unchecked((int)0xFFFFFFFF); // ATTACH_PARENT_PROCESS
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AttachConsole(int processId);
 
     private static (Mode, McpOptions, string?) Parse(string[] args)
     {
@@ -137,8 +179,9 @@ internal static class Program
     }
 
     /// <summary>
-    /// 让 MCP 进程使用与 GUI 相同的 git 来源。MCP 输出目录没有随 GUI 分发的 git\ 子目录，
-    /// 因此额外支持 --git / --app-dir；未指定时按共享设置解析，失败再退回自动检测。
+    /// 让 MCP 进程使用与图形界面相同的 git 来源。合并后 MCP 与 GUI 是同一个 exe，
+    /// 输出目录自带 git\ 子目录，GitLocator 的 Embedded / Auto 模式会自动优先使用；
+    /// --git / --app-dir 仅作覆盖备用。
     /// </summary>
     private static void InitializeGitEnvironment(McpOptions options)
     {

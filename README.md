@@ -282,28 +282,29 @@ Git 来源等全局设置（与仓库无关）保存在 **`settings.json`**，�
 
 ## MCP 支持（外部 AI 调用软件）
 
-`src/MultiGitCommit.Mcp` 是独立的 .NET 10 控制台程序，实现 **MCP（Model Context Protocol）over stdio**。
+MCP Server（**MCP（Model Context Protocol）over stdio**）已合并进主项目 `src/MultiGitCommit.Avalonia/Mcp/`，
+与图形界面是同一个 exe：**不带参数启动 = 图形界面；带 MCP 参数 = MCP Server**。
 外部 AI 客户端（Claude Desktop、Cursor、Cline、CodeBuddy 等）拉起它之后，可以直接调用本软件的能力：
 查仓库状态 / 历史 / 配置、执行只读 git 命令、提交并推送到全部远端、拉取、克隆、初始化仓库、设置提交身份。
 
-- **同一套逻辑**：项目通过 csproj 的 `<Compile Include>` 链接 GUI 项目里 `Abstractions/`、`Services/`、`Models/`、`Settings/`
-  等纯逻辑源码，不复制业务代码、不引用 Avalonia；并且共用同一份全局 `settings.json` 和每个仓库的
+- **同一套逻辑**：MCP 代码与 GUI 同在一个项目、同一份二进制，共用同一份全局 `settings.json` 和每个仓库的
   `multigitcommit.config.json`——GUI 里配置的 git 来源、凭据来源、推送远端对 MCP 直接生效。
 - **零第三方依赖**：只用 BCL 实现 JSON-RPC 2.0 与 MCP stdio（`initialize`、`ping`、`tools/list`、`tools/call`、
   工具注解、日志 / 资源 / 提示词空清单），离线即可构建，不把 Avalonia / ASP.NET Core 拖进无界面进程。
 - **stdout 只承载协议**：git 子进程的 stdout / stderr 由 `GitCliRunner` 全部重定向；命令日志经
   `GitCredentials.MaskText` 脱敏后作为工具结果的 `log` 字段返回，诊断信息只写 stderr。
+- **仅桌面编译**：`Mcp/` 目录在移动 TFM（android / ios）中被 csproj 排除（移动端无法执行 git 子进程）。
 
 ### 构建
 
+MCP 随主项目一起构建，无需单独项目：
+
 ```powershell
-cd src\MultiGitCommit.Mcp
-dotnet build
-dotnet publish -c Release -r win-x64     # 单文件（依赖框架），目标机器需 .NET 10 运行时
+dotnet publish src\MultiGitCommit.Avalonia\MultiGitCommit.csproj -c Release -r win-x64
 ```
 
-- Debug 产物：`src\MultiGitCommit.Mcp\bin\Debug\net10.0\MultiGitCommit.Mcp.exe`
-- Release 产物：`src\MultiGitCommit.Mcp\bin\Release\net10.0\win-x64\publish\MultiGitCommit.Mcp.exe`
+- Release 产物（单文件，依赖框架）：`src\MultiGitCommit.Avalonia\bin\Release\net10.0\win-x64\publish\MultiGitCommit.exe`，
+  内含 GUI + MCP，同目录自带 `git\` 便携 Git。
 - macOS / Linux 把 RID 换成 `osx-arm64`、`osx-x64`、`linux-x64`、`linux-arm64` 等，产物为无扩展名可执行文件。
 
 ### MCP 客户端配置
@@ -314,27 +315,26 @@ dotnet publish -c Release -r win-x64     # 单文件（依赖框架），目标�
 {
   "mcpServers": {
     "multigitcommit": {
-      "command": "D:/sc/MultiGitCommit/src/MultiGitCommit.Mcp/bin/Release/net10.0/win-x64/publish/MultiGitCommit.Mcp.exe",
-      "args": ["--stdio"],
-      "env": {
-        "MULTIGITCOMMIT_MCP_APP_DIR": "D:/path/to/MultiGitCommit-publish"
-      }
+      "command": "D:/path/to/publish/MultiGitCommit.exe",
+      "args": ["--stdio"]
     }
   }
 }
 ```
 
-`MULTIGITCOMMIT_MCP_APP_DIR` 指向 GUI 发布目录（内含 `git\` 子目录），让 MCP 进程复用 GUI 自带的便携 Git；
-机器已装系统 Git、或在【Git 环境】里已指定 git 路径时不需要。也可用 `--git <路径>` /
-`MULTIGITCOMMIT_MCP_GIT` 显式指定 git；把 MCP exe 与 GUI exe 放在同一目录时，`GitLocator` 会自动找到同级的 `git\`。
-开发调试可把客户端的 `command` / `args` 换成 `dotnet` / `run --project <csproj> -- --stdio`。
+MCP 进程与 GUI 是同一个 exe，会自动找到 exe 同级的 `git\` 便携 Git（`GitLocator` 的 Embedded / Auto 模式），
+一般无需额外环境变量；机器已装系统 Git、或在【Git 环境】里已指定 git 路径时也一样直接生效。
+也可用 `--git <路径>` / `MULTIGITCOMMIT_MCP_GIT` 显式指定 git，或 `--app-dir` / `MULTIGITCOMMIT_MCP_APP_DIR`
+指向另一个含 `git\` 子目录的安装目录。
+开发调试可把客户端的 `command` / `args` 换成 `dotnet` / `run --project src/MultiGitCommit.Avalonia -- --stdio`
+（会同时拉起 GUI 项目编译，仅限桌面 TFM）。
 
-不接客户端时的自检：
+不接客户端时的自检（从终端运行时程序会自动附加父控制台，输出可见；被重定向捕获时同样正常）：
 
 ```powershell
-MultiGitCommit.Mcp.exe --self-test     # 协议握手 / 工具清单 / git 环境探测
-MultiGitCommit.Mcp.exe --list-tools    # 打印全部工具
-MultiGitCommit.Mcp.exe --help          # 全部参数与环境变量
+MultiGitCommit.exe --self-test     # 协议握手 / 工具清单 / git 环境探测
+MultiGitCommit.exe --list-tools    # 打印全部工具
+MultiGitCommit.exe --help          # 全部参数与环境变量
 ```
 
 ### 工具清单
@@ -417,15 +417,14 @@ MultiGitCommit/
     │   ├── GitCredentialHelper.cs           # credential.helper 可用性检测与自动覆盖
     │   ├── SystemCredentialProbe.cs / CredentialTester.cs  # 系统凭据探测 / 账号实测
     │   ├── Platforms/Android|iOS/           # 移动入口与清单（按 TFM 显式编译）
+    │   ├── Mcp/                             # 【MCP Server】与 GUI 同一 exe，按命令行参数分派（仅桌面 TFM 编译）
+    │   │   ├── McpProgram.cs                # MCP 入口：参数解析、模式分派、git 环境初始化、自检
+    │   │   ├── McpProtocol.cs               # JSON-RPC 2.0 + MCP 方法分派（stdout 单帧协议）
+    │   │   ├── McpToolSet.cs                # 工具清单 / JSON Schema / confirm 与只读闸
+    │   │   ├── McpToolHandlers.cs           # 14 个工具实现（统一调用 AppServices 组合根）
+    │   │   └── McpSupport.cs                # 参数解析、日志脱敏缓冲、工具上下文
     │   ├── Fonts/ / res/ / git/             # 安卓中文字体 / 图标 / 便携 Git
     │   └── MultiGitCommit.csproj            # 多 TFM / RID / 发布配置
-    ├── MultiGitCommit.Mcp/         # 【MCP Server】net10.0 控制台（stdio），供外部 AI 调用软件
-    │   ├── Program.cs              # 入口：参数解析、git 环境初始化、自检
-    │   ├── McpProtocol.cs          # JSON-RPC 2.0 + MCP 方法分派（stdout 单帧协议）
-    │   ├── McpToolSet.cs           # 工具清单 / JSON Schema / confirm 与只读闸
-    │   ├── McpToolHandlers.cs      # 14 个工具实现（统一调用 AppServices 组合根）
-    │   ├── McpSupport.cs           # 参数解析、日志脱敏缓冲、工具上下文
-    │   └── MultiGitCommit.Mcp.csproj  # 链接 GUI 纯逻辑源码（不引用 Avalonia）
     └── old-version/                 # 已归档的旧版实现（不再更新）
         ├── MultiGitCommit.NET/      # 旧 Windows WPF 版
         └── MultiGitCommit.MACOS/    # 旧 macOS 版
@@ -438,4 +437,6 @@ MultiGitCommit/
 - 命令与规则各有一份实现：clone 参数由 `GitCloneArguments` 同时供预览与执行使用，分支名规则由 `GitRefName` 供主界面与克隆对话框共用，工作区状态解析由 `GitStatusText` 供拉取与历史共用。
 - 模型只表示数据：`ProjectConfig` 的读写交给 `IProjectConfigStore`，`AppSettings` 的访问交给 `ISettingsProvider`。
 - 生命周期收口：视图离开可视树 / 窗口关闭时统一取消后台 git 任务并退订事件；git 环境切换时由环境服务自动让凭据助手缓存失效。
-- MCP Server 与 View 平级：同样只经 `AppSession → Services → IGitCliRunner` 访问业务，通过源码链接复用逻辑层，不重复实现 git 命令与配置读写。
+- MCP Server 与 View 平级：同样只经 `AppSession → Services → IGitCliRunner` 访问业务，与 GUI 共用同一项目、
+  同一份逻辑层，不重复实现 git 命令与配置读写；桌面 `Program.Main` 检测到命令行参数时分派给 `McpProgram`，
+  移动 TFM 由 csproj 排除 `Mcp/` 目录。
