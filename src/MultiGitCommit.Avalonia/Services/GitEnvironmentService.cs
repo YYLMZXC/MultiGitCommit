@@ -12,6 +12,9 @@ public sealed class GitEnvironmentSnapshot
     /// <summary>来源描述（含路径与版本）。</summary>
     public string Description { get; init; } = string.Empty;
 
+    /// <summary>非交互 ssh 的完整路径；未找到时为 null。</summary>
+    public string? SshExe { get; init; }
+
     /// <summary>状态栏文本。</summary>
     public string StatusText => Available
         ? $"Git：{GitExePath}"
@@ -35,6 +38,9 @@ public interface IGitEnvironmentService
     /// <summary>执行命令用的 git 文件名。</summary>
     string GitExe { get; }
 
+    /// <summary>当前生效环境的完整快照（不触发重新解析；状态栏、MCP env 工具共用一份数据）。</summary>
+    GitEnvironmentSnapshot Describe();
+
     /// <summary>按设置重新解析 git，同时让凭据助手扫描缓存失效，返回展示快照。</summary>
     GitEnvironmentSnapshot Refresh(GitSourceMode mode, string? customPath);
 
@@ -55,17 +61,20 @@ public sealed class GitEnvironmentService : IGitEnvironmentService
 
     public string GitExe => GitLocator.GitExe;
 
+    public GitEnvironmentSnapshot Describe() => new()
+    {
+        Available = GitLocator.GitExePath != null,
+        GitExePath = GitLocator.GitExePath,
+        Description = GitLocator.Description,
+        SshExe = GitLocator.Current.SshExe
+    };
+
     public GitEnvironmentSnapshot Refresh(GitSourceMode mode, string? customPath)
     {
         // git 变了，凭据助手的扫描结果也失效；由服务统一保证，调用方无需记得手工调用
         InvalidateCredentialHelpers();
-        bool ok = GitLocator.Resolve(mode, customPath);
-        return new GitEnvironmentSnapshot
-        {
-            Available = ok,
-            GitExePath = GitLocator.GitExePath,
-            Description = GitLocator.Description
-        };
+        GitLocator.Resolve(mode, customPath);
+        return Describe();
     }
 
     public void InvalidateCredentialHelpers() => GitCredentialHelper.Invalidate();

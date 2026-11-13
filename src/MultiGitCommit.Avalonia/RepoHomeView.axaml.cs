@@ -26,8 +26,11 @@ public partial class RepoHomeView : UserControl
     /// <summary>宿主项目页（打开仓库 / 选目录回调）。</summary>
     private MainView? _host;
 
-    /// <summary>应用设置来源（最近项目记录与默认启动页）。</summary>
-    private ISettingsProvider _settings = SettingsProvider.Instance;
+    /// <summary>应用设置来源（只读展示；由宿主会话注入）。</summary>
+    private ISettingsProvider _settings = AppServices.Current.Settings;
+
+    /// <summary>设置的变更与落盘（最近项目 / 默认启动页），规则不在视图里。</summary>
+    private AppSettingsService _settingsEditor = AppServices.Current.SettingsEditor;
 
     /// <summary>最近打开的项目（绑定到 ListRecent，含名称、完整路径与当前分支）。</summary>
     private readonly ObservableCollection<RepoHomeItem> _recent = new();
@@ -58,10 +61,11 @@ public partial class RepoHomeView : UserControl
     /// 宿主注入：本视图由 MainView 的 XAML 静态创建（构造时尚未完成宿主字段初始化），
     /// 因此在 MainView 构造流程中回填依赖并做首次刷新。
     /// </summary>
-    internal void Attach(MainView host, ISettingsProvider settings)
+    internal void Attach(MainView host, AppSession session)
     {
         _host = host;
-        _settings = settings;
+        _settings = session.Settings;
+        _settingsEditor = session.SettingsEditor;
         RefreshRecent();
         RefreshStartPageRadios();
     }
@@ -102,15 +106,13 @@ public partial class RepoHomeView : UserControl
     private void RemoveRecent_Click(object? sender, RoutedEventArgs e)
     {
         if ((sender as AvaloniaButton)?.DataContext is not RepoHomeItem item) return;
-        _settings.Current.RecentRepoPaths.RemoveAll(p => string.Equals(p, item.RepoPath, StringComparison.Ordinal));
-        SaveSettingsQuiet();
+        _settingsEditor.TryRemoveRecent(item.RepoPath, out _);
         RefreshRecent();
     }
 
     private void BtnClearRecent_Click(object? sender, RoutedEventArgs e)
     {
-        _settings.Current.RecentRepoPaths.Clear();
-        SaveSettingsQuiet();
+        _settingsEditor.TryClearRecent(out _);
         RefreshRecent();
     }
 
@@ -230,23 +232,8 @@ public partial class RepoHomeView : UserControl
     private void StartPage_Changed(object? sender, RoutedEventArgs e)
     {
         if (_loadingStartPage) return;
-        _settings.Current.DefaultStartPage = RadioStartHome.IsChecked == true
-            ? StartPageMode.RepoHome
-            : StartPageMode.RepoPage;
-        SaveSettingsQuiet();
-    }
-
-    /// <summary>保存设置；失败不影响当前使用（下次改动会再次尝试）。</summary>
-    private void SaveSettingsQuiet()
-    {
-        try
-        {
-            _settings.Save();
-        }
-        catch (Exception)
-        {
-            // 保存失败不影响当前使用
-        }
+        _settingsEditor.TrySetDefaultStartPage(
+            RadioStartHome.IsChecked == true ? StartPageMode.RepoHome : StartPageMode.RepoPage, out _);
     }
 }
 

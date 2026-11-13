@@ -547,8 +547,14 @@ MultiGitCommit/
 
 分层约定（高内聚 / 低耦合）：
 
-- 依赖方向单一：`View → AppSession → Services → IGitCliRunner`；静态默认值只在 `AppServices` 组合根出现一次。
-- 视图只做参数收集、确认与展示；不拼 git 命令、不判断操作系统、不读写配置文件、不直接摸 `GitLocator` 等全局状态。
+- 依赖方向单一：`View → AppSession → Services → IGitCliRunner`；静态默认值只在 `AppServices` 组合根出现一次，凭据探测等辅助类也只从组合根取执行器。
+- 视图只做参数收集、确认与展示；不拼 git 命令、不读写配置文件、不直接摸 `GitLocator` 等全局状态，操作系统判断只用于生成提示文案。
+- 会话级策略服务由组合根统一装配，视图只消费结构化结果：
+  - `AppSettingsService`：设置字段写回、落盘与失败处理；最近项目去重 / 置顶 / 上限、默认启动页、提交身份保存；
+  - `StartupRepoResolver`：启动仓库定位，返回 `StartupRepoDecision`，视图只把 `Reason` 翻成文案；
+  - `RepoSessionService`：仓库校验、根目录解析、项目配置加载与最近项目记忆，返回 `RepoLoadResult`；
+  - `RemoteUrlPolicy`：远端 URL 清洗、脱敏占位符拒绝、去重与数量上限；GUI 添加 / 编辑 / 克隆与 MCP `set_config`、`clone_repo` 共用同一规则源（MCP 额外启用「禁止内嵌凭据」）；
+  - `IGitEnvironmentService.Describe()`：状态栏与 MCP `get_git_environment` 共用同一份环境快照。
 - 命令与规则各有一份实现：clone 参数由 `GitCloneArguments` 同时供预览与执行使用，分支名规则由 `GitRefName` 供主界面与克隆对话框共用，工作区状态解析由 `GitStatusText` 供拉取与历史共用。
 - 模型只表示数据：`ProjectConfig` 的读写交给 `IProjectConfigStore`，`AppSettings` 的访问交给 `ISettingsProvider`。
 - 生命周期收口：视图离开可视树 / 窗口关闭时统一取消后台 git 任务并退订事件；git 环境切换时由环境服务自动让凭据助手缓存失效。

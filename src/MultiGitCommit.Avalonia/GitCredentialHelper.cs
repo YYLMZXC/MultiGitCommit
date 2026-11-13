@@ -263,7 +263,7 @@ public static class GitCredentialHelper
     {
         var helpers = new List<string>();
 
-        GitCommandResult result = GitCliRunner.Default.Run(new GitCommandRequest
+        GitCommandResult result = AppServices.Current.Cli.Run(new GitCommandRequest
         {
             Arguments = "config --get-all credential.helper",
             Timeout = TimeSpan.FromSeconds(5)

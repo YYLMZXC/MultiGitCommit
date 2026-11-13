@@ -174,14 +174,14 @@ public partial class MainView : UserControl
         // 解析 git 来源（内嵌 / 自动检测 / 系统 PATH / 指定路径），不依赖系统安装 git
         RefreshGitEnvironment();
 
-        // 启动仓库定位：按设置决定「当前目录优先」还是「上次使用的仓库优先」
-        string? startup = ResolveStartupRepoPath(out string startupMessage);
-        TxtRepoPath.Text = startup ?? string.Empty;
-        if (startupMessage.Length > 0) Log(startupMessage);
+        // 启动仓库定位：判定策略在 StartupRepoResolver，视图只回填输入框与提示文案
+        StartupRepoDecision startup = _app.StartupRepo.Resolve();
+        TxtRepoPath.Text = startup.Path ?? string.Empty;
+        Log(FormatStartupMessage(startup));
 
         // 仓库管理首页注入回调（覆盖层随 XAML 创建）；当前目录无仓库且默认页设为「仓库管理页」时启动即进首页
-        HomeView.Attach(this, _settings);
-        if (startup == null && _settings.Current.DefaultStartPage == StartPageMode.RepoHome)
+        HomeView.Attach(this, _app);
+        if (startup.Path == null && _settings.Current.DefaultStartPage == StartPageMode.RepoHome)
         {
             Log(Loc.T("已打开仓库管理首页：可从最近项目或自动发现的仓库中快速进入项目页。"));
             ShowHomePage();
@@ -317,30 +317,29 @@ public partial class MainView : UserControl
             BtnDeleteRemote.IsEnabled = false;
             BtnOpenRemote.IsEnabled = false;
 
-            if (string.IsNullOrWhiteSpace(path))
-                return;
-
-            if (!EnsureGitAvailable()) return;
-
-            // 校验是否为合法 git 仓库，并取真正的仓库根目录（判定细节统一在 RepoLocator 内）
-            string? repoRoot = _repoLocator.TryResolve(path, out string resolveError);
-            if (repoRoot == null)
+            // 校验、根目录解析、配置读取、最近项目记忆统一在 RepoSessionService
+            RepoLoadResult result = _app.RepoSession.Load(path);
+            switch (result.Failure)
             {
-                Log(resolveError.StartsWith(Loc.T("目录不存在"), StringComparison.Ordinal)
-                    ? resolveError
-                    : Loc.F($"不是合法的 git 仓库目录：{path}（未发现有效的 .git 仓库）"));
-
-                // 输出 git 的真实报错（权限不足 / 目录不可访问 / 进程启动失败等），便于定位
-                if (resolveError.Length > 0 && !resolveError.StartsWith(Loc.T("目录不存在"), StringComparison.Ordinal))
-                    Log(Loc.T("       git 返回：") + resolveError);
-                return;
+                case RepoLoadFailure.EmptyPath:
+                    return;
+                case RepoLoadFailure.GitUnavailable:
+                    Log(Loc.T("流程终止：未找到可用的 git，请点击【Git 环境】按钮配置（自动检测 / 系统 PATH / 指定路径 / 内嵌 Git）。"));
+                    return;
+                case RepoLoadFailure.DirectoryMissing:
+                    Log(result.GitError);
+                    return;
+                case RepoLoadFailure.NotRepo:
+                    Log(Loc.F($"不是合法的 git 仓库目录：{result.InputPath}（未发现有效的 .git 仓库）"));
+                    // 输出 git 的真实报错（权限不足 / 目录不可访问 / 进程启动失败等），便于定位
+                    if (result.GitError.Length > 0) Log(Loc.T("       git 返回：") + result.GitError);
+                    return;
             }
 
+            string repoRoot = result.RepoRoot!;
             _repoRoot = repoRoot;
             _loadedInputPath = repoRoot;
-
-            // 记住该仓库，下次启动自动载入它的项目配置
-            RememberRepoPath(repoRoot);
+            _config = result.Config;
 
             // 输入的是子目录时回填真正的仓库根目录，保证配置文件始终与 .git 同级、git add . 在根执行
             if (!string.Equals(path, repoRoot, StringComparison.Ordinal))
@@ -349,10 +348,7 @@ public partial class MainView : UserControl
                 TxtRepoPath.Text = repoRoot;
             }
 
-            // 读取本项目独立配置；不存在则返回空白配置（首次保存时才写入文件）
-            _config = _configs.Load(repoRoot);
-
-            foreach (var url in _config.RemoteUrls)
+            foreach (var url in _config!.RemoteUrls)
             {
                 if (!string.IsNullOrWhiteSpace(url))
                     _remotes.Add(url);
@@ -632,16 +628,25 @@ public partial class MainView : UserControl
         var cloneView = new CloneView(initialDir);
         if (await UiDialogs.ShowAsync<bool?>(this, cloneView, Loc.T("克隆项目")) != true) return;
 
-        // 去掉粘贴时可能带上的引号 / 空白，否则 git clone 会拿到变形的 URL
-        string url = GitCredentials.NormalizeUrl(cloneView.RepoUrl);
-        string parentDir = cloneView.ParentDir;
-        string targetDir = cloneView.TargetDir;
-
-        if (url.Length == 0)
+        // 去掉粘贴时可能带上的引号 / 空白，否则 git clone 会拿到变形的 URL；
+        // 清洗规则与远端列表、MCP clone_repo 共用 RemoteUrlPolicy
+        string rawUrl = cloneView.RepoUrl?.Trim() ?? string.Empty;
+        if (rawUrl.Length == 0)
         {
             Log(Loc.T("克隆地址为空，已取消。"));
             return;
         }
+
+        string? normalizedUrl = _app.RemoteUrls.Normalize(rawUrl, rejectEmbeddedCredentials: false, out string urlError);
+        if (normalizedUrl == null)
+        {
+            Log(urlError);
+            return;
+        }
+
+        string url = normalizedUrl;
+        string parentDir = cloneView.ParentDir;
+        string targetDir = cloneView.TargetDir;
 
         BtnClone.IsEnabled = false;
         try
@@ -673,16 +678,19 @@ public partial class MainView : UserControl
                 {
                     Log(Loc.T("警告：项目配置未加载，未能将该 URL 写入推送远端列表。"));
                 }
-                else if (_config.RemoteUrls.Contains(url))
-                {
-                    Log(Loc.F($"推送远端列表中已存在该 URL：{url}"));
-                }
                 else
                 {
-                    _config.RemoteUrls.Add(url);
-                    RefreshRemoteList();
-                    SaveConfig();
-                    Log(Loc.F($"已将该 URL 添加到推送远端列表：{url}"));
+                    RemoteUrlChange change = _app.RemoteUrls.Add(_config, url);
+                    if (!change.Changed)
+                    {
+                        Log(change.Message);
+                    }
+                    else
+                    {
+                        RefreshRemoteList();
+                        SaveConfig();
+                        Log(Loc.F($"已将该 URL 添加到推送远端列表：{url}"));
+                    }
                 }
             }
 
@@ -710,21 +718,18 @@ public partial class MainView : UserControl
         var settingsView = new GitSettingsView(_settings.Current, _config?.RemoteUrls, _repoRoot, _app);
         if (await UiDialogs.ShowAsync<bool?>(this, settingsView, Loc.T("Git 环境设置")) != true) return;
 
-        _settings.Current.GitSource = settingsView.SelectedSource;
-        _settings.Current.CustomGitPath = settingsView.SelectedCustomPath;
-        _settings.Current.CredentialSource = settingsView.SelectedCredentialSource;
-        _settings.Current.StartupRepo = settingsView.SelectedStartupRepo;
-        _settings.Current.StageMode = settingsView.SelectedStageMode;
-        _settings.Current.Language = settingsView.SelectedLanguage;
-        try
-        {
-            _settings.Save();
-            Log(Loc.F($"已保存 Git 环境设置：{_settings.Current.SettingsFilePath}"));
-        }
-        catch (Exception ex)
-        {
-            Log(Loc.F($"保存 Git 环境设置失败：{ex.Message}"));
-        }
+        // 字段写回与落盘策略统一在 AppSettingsService，视图只展示结果
+        var update = new EnvironmentSettingsUpdate(
+            settingsView.SelectedSource,
+            settingsView.SelectedCustomPath,
+            settingsView.SelectedCredentialSource,
+            settingsView.SelectedStartupRepo,
+            settingsView.SelectedStageMode,
+            settingsView.SelectedLanguage);
+        bool saved = _app.SettingsEditor.TryApplyEnvironmentSettings(update, out string saveError);
+        Log(saved
+            ? Loc.F($"已保存 Git 环境设置：{_settings.Current.SettingsFilePath}")
+            : Loc.F($"保存 Git 环境设置失败：{saveError}"));
 
         // 语言必须先落盘再切换：SetLanguage 会通知 App 重写 XAML 资源字典，整页文案立即刷新；
         // 已输出的日志属于历史记录，保持原语言不回译。
@@ -945,14 +950,13 @@ public partial class MainView : UserControl
             Loc.T("请输入推送远端 URL（支持 ssh/https 格式，例如 https://gitee.com/user/repo.git）："), string.Empty);
         if (text == null) return;
 
-        // 去掉粘贴时可能带上的引号 / 空白，避免写入脏 URL 后推送与验证都失败
-        string url = GitCredentials.NormalizeUrl(text);
-        if (url.Length == 0) { Log(Loc.T("远端 URL 不能为空。")); return; }
-        if (_config.RemoteUrls.Contains(url)) { Log(Loc.F($"远端 URL 已存在：{url}")); return; }
+        // URL 清洗、去重与上限规则统一在 RemoteUrlPolicy（MCP set_config 同源）
+        RemoteUrlChange change = _app.RemoteUrls.Add(_config, text);
+        if (change.Message.Length > 0) { Log(change.Message); return; }
+        if (!change.Changed) return;
 
-        _config.RemoteUrls.Add(url);
         RefreshRemoteList();
-        Log(Loc.F($"已添加远端：{url}"));
+        Log(Loc.F($"已添加远端：{change.Url}"));
         SaveConfig();
     }
 
@@ -971,12 +975,12 @@ public partial class MainView : UserControl
         var text = await Dialogs.PromptAsync(this, Loc.T("编辑远端"), Loc.T("修改远端 URL："), oldUrl);
         if (text == null) return;
 
-        string url = GitCredentials.NormalizeUrl(text);
-        if (url.Length == 0) { Log(Loc.T("远端 URL 不能为空。")); return; }
+        RemoteUrlChange change = _app.RemoteUrls.Replace(_config, index, text);
+        if (change.Message.Length > 0) { Log(change.Message); return; }
+        if (!change.Changed) return;
 
-        _config.RemoteUrls[index] = url;
         RefreshRemoteList();
-        Log(Loc.F($"已修改远端：{oldUrl} → {url}"));
+        Log(Loc.F($"已修改远端：{change.PreviousUrl} → {change.Url}"));
         SaveConfig();
     }
 
@@ -1339,89 +1343,26 @@ public partial class MainView : UserControl
     // ==================== 启动仓库定位（记住上次项目） ====================
 
     /// <summary>
-    /// 决定启动时默认加载哪个仓库目录，顺序由设置「启动时加载的仓库」决定：
-    /// 「只读取当前目录」（默认）：
-    /// 1) 当前目录（含程序自身目录）向上最近的 .git / multigitcommit.config.json 所在目录，
-    ///    使 IDE 调试或把程序放在仓库内的场景直接加载当前仓库；
-    /// 2) 当前目录不在仓库内时，不自动打开上次项目，也不填入一个必然无效的路径，
-    ///    留空由用户点【浏览】选择。
-    /// 「上次使用的仓库优先」：1) 上次成功加载过的仓库；2) 再走上面的当前目录逻辑。
-    /// 「当前目录优先，找不到时回退」：先走当前目录逻辑，找不到再回退到上次使用的仓库。
+    /// 把 <see cref="StartupRepoResolver"/> 的结构化决策翻成启动日志文案。
+    /// 判定规则与顺序在服务层，这里只负责展示（含平台相关的操作提示）。
     /// </summary>
-    private string? ResolveStartupRepoPath(out string message)
+    private static string FormatStartupMessage(StartupRepoDecision decision) => decision.Reason switch
     {
-        string cwd = Environment.CurrentDirectory;
-        string baseDir = AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar);
-        string cwdFull = string.IsNullOrWhiteSpace(cwd)
-            ? string.Empty
-            : Path.GetFullPath(cwd).TrimEnd(Path.DirectorySeparatorChar);
+        StartupRepoReason.LastUsed =>
+            Loc.F($"已载入上次使用的仓库目录（设置：上次使用的仓库优先）：{decision.Path}"),
+        StartupRepoReason.CurrentDirectory =>
+            Loc.F($"已载入当前目录所在的仓库：{decision.Path}"),
+        StartupRepoReason.FallbackToLastUsed =>
+            Loc.F($"当前目录不是 Git 仓库，已载入上次使用的仓库目录（设置：找不到时回退）：{decision.Path}"),
+        _ => Loc.F($"当前目录及上级目录中未找到 Git 仓库，按设置不自动加载上次项目，已留空仓库目录：{NoRepoHint()}")
+    };
 
-        string last = _settings.Current.LastRepoPath ?? string.Empty;
-        bool hasLast = last.Length > 0 && Directory.Exists(last);
-        StartupRepoMode mode = _settings.Current.StartupRepo;
-
-        // 设置里选了「上次使用的仓库优先」：直接沿用，不再看当前目录
-        if (mode == StartupRepoMode.LastUsed && hasLast)
-        {
-            message = Loc.F($"已载入上次使用的仓库目录（设置：上次使用的仓库优先）：{last}");
-            return last;
-        }
-
-        // 当前目录（或其上级）所在的仓库：默认最优先
-        string? cwdRepo = RepoLocator.FindRepoAncestor(cwdFull.Length > 0 ? cwdFull : baseDir);
-        if (cwdRepo != null)
-        {
-            message = Loc.F($"已载入当前目录所在的仓库：{cwdRepo}");
-            return cwdRepo;
-        }
-
-        // 只有显式选择「当前目录优先，找不到时回退」才自动打开上次项目；
-        // 默认的「只读取当前目录」不会把上个项目带进来
-        if (mode == StartupRepoMode.CurrentDirectoryThenLastUsed && hasLast)
-        {
-            message = Loc.F($"当前目录不是 Git 仓库，已载入上次使用的仓库目录（设置：找不到时回退）：{last}");
-            return last;
-        }
-
-        string hint = OperatingSystem.IsAndroid()
-            ? Loc.T("请点【选择文件夹】选取 Git 仓库根目录（需授予「所有文件访问」才能读写共享存储），") +
-              Loc.T("或先用【克隆项目】/【初始化仓库】创建仓库；如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。")
-            : Loc.T("请点击【浏览…】选择 Git 仓库根目录；") +
-              Loc.T("如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。");
-
-        message = Loc.F($"当前目录及上级目录中未找到 Git 仓库，按设置不自动加载上次项目，已留空仓库目录：{hint}");
-        return null;
-    }
-
-    /// <summary>记住本次成功加载的仓库目录：写入「上次使用的仓库」并更新最近项目记录（仓库管理首页展示）。</summary>
-    private void RememberRepoPath(string repoRoot)
-    {
-        bool changed = false;
-        if (!string.Equals(_settings.Current.LastRepoPath, repoRoot, StringComparison.Ordinal))
-        {
-            _settings.Current.LastRepoPath = repoRoot;
-            changed = true;
-        }
-
-        // 最近项目记录：去重后置于首位，超出上限裁掉最旧的
-        var recents = _settings.Current.RecentRepoPaths;
-        string before = string.Join("\n", recents);
-        recents.RemoveAll(p => string.Equals(p, repoRoot, StringComparison.Ordinal));
-        recents.Insert(0, repoRoot);
-        if (recents.Count > AppSettings.MaxRecentRepoPaths)
-            recents.RemoveRange(AppSettings.MaxRecentRepoPaths, recents.Count - AppSettings.MaxRecentRepoPaths);
-        changed |= string.Join("\n", recents) != before;
-
-        if (!changed) return;
-        try
-        {
-            _settings.Save();
-        }
-        catch (Exception)
-        {
-            // 保存失败不影响当前使用
-        }
-    }
+    /// <summary>未找到可用仓库时的操作提示（平台差异只影响展示文案）。</summary>
+    private static string NoRepoHint() => OperatingSystem.IsAndroid()
+        ? Loc.T("请点【选择文件夹】选取 Git 仓库根目录（需授予「所有文件访问」才能读写共享存储），") +
+          Loc.T("或先用【克隆项目】/【初始化仓库】创建仓库；如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。")
+        : Loc.T("请点击【浏览…】选择 Git 仓库根目录；") +
+          Loc.T("如需自动打开上次项目，可在【Git 环境】→「启动时加载的仓库」中修改。");
 
     // ==================== 提交身份（user.name / user.email） ====================
     // 读写细节在 GitIdentityService（与 Git 环境设置视图共用），这里只负责界面呈现。
@@ -1470,16 +1411,10 @@ public partial class MainView : UserControl
             }
 
             identity = identityView.SelectedIdentity;
-            _settings.Current.CommitIdentity = identity;
-            try
-            {
-                _settings.Save();
+            if (_app.SettingsEditor.TrySetCommitIdentity(identity, out string identityError))
                 Log(Loc.F($"已保存提交身份到：{_settings.Current.SettingsFilePath}"));
-            }
-            catch (Exception ex)
-            {
-                Log(Loc.T("保存提交身份失败：") + ex.Message);
-            }
+            else
+                Log(Loc.T("保存提交身份失败：") + identityError);
         }
 
         return ApplyCommitIdentity(identity, repoDir);
@@ -1516,15 +1451,8 @@ public partial class MainView : UserControl
         var identityView = new IdentityView(current);
         if (await UiDialogs.ShowAsync<bool?>(this, identityView, Loc.T("提交身份（git user.name / user.email）")) != true) return;
 
-        _settings.Current.CommitIdentity = identityView.SelectedIdentity;
-        try
-        {
-            _settings.Save();
-        }
-        catch (Exception ex)
-        {
-            Log(Loc.T("保存提交身份失败：") + ex.Message);
-        }
+        if (!_app.SettingsEditor.TrySetCommitIdentity(identityView.SelectedIdentity, out string identityError))
+            Log(Loc.T("保存提交身份失败：") + identityError);
 
         string dir = _repoRoot ?? TxtRepoPath.Text?.Trim() ?? string.Empty;
         if (string.IsNullOrWhiteSpace(dir)) dir = Environment.CurrentDirectory;

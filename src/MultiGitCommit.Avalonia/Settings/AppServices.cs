@@ -18,6 +18,9 @@ public sealed class AppServices
 
     public ISettingsProvider Settings { get; }
 
+    /// <summary>设置变更 / 落盘服务（共享组合使用；注入自定义设置时由会话创建替身）。</summary>
+    public AppSettingsService SettingsEditor { get; }
+
     public IProjectConfigStore ProjectConfigs { get; }
 
     public IGitEnvironmentService GitEnvironment { get; }
@@ -32,6 +35,7 @@ public sealed class AppServices
     {
         Cli = GitCliRunner.Default;
         Settings = SettingsProvider.Instance;
+        SettingsEditor = new AppSettingsService(Settings);
         ProjectConfigs = new ProjectConfigStore();
         GitEnvironment = new GitEnvironmentService();
         Identity = new GitIdentityService(Cli);
@@ -59,6 +63,12 @@ public sealed class AppServices
         var history = shared ? History : new GitHistoryReader(cli);
         var repoLocator = shared ? RepoLocator : new RepoLocator(cli);
 
+        // 依赖设置的策略服务必须跟随注入的 settings，否则测试替身会被共享单例绕过
+        var settingsEditor = ReferenceEquals(settings, Settings)
+            ? SettingsEditor
+            : new AppSettingsService(settings);
+        var repoSession = new RepoSessionService(repoLocator, ProjectConfigs, GitEnvironment, settingsEditor);
+
         return new AppSession(
             cli,
             settings,
@@ -70,7 +80,11 @@ public sealed class AppServices
             GitEnvironment,
             new CommitPushService(logged, identity, settings),
             new GitPullService(logged, settings),
-            new RepositoryCommands(cli, logged, GitEnvironment));
+            new RepositoryCommands(cli, logged, GitEnvironment),
+            settingsEditor,
+            new StartupRepoResolver(settings),
+            new RemoteUrlPolicy(),
+            repoSession);
     }
 }
 
@@ -102,6 +116,18 @@ public sealed class AppSession
 
     public IRepositoryCommands Repositories { get; }
 
+    /// <summary>设置的变更与落盘（视图不直接改 AppSettings 的字段）。</summary>
+    public AppSettingsService SettingsEditor { get; }
+
+    /// <summary>启动仓库定位策略。</summary>
+    public StartupRepoResolver StartupRepo { get; }
+
+    /// <summary>远端 URL 规则（GUI 与 MCP 共用）。</summary>
+    public RemoteUrlPolicy RemoteUrls { get; }
+
+    /// <summary>仓库加载（校验 / 配置 / 最近项目记忆）。</summary>
+    public RepoSessionService RepoSession { get; }
+
     internal AppSession(
         IGitCliRunner cli,
         ISettingsProvider settings,
@@ -113,7 +139,11 @@ public sealed class AppSession
         IGitEnvironmentService gitEnvironment,
         CommitPushService commitPush,
         GitPullService pull,
-        IRepositoryCommands repositories)
+        IRepositoryCommands repositories,
+        AppSettingsService settingsEditor,
+        StartupRepoResolver startupRepo,
+        RemoteUrlPolicy remoteUrls,
+        RepoSessionService repoSession)
     {
         Cli = cli;
         Settings = settings;
@@ -126,5 +156,9 @@ public sealed class AppSession
         CommitPush = commitPush;
         Pull = pull;
         Repositories = repositories;
+        SettingsEditor = settingsEditor;
+        StartupRepo = startupRepo;
+        RemoteUrls = remoteUrls;
+        RepoSession = repoSession;
     }
 }

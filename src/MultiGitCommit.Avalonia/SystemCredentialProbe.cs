@@ -183,7 +183,7 @@ public static class SystemCredentialProbe
     {
         if (!OperatingSystem.IsWindows()) yield break;
 
-        GitCommandResult listing = GitCliRunner.Default.Run(new GitCommandRequest
+        GitCommandResult listing = AppServices.Current.Cli.Run(new GitCommandRequest
         {
             FileName = "cmdkey",
             Arguments = "/list",
@@ -248,7 +248,7 @@ public static class SystemCredentialProbe
         {
             // git credential 协议：属性行 + 空行结束，行分隔必须用 \n。
             // 同时给出 protocol / host / url 三种字段，兼容不同版本 git 与各类 credential helper 的解析要求。
-            GitCommandResult result = await GitCliRunner.Default.RunAsync(new GitCommandRequest
+            GitCommandResult result = await AppServices.Current.Cli.RunAsync(new GitCommandRequest
             {
                 FileName = gitExe,
                 // helperArg 用于绕过不可用的 credential.helper 配置（如缺少 git-credential-manager）

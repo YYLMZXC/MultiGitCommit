@@ -11,22 +11,23 @@ namespace MultiGitCommit.Mcp;
 /// </summary>
 internal static class McpToolHandlers
 {
-    private const int MaxRemoteCount = 20;
-
     // ==================== 只读工具 ====================
 
     public static Task<JsonNode> GetGitEnvironmentAsync(JsonElement args, ToolContext ctx, CancellationToken ct)
-        => Task.FromResult<JsonNode>(new JsonObject
+    {
+        // 环境数据统一由会话里的环境服务提供，工具层不再直读 GitLocator 的静态状态
+        GitEnvironmentSnapshot env = ctx.Session.GitEnvironment.Describe();
+        return Task.FromResult<JsonNode>(new JsonObject
         {
             ["ok"] = true,
             ["appVersion"] = AppVersion.Current,
             ["git"] = new JsonObject
             {
-                ["available"] = ctx.Session.GitEnvironment.IsAvailable,
+                ["available"] = env.Available,
                 ["exe"] = ctx.Session.GitEnvironment.GitExe,
-                ["exePath"] = GitLocator.Current.GitExePath,
-                ["description"] = GitLocator.Current.Description,
-                ["sshExe"] = GitLocator.Current.SshExe
+                ["exePath"] = env.GitExePath,
+                ["description"] = env.Description,
+                ["sshExe"] = env.SshExe
             },
             ["settingsFile"] = ctx.Settings.SettingsFilePath,
             ["settings"] = new JsonObject
@@ -46,6 +47,7 @@ internal static class McpToolHandlers
                 ["readOnly"] = ctx.ReadOnly
             }
         });
+    }
 
     public static Task<JsonNode> ResolveRepoAsync(JsonElement args, ToolContext ctx, CancellationToken ct)
     {
@@ -268,9 +270,13 @@ internal static class McpToolHandlers
 
         if (Args.Strings(args, "remote_urls") is { } urls)
         {
-            if (urls.Length > MaxRemoteCount)
-                throw new ToolUsageException($"远端数量超过上限（最多 {MaxRemoteCount} 个）");
-            config.RemoteUrls = NormalizeUrls(urls, rejectEmbeddedCredentials: true);
+            if (urls.Length > RemoteUrlPolicy.MaxRemoteCount)
+                throw new ToolUsageException($"远端数量超过上限（最多 {RemoteUrlPolicy.MaxRemoteCount} 个）");
+
+            IReadOnlyList<string> normalized = ctx.Session.RemoteUrls
+                .NormalizeAll(urls, rejectEmbeddedCredentials: true, out string urlError);
+            if (urlError.Length > 0) throw new ToolUsageException(urlError);
+            config.RemoteUrls = normalized.ToList();
         }
 
         if (Args.BoolOrNull(args, "check_add_all") is bool addAll) config.CheckAddAll = addAll;
@@ -295,9 +301,10 @@ internal static class McpToolHandlers
         if (remark.Length > 500 || remark.IndexOfAny(new[] { '\r', '\n', '\0' }) >= 0)
             throw new ToolUsageException("remark 最长 500 字符，且不能包含换行");
 
-        List<string> urls = Args.Strings(args, "remote_urls") is { } overrideUrls
-            ? NormalizeUrls(overrideUrls, rejectEmbeddedCredentials: false)
-            : NormalizeUrls(config.RemoteUrls, rejectEmbeddedCredentials: false);
+        IEnumerable<string> rawUrls = Args.Strings(args, "remote_urls") ?? (IEnumerable<string>)config.RemoteUrls;
+        List<string> urls = ctx.Session.RemoteUrls
+            .NormalizeAll(rawUrls, rejectEmbeddedCredentials: false, out string urlError).ToList();
+        if (urlError.Length > 0) throw new ToolUsageException(urlError);
         if (urls.Count == 0)
             throw new ToolUsageException("没有可用的推送远端：请先用 set_config 配置，或在本次调用里传 remote_urls");
 
@@ -406,10 +413,13 @@ internal static class McpToolHandlers
     public static async Task<JsonNode> CloneRepoAsync(JsonElement args, ToolContext ctx, CancellationToken ct)
     {
         string parentDir = ExpandDirectory(Args.Required(args, "parent_dir"));
-        string url = GitCredentials.NormalizeUrl(Args.Required(args, "url"));
+        string? normalizedUrl = ctx.Session.RemoteUrls.Normalize(
+            Args.Required(args, "url"), rejectEmbeddedCredentials: true, out string urlError);
+        if (urlError.Length > 0) throw new ToolUsageException(urlError);
+
+        string url = normalizedUrl!;
         if (url.Length == 0 || url.IndexOfAny(new[] { '"', '\r', '\n', '\0' }) >= 0)
             throw new ToolUsageException("url 不是合法的远端地址");
-        RejectEmbeddedCredentials(url);
 
         string targetDir = Args.Required(args, "target_dir");
         if (targetDir is "." or ".." || Path.IsPathRooted(targetDir) ||
@@ -542,32 +552,6 @@ internal static class McpToolHandlers
         var array = new JsonArray();
         foreach (string url in urls) array.Add(McpJson.Mask(url));
         return array;
-    }
-
-    private static List<string> NormalizeUrls(IEnumerable<string> urls, bool rejectEmbeddedCredentials)
-    {
-        var result = new List<string>();
-        foreach (string raw in urls)
-        {
-            string url = GitCredentials.NormalizeUrl(raw);
-            if (url.Length == 0) continue;
-            if (url.Contains(":***@", StringComparison.Ordinal))
-                throw new ToolUsageException("远端 URL 含脱敏占位符 ***，请提供真实地址（不要用 get_config 返回的脱敏值回写）");
-            if (rejectEmbeddedCredentials) RejectEmbeddedCredentials(url);
-            if (!result.Contains(url, StringComparer.Ordinal)) result.Add(url);
-            if (result.Count >= MaxRemoteCount) break;
-        }
-
-        return result;
-    }
-
-    /// <summary>禁止把带 user:token@ 的 https URL 写进配置或回显给 AI（令牌应放在软件设置里）。</summary>
-    private static void RejectEmbeddedCredentials(string url)
-    {
-        bool isHttp = url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                      url.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
-        if (isHttp && !GitCredentials.NeedsCredential(url))
-            throw new ToolUsageException("远端 URL 不要内嵌用户名 / 令牌；凭据请在软件的【Git 环境】中配置");
     }
 
     private static string ExpandDirectory(string path)

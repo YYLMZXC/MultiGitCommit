@@ -96,7 +96,7 @@ public static class CredentialTester
 
         try
         {
-            GitCommandResult run = await (runner ?? GitCliRunner.Default).RunAsync(new GitCommandRequest
+            GitCommandResult run = await (runner ?? AppServices.Current.Cli).RunAsync(new GitCommandRequest
             {
                 FileName = gitExe,
                 // -c credential.helper= ：探测只认 URL 里的账号，不用（也不会改）系统保存的账号
