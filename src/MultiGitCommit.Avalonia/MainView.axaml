@@ -212,6 +212,8 @@
                     </TextBox>
                 </Border>
                 <WrapPanel Grid.Row="2" Margin="0,4,0,0" HorizontalAlignment="Left">
+                    <Button x:Name="BtnCopyLog" Content="复制日志" Click="BtnCopyLog_Click" Padding="10,2"
+                            ToolTip.Tip="把日志区当前全部内容复制到系统剪贴板"/>
                     <Button x:Name="BtnClearLog" Content="清空日志" Click="BtnClearLog_Click" Padding="10,2"/>
                     <CheckBox x:Name="ChkAutoScroll" Content="自动滚动到底部" IsChecked="True" VerticalAlignment="Center" Margin="12,0,0,0"/>
                     <TextBlock x:Name="TxtGitStatus" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#666"

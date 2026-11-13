@@ -1192,6 +1192,34 @@ public partial class MainView : UserControl
         TxtLog.Text = string.Empty;
     }
 
+    /// <summary>把日志区当前全部内容复制到系统剪贴板。</summary>
+    private async void BtnCopyLog_Click(object? sender, RoutedEventArgs e)
+    {
+        string text = TxtLog.Text ?? string.Empty;
+        if (text.Length == 0)
+        {
+            Log("日志为空，没有内容可复制。");
+            return;
+        }
+
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.Clipboard == null)
+            {
+                Log("当前环境不支持系统剪贴板，无法复制日志。");
+                return;
+            }
+
+            await topLevel.Clipboard.SetTextAsync(text);
+            Log($"已复制日志到剪贴板（{text.Length} 字符）。");
+        }
+        catch (Exception ex)
+        {
+            Log($"复制日志失败：{ex.Message}");
+        }
+    }
+
     // ==================== 启动仓库定位（记住上次项目） ====================
 
     /// <summary>
