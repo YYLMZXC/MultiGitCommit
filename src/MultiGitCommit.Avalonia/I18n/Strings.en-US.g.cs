@@ -226,6 +226,8 @@ internal static class LocStringsEn
             { "L.RepoHomeView.L104.ToolTip_Tip", "Start directly on the commit & push page (previous behavior)" },
             { "L.RepoHomeView.L105.Content", "Repository home" },
             { "L.RepoHomeView.L107.ToolTip_Tip", "Start on the repository home page (when the current directory is not a repository)" },
+            { "L.RepoHomeView.NameLabel.Text", "Name:" },
+            { "L.RepoHomeView.NameLabel.ToolTip_Tip", "The repository name comes from its root folder name" },
             { "L.RepoHomeView.PathLabel.Text", "Path:" },
             { "L.RepoHomeView.BranchLabel.Text", "Branch:" },
             { "L.RepoHomeView.BranchLabel.ToolTip_Tip", "Current branch is read from the repository's .git/HEAD; an em dash means no .git or unreadable, and the HEAD@ prefix means a detached HEAD" },

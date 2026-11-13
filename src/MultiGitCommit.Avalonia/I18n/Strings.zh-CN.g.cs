@@ -226,6 +226,8 @@ internal static class LocStringsZh
             { "L.RepoHomeView.L104.ToolTip_Tip", "启动直接进入仓库提交推送界面（历史行为）" },
             { "L.RepoHomeView.L105.Content", "仓库管理页" },
             { "L.RepoHomeView.L107.ToolTip_Tip", "启动先进入仓库管理首页（当前目录无仓库时）" },
+            { "L.RepoHomeView.NameLabel.Text", "名称：" },
+            { "L.RepoHomeView.NameLabel.ToolTip_Tip", "仓库名称取自仓库根目录的文件夹名" },
             { "L.RepoHomeView.PathLabel.Text", "路径：" },
             { "L.RepoHomeView.BranchLabel.Text", "分支：" },
             { "L.RepoHomeView.BranchLabel.ToolTip_Tip", "当前分支读取自仓库的 .git/HEAD；「—」表示没有 .git 或无法读取，HEAD@ 前缀表示游离 HEAD" },

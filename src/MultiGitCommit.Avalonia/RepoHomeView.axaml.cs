@@ -10,7 +10,8 @@ namespace MultiGitCommit;
 /// <summary>
 /// 仓库管理首页：最近打开的项目记录（保存在 AppSettings.RecentRepoPaths）+ 本地 Git 仓库自动发现
 /// （后台线程扫描，算法与 MCP find_repos 共用 RepoScanner），支持唤起系统文件管理器选目录打开。
-/// 两个列表的每一项都显示完整路径与当前分支（由 RepoBranchReader 解析 .git/HEAD，不启动 git 进程），
+/// 两个列表的每一项都显示仓库名称（目录名）、完整路径与当前分支
+/// （由 RepoBranchReader 解析 .git/HEAD，不启动 git 进程），
 /// 并可点【打开文件夹】在系统文件管理器中打开该仓库目录。
 /// 以覆盖层形式嵌在 MainView 内，由宿主通过 <see cref="Attach"/> 注入回调。
 /// </summary>
@@ -28,10 +29,10 @@ public partial class RepoHomeView : UserControl
     /// <summary>应用设置来源（最近项目记录与默认启动页）。</summary>
     private ISettingsProvider _settings = SettingsProvider.Instance;
 
-    /// <summary>最近打开的项目（绑定到 ListRecent，含完整路径与当前分支）。</summary>
+    /// <summary>最近打开的项目（绑定到 ListRecent，含名称、完整路径与当前分支）。</summary>
     private readonly ObservableCollection<RepoHomeItem> _recent = new();
 
-    /// <summary>自动发现的本地仓库（绑定到 ListDiscovered，含完整路径与当前分支）。</summary>
+    /// <summary>自动发现的本地仓库（绑定到 ListDiscovered，含名称、完整路径与当前分支）。</summary>
     private readonly ObservableCollection<RepoHomeItem> _discovered = new();
 
     /// <summary>当前扫描的取消令牌源（刷新 / 视图销毁时中止旧扫描）。</summary>
@@ -250,7 +251,7 @@ public partial class RepoHomeView : UserControl
 }
 
 /// <summary>
-/// 仓库管理列表项：完整路径 + 当前分支。
+/// 仓库管理列表项：仓库名称（目录名）+ 完整路径 + 当前分支。
 /// 分支由 <see cref="RepoBranchReader"/> 解析 .git/HEAD 得到（不启动 git 进程，适合批量展示）；
 /// 分支可变（在项目页切换分支后返回首页会重读），故实现属性变更通知让绑定自动刷新。
 /// </summary>
@@ -261,11 +262,30 @@ public sealed class RepoHomeItem : INotifyPropertyChanged
     public RepoHomeItem(string repoPath)
     {
         RepoPath = repoPath;
+        Name = DeriveName(repoPath);
         _branch = RepoBranchReader.Read(repoPath);
     }
 
+    /// <summary>仓库名称：仓库根目录的文件夹名；盘符 / 根目录等无法取名时回退为路径本身。</summary>
+    public string Name { get; }
+
     /// <summary>仓库根目录完整路径。</summary>
     public string RepoPath { get; }
+
+    /// <summary>从路径取最后一段目录名，兼容末尾分隔符、盘符根目录与非法路径。</summary>
+    private static string DeriveName(string repoPath)
+    {
+        try
+        {
+            string full = Path.GetFullPath(repoPath);
+            string name = Path.GetFileName(Path.TrimEndingDirectorySeparator(full));
+            return string.IsNullOrEmpty(name) ? repoPath : name;
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException or System.Security.SecurityException)
+        {
+            return repoPath;
+        }
+    }
 
     /// <summary>当前分支名；无法读取时显示「—」，游离 HEAD 显示 HEAD@短哈希。</summary>
     public string Branch

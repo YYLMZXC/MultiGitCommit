@@ -53,6 +53,12 @@
                                         <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,6,0">
                                             <Grid ColumnDefinitions="Auto,*">
                                                 <TextBlock Grid.Column="0" Foreground="#666" VerticalAlignment="Top" Margin="0,0,4,0"
+                                                           Text="{DynamicResource L.RepoHomeView.NameLabel.Text}"/>
+                                                <TextBlock Grid.Column="1" FontWeight="SemiBold" Foreground="#222" Text="{Binding Name}" TextWrapping="Wrap"
+                                                           ToolTip.Tip="{DynamicResource L.RepoHomeView.NameLabel.ToolTip_Tip}"/>
+                                            </Grid>
+                                            <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
+                                                <TextBlock Grid.Column="0" Foreground="#666" VerticalAlignment="Top" Margin="0,0,4,0"
                                                            Text="{DynamicResource L.RepoHomeView.PathLabel.Text}"/>
                                                 <TextBlock Grid.Column="1" Text="{Binding RepoPath}" TextWrapping="Wrap" ToolTip.Tip="{Binding RepoPath}"/>
                                             </Grid>
@@ -95,6 +101,12 @@
                                         <Grid ColumnDefinitions="*,Auto,Auto">
                                             <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,6,0">
                                                 <Grid ColumnDefinitions="Auto,*">
+                                                    <TextBlock Grid.Column="0" Foreground="#666" VerticalAlignment="Top" Margin="0,0,4,0"
+                                                               Text="{DynamicResource L.RepoHomeView.NameLabel.Text}"/>
+                                                    <TextBlock Grid.Column="1" FontWeight="SemiBold" Foreground="#222" Text="{Binding Name}" TextWrapping="Wrap"
+                                                               ToolTip.Tip="{DynamicResource L.RepoHomeView.NameLabel.ToolTip_Tip}"/>
+                                                </Grid>
+                                                <Grid ColumnDefinitions="Auto,*" Margin="0,2,0,0">
                                                     <TextBlock Grid.Column="0" Foreground="#666" VerticalAlignment="Top" Margin="0,0,4,0"
                                                                Text="{DynamicResource L.RepoHomeView.PathLabel.Text}"/>
                                                     <TextBlock Grid.Column="1" Text="{Binding RepoPath}" TextWrapping="Wrap" ToolTip.Tip="{Binding RepoPath}"/>
