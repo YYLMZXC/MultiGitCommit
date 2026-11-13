@@ -53,8 +53,17 @@
             <Setter Property="BorderBrush" Value="#D8DEE6"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="6"/>
-            <Setter Property="Padding" Value="16"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+        <!-- 高级设置入口：带底色的整行按钮，收起时贴着滚动区底部也一眼能看出可点，
+             展开后滚动到视口顶部时同样给出清晰的分区起点 -->
+        <Style Selector="Border.advanced-header">
+            <Setter Property="Background" Value="#0F2B579A"/>
+            <Setter Property="BorderBrush" Value="#C9D5E6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="10,8"/>
         </Style>
         <Style Selector="Border.subcard">
             <Setter Property="Background" Value="#0C808080"/>
@@ -80,7 +89,7 @@
              窄屏时由 ApplyResponsiveLayout 给容器加 compact 类，把内边距让给内容 -->
         <Style Selector="Border.card.compact">
             <Setter Property="Padding" Value="12"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
         <Style Selector="Border.subcard.compact">
             <Setter Property="Padding" Value="10"/>
@@ -112,11 +121,11 @@
         <ScrollViewer x:Name="ContentScroll"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
-                      Padding="18,16,18,12">
+                      Padding="18,16,18,28">
             <StackPanel>
 
                 <TextBlock Text="{DynamicResource L.GitSettingsView.L107.Text}" Classes="page-title"/>
-                <TextBlock Classes="section-sub" Margin="0,4,0,16"
+                <TextBlock Classes="section-sub" Margin="0,4,0,8"
                            Text="{DynamicResource L.GitSettingsView.L109.Text}"/>
 
                 <!-- ============ 第一块：提交身份（默认展开，所有人都用） ============ -->
@@ -128,7 +137,7 @@
                                    Text="{DynamicResource L.GitSettingsView.L117.Text}"/>
 
                         <!-- 标签在上、输入框在下；窄屏（移动端）由 ApplyResponsiveLayout 改为逐行排列 -->
-                        <Grid x:Name="IdentityInputGrid" Margin="0,14,0,0">
+                        <Grid x:Name="IdentityInputGrid" Margin="0,10,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
@@ -216,13 +225,15 @@
                 <!-- ============ 第四块：高级设置（默认收起，渐进式披露） ============ -->
                 <Expander x:Name="AdvancedExpander" IsExpanded="False"
                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
-                          Margin="0,4,0,8">
+                          Margin="0,4,0,20">
                     <Expander.Header>
-                        <StackPanel Margin="0,2">
-                            <TextBlock Text="{DynamicResource L.GitSettingsView.L202.Text}" Classes="section-title"/>
-                            <TextBlock Classes="section-sub" Margin="0,2,0,0"
-                                       Text="{DynamicResource L.GitSettingsView.L204.Text}"/>
-                        </StackPanel>
+                        <Border Classes="advanced-header">
+                            <StackPanel>
+                                <TextBlock Text="{DynamicResource L.GitSettingsView.L202.Text}" Classes="section-title"/>
+                                <TextBlock Classes="section-sub" Margin="0,2,0,0"
+                                           Text="{DynamicResource L.GitSettingsView.L204.Text}"/>
+                            </StackPanel>
+                        </Border>
                     </Expander.Header>
 
                     <StackPanel Margin="0,10,0,0">

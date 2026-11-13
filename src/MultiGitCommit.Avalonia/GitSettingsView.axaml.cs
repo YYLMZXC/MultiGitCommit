@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -140,8 +141,7 @@ public partial class GitSettingsView : DialogView<bool>
             if (e.Property == Expander.IsExpandedProperty && AdvancedExpander.IsExpanded)
             {
                 _ = EnsureAdvancedChecksAsync();
-                // 窗口尺寸固定后，新展开的内容都在滚动区下方；把高级区滚到视口内，避免看起来「点了没反应」
-                Dispatcher.UIThread.Post(() => AdvancedExpander.BringIntoView(), DispatcherPriority.Loaded);
+                _ = ScrollAdvancedIntoViewAsync();
             }
         };
 
@@ -1027,6 +1027,39 @@ public partial class GitSettingsView : DialogView<bool>
         Close(true);
     }
 
+    // ==================== 高级设置的滚动定位 ====================
+
+    /// <summary>
+    /// 展开后把「高级设置」标题对齐到滚动区顶部（留 16px 呼吸空间）。
+    ///
+    /// 不能用 BringIntoView：展开后的 Expander 远高于视口，默认策略只把超大目标滚到视口边缘，
+    /// 结果标题上沿被裁、第一块「Git 程序来源」看不见，看起来就像高级设置被遮住。
+    /// 展开动画期间 ScrollViewer.Extent 持续增长，过早设置 Offset 会被当时的上限截断，
+    /// 因此等动画稳定后再定位；失败时保留原滚动位置，不影响功能。
+    /// </summary>
+    private async Task ScrollAdvancedIntoViewAsync()
+    {
+        await Task.Delay(300).ConfigureAwait(false);
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                if (!AdvancedExpander.IsExpanded) return;
+
+                Matrix? transform = AdvancedExpander.TransformToVisual(ContentScroll);
+                if (transform is not { } matrix) return;
+
+                // M32 = Expander 顶部相对滚动区视口的 Y；加上已有偏移即得到它在内容中的纵坐标
+                double top = ContentScroll.Offset.Y + matrix.M32 - 16;
+                ContentScroll.Offset = new Vector(ContentScroll.Offset.X, Math.Max(0, top));
+            }
+            catch (Exception)
+            {
+                // 仅优化体验，定位失败时保持现有滚动位置
+            }
+        }, DispatcherPriority.Background);
+    }
+
     // ==================== 窄屏（移动端）响应式布局 ====================
 
     /// <summary>
@@ -1057,8 +1090,8 @@ public partial class GitSettingsView : DialogView<bool>
         // 该块幂等且须在 narrow 早退之前执行（宽度在两个阈值间抖动时也要恢复原状）。
         bool compact = width > 0 && width < NarrowLayoutThreshold;
         ContentScroll.Padding = compact
-            ? new Avalonia.Thickness(10, 12, 10, 10)
-            : new Avalonia.Thickness(18, 16, 18, 12);
+            ? new Avalonia.Thickness(10, 12, 10, 24)
+            : new Avalonia.Thickness(18, 16, 18, 28);
         SetCompact(IdentityCard, compact);
         SetCompact(StageCard, compact);
         SetCompact(SrcCard, compact);
