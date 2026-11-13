@@ -11,11 +11,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MultiGitCommit</RootNamespace>
     <AssemblyName>MultiGitCommit</AssemblyName>
-    <!-- 版本号自动生成：yy.MM.dd-dHHmm（构建机本地时间），无需手改。注意不能用 HHmm：00:00~00:59 之间有前导零（如 0009），SemVer 规定纯数字预发布号不得有前导零，NuGet 还原会报 NU1105「不是有效的版本字符串」；前缀日号（d 不含前导零）保证整串无前导零。
+    <!-- 版本号自动生成：yy.MM.dd（构建机本地时间；构建时刻见 InformationalVersion），无需手改。
          需要固定版本时用命令行覆盖：dotnet build -p:Version=26.11.03-1119 -->
     <BuildDate>$([System.DateTime]::Now.ToString('yy.MM.dd'))</BuildDate>
     <BuildTime>$([System.DateTime]::Now.ToString('dHHmm'))</BuildTime>
-    <Version Condition="'$(Version)' == ''">$(BuildDate)-$(BuildTime)</Version>
+        <!-- ⚠ Version 必须是【纯数字日期】且各 TFM 完全一致：Android/iOS SDK 里有一条「ApplicationDisplayVersion 能解析成 System.Version 时就用它覆盖 Version」的规则；
+         桌面侧若带 -dHHmm 后缀则各 TFM 的 PackageVersion 不同，NuGet 报 NU1105「PackageVersion 应在所有目标框架中具有单个值」，还原直接失败（VS 必现，命令行 NuGet 版本较宽容所以能过）。
+         构建时刻改放 InformationalVersion（文件属性「产品版本」，AppVersion 标题仍只取日期部分）。 -->
+    <Version Condition="'$(Version)' == ''">$(BuildDate)</Version>
+    <InformationalVersion>$(BuildDate)-$(BuildTime)</InformationalVersion>
     <!-- 文件属性里的产品版本只保留版本号本身，不追加 git 提交哈希 -->
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <!-- COM 互操作仅桌面需要（移动端不支持该属性） -->
@@ -28,7 +32,7 @@
     <RuntimeIdentifiers Condition="'$(TargetFramework)' == 'net10.0-ios'">ios-arm64</RuntimeIdentifiers>
     <!-- 移动端应用标识：Android 包名 / iOS Bundle Identifier（与桌面 macOS 包一致） -->
     <ApplicationId>com.yylmzxc.multigitcommit</ApplicationId>
-    <ApplicationDisplayVersion>$(BuildDate)</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
     <ApplicationVersion>$(BuildTime)</ApplicationVersion>
     <!-- Android：.NET 10 下 minSdk 必须 ≥ 23（XA4216） -->
     <SupportedOSPlatformVersion Condition="'$(TargetFramework)' == 'net10.0-android'">23</SupportedOSPlatformVersion>
