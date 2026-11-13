@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 // 安卓 TFM 的隐式全局 using 会引入 Android.Widget.Button，与 Avalonia 的 Button 冲突，固定别名消歧
 using AvaloniaButton = Avalonia.Controls.Button;
 
@@ -55,6 +56,7 @@ public partial class RepoHomeView : UserControl
 
         // 视图销毁时中止仍在进行的扫描，避免后台线程空转
         DetachedFromVisualTree += (_, _) => _scanCts?.Cancel();
+        SizeChanged += (_, _) => ApplyResponsiveLayout();
     }
 
     /// <summary>
@@ -73,6 +75,8 @@ public partial class RepoHomeView : UserControl
     /// <summary>每次显示首页时调用：刷新最近项目列表，并按需启动一次仓库自动发现。</summary>
     public void OnShown()
     {
+        // 覆盖层刚显示时 Bounds 可能还是旧值，布局完成后再按视口高度分配列表高度
+        Dispatcher.UIThread.Post(ApplyResponsiveLayout, DispatcherPriority.Loaded);
         RefreshRecent();
 
         // 在项目页切换分支 / 新建分支后返回首页，自动发现列表的分支信息也要同步刷新
@@ -83,6 +87,20 @@ public partial class RepoHomeView : UserControl
             _scanStarted = true;
             _ = ScanAsync();
         }
+    }
+
+    /// <summary>
+    /// 按视口高度给两个列表限高：最近项目是 Auto 行，条目多（或窄屏路径换行）时会把下面的
+    /// 自动发现列表和底部「默认启动页」操作条挤出视口。两个列表各自内部滚动、互不嵌套，
+    /// 底部条因此始终留在视口内；窄屏按钮与操作条由 XAML 的 WrapPanel 自动换行。
+    /// </summary>
+    private void ApplyResponsiveLayout()
+    {
+        double height = Bounds.Height;
+        if (height <= 0) return;
+
+        RecentScroll.MaxHeight = Math.Clamp(height * 0.24, 96, 220);
+        DiscoveredScroll.MaxHeight = Math.Clamp(height * 0.34, 140, 360);
     }
 
     // ==================== 最近打开的项目 ====================

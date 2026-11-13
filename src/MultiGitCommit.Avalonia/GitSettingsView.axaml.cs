@@ -117,8 +117,10 @@ public partial class GitSettingsView : DialogView<bool>
         if (OperatingSystem.IsAndroid())
             BtnBrowse.Content = Loc.T("输入路径");
 
-        // 数据目录：桌面可用系统文件管理器打开；移动端不支持，仍显示路径方便手动查找
-        BtnOpenDataDir.IsVisible = !OperatingSystem.IsAndroid() && !OperatingSystem.IsIOS();
+        // 数据目录：桌面用系统文件管理器打开；移动端无法打开应用私有目录，改为复制路径（按钮始终可见）
+        bool mobile = OperatingSystem.IsAndroid() || OperatingSystem.IsIOS();
+        BtnOpenDataDir.IsVisible = !mobile;
+        BtnCopyDataDir.IsVisible = mobile;
         TxtDataDirPath.Text = current.DataDirectory;
         ToolTip.SetTip(TxtDataDirPath, current.DataDirectory);
 
@@ -958,6 +960,31 @@ public partial class GitSettingsView : DialogView<bool>
 
         if (FileOpener.TryOpenFolder(dir, out string error)) return;
         await Dialogs.ShowMessageAsync(this, Loc.T("打开文件夹"), Loc.T("× 打开文件夹失败：") + error);
+    }
+
+    /// <summary>【复制数据目录】（移动端）：把 settings.json 与凭据密钥文件所在目录复制到剪贴板。</summary>
+    private async void BtnCopyDataDir_Click(object? sender, RoutedEventArgs e)
+    {
+        string dir = _settings.DataDirectory;
+        string title = BtnCopyDataDir.Content?.ToString() ?? string.Empty;
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel?.Clipboard == null)
+            {
+                // 剪贴板不可用时至少把完整路径展示出来，便于用户手动记录
+                await Dialogs.ShowMessageAsync(this, title, dir);
+                return;
+            }
+
+            await topLevel.Clipboard.SetTextAsync(dir);
+            await Dialogs.ShowMessageAsync(this, title,
+                Loc.T("数据目录路径已复制到剪贴板：") + Environment.NewLine + dir);
+        }
+        catch (Exception ex)
+        {
+            await Dialogs.ShowMessageAsync(this, title, ex.Message);
+        }
     }
 
     /// <summary>

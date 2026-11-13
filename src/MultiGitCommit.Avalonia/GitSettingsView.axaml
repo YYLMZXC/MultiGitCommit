@@ -102,11 +102,17 @@
         <!-- 底部按钮栏：始终可见，不随内容滚动 -->
         <Border DockPanel.Dock="Bottom" BorderBrush="#D8DEE6" BorderThickness="0,1,0,0" Padding="18,10">
             <Grid ColumnDefinitions="*,Auto">
-                <!-- 左侧：数据目录入口（移动端不支持系统文件管理器，隐藏按钮但仍显示路径） -->
+                <!-- 左侧：数据目录入口。桌面用系统文件管理器打开；移动端无法直接打开应用私有目录，
+                     改为「复制数据目录」把路径放进剪贴板，按钮始终可见 -->
                 <Grid Grid.Column="0" ColumnDefinitions="Auto,*" VerticalAlignment="Center">
-                    <Button x:Name="BtnOpenDataDir" Content="{DynamicResource L.GitSettingsView.OpenDataDir.Content}"
-                            Padding="8,3" Click="BtnOpenDataDir_Click"
-                            ToolTip.Tip="{DynamicResource L.GitSettingsView.OpenDataDir.ToolTip_Tip}"/>
+                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                        <Button x:Name="BtnOpenDataDir" Content="{DynamicResource L.GitSettingsView.OpenDataDir.Content}"
+                                Padding="8,3" Click="BtnOpenDataDir_Click"
+                                ToolTip.Tip="{DynamicResource L.GitSettingsView.OpenDataDir.ToolTip_Tip}"/>
+                        <Button x:Name="BtnCopyDataDir" Content="{DynamicResource L.GitSettingsView.CopyDataDir.Content}"
+                                Padding="8,3" Click="BtnCopyDataDir_Click"
+                                ToolTip.Tip="{DynamicResource L.GitSettingsView.CopyDataDir.ToolTip_Tip}"/>
+                    </StackPanel>
                     <!-- 用 Grid 的 * 列约束宽度，长路径只省略显示，不会挤到右侧的确定/取消按钮 -->
                     <TextBlock x:Name="TxtDataDirPath" Grid.Column="1" Classes="hint" Margin="8,0,0,0" VerticalAlignment="Center"
                                TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>

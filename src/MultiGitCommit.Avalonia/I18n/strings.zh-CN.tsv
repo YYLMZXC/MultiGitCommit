@@ -102,6 +102,8 @@ L.GitSettingsView.L383.ToolTip_Tip	git 取用系统保存的账号所依赖的�
 # 设置页底部「数据目录」入口（语义键，不绑定 XAML 行号）
 L.GitSettingsView.OpenDataDir.Content	打开数据目录
 L.GitSettingsView.OpenDataDir.ToolTip_Tip	在系统文件管理器中打开软件的数据目录（settings.json 与凭据密钥文件所在目录）
+L.GitSettingsView.CopyDataDir.Content	复制数据目录
+L.GitSettingsView.CopyDataDir.ToolTip_Tip	复制软件的数据目录路径（settings.json 与凭据密钥文件所在目录）
 L.HistoryView.L028.Content	重置到选中提交
 L.HistoryView.L029.ToolTip_Tip	执行 git reset，把当前分支回退到选中提交（执行前会二次确认）
 L.HistoryView.L030.Content	关闭

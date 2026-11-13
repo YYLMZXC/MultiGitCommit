@@ -120,6 +120,7 @@ pwsh scripts/TestSmoke.ps1 -Configuration Release
 - UI 实跑：收起时高级设置入口矩形由 `948,1094,664,57` 上移到 `948,1074,664,57`，底部不再越过固定按钮栏；展开后标题完整置顶，前两块高级内容可见，第三块需正常滚动。
 - GUI 启动冒烟：进程存活、stderr 无未处理异常输出。
 - 移动端卡顿优化复验（2026-11-13）：UIA 实跑 GUI 5 秒后远端列表 3 项全部加载、日志 673 字符可见，截图确认「远端共 3 个」分行日志与列表显示正常；`pwsh scripts/TestSmoke.ps1 -IncludeAndroid` → **14 passed, 0 failed**；桌面窗口 `Resize` 到 900（受 `MinWidth` 限制，未达 700 阈值）无异常。
+- 移动端设置 / 首页适配复验（2026-11-13）：桌面设置页 UIA 仅见「打开数据目录」（复制按钮按平台隐藏）；仓库首页截图确认标题、2 条最近项目、扫描区与底部操作条完整可见；窗口缩到 900×640 后 UIA 坐标确认「项目页 / 仓库管理页」单选与「选择文件夹打开…」全部落在窗口内。
 
 ### 2.5 未覆盖 / 待补
 
@@ -146,6 +147,8 @@ pwsh scripts/TestSmoke.ps1 -Configuration Release
 | 移动端远端列表滑动掉帧 | `ListBox` 嵌在整页 `ScrollViewer` 中两层抢手势；长 URL 项参与整页测量 | 窄屏禁用列表内部滚动、自适应高度由外层统一滚动；项模板单行省略 + 禁用横向滚动 |
 | 日志越多越卡 | 每次 `TxtLog.Text +=` 全量重设文本，窄屏折行后整页重排；`*` 行还会随日志撑高整页 | `StringBuilder` + 60ms 合并刷新 + 64KB 上限；移动端 `LogFrame.Height = 240` 固定视口 |
 | 打开 / 切换仓库时卡住 | `RepoLocator.TryResolve` 同步启动 git 子进程（Android 内嵌 git 更慢）阻塞 UI 线程 | `LoadConfigFromPathAsync` 把服务调用放进 `Task.Run`，`_loadSeq` 防重入 |
+| 移动端设置页没有数据目录按钮 | `BtnOpenDataDir.IsVisible = !IsAndroid && !IsIOS`，而应用私有目录又无法用系统文件管理器打开 | 移动端显示「复制数据目录」按钮，点击复制完整路径到剪贴板；桌面仍打开文件夹；4 个 i18n 文件同步词条 |
+| 仓库管理首页显示不全 | 最近项目 `ItemsControl` 在 `Auto` 行内无限增高，挤掉自动发现列表与底部操作条；底部条单行横排在窄屏被裁 | 两个列表按视口高度动态限高并各自内部滚动；列表项按钮与底部操作条改 `WrapPanel` 自动换行 |
 
 ### 3.2 残留风险（按优先级）
 
